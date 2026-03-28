@@ -1,0 +1,98 @@
+---
+# 检查规则列表
+# 逗号分隔，前面带 '-' 表示禁用该检查
+Checks: >
+  -*,
+  bugprone-*,
+  cppcoreguidelines-*,
+  modernize-*,
+  performance-*,
+  readability-*,
+  misc-*,
+  -modernize-use-trailing-return-type,
+  -readability-magic-numbers,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+  -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-owning-memory,
+  -readability-identifier-length,
+  -bugprone-easily-swappable-parameters
+
+# 将特定警告视为错误 (Warning as Error)
+# WarningsAsErrors: 'bugprone-*,performance-*'
+
+# 检查选项参数配置
+CheckOptions:
+  # 命名规则尽量贴近 Google C++ Style Guide。
+  # 说明:
+  # 1. `main` 属于约定俗成的入口函数，需要从常规函数 PascalCase 规则中排除。
+  # 2. clang-tidy 无法完整表达“类成员要有尾下划线、结构体成员不要”的全部细节，
+  #    这里优先用访问级别规则约束类成员，结构体成员保持 lower_case。
+  - key:             readability-identifier-naming.NamespaceCase
+    value:           lower_case
+  - key:             readability-identifier-naming.ClassCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.StructCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.UnionCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.EnumCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.TypedefCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.TypeAliasCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.TypeTemplateParameterCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.TemplateTemplateParameterCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.ValueTemplateParameterCase
+    value:           lower_case
+  - key:             readability-identifier-naming.FunctionCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.MethodCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.IgnoreMainLikeFunctions
+    value:           'true'
+  - key:             readability-identifier-naming.VariableCase
+    value:           lower_case
+  - key:             readability-identifier-naming.LocalVariableCase
+    value:           lower_case
+  - key:             readability-identifier-naming.GlobalVariableCase
+    value:           lower_case
+  - key:             readability-identifier-naming.StaticVariableCase
+    value:           lower_case
+  - key:             readability-identifier-naming.ParameterCase
+    value:           lower_case
+  - key:             readability-identifier-naming.MemberCase
+    value:           lower_case
+  - key:             readability-identifier-naming.PublicMemberCase
+    value:           lower_case
+  - key:             readability-identifier-naming.ProtectedMemberCase
+    value:           lower_case
+  - key:             readability-identifier-naming.PrivateMemberCase
+    value:           lower_case
+  - key:             readability-identifier-naming.ProtectedMemberSuffix
+    value:           _
+  - key:             readability-identifier-naming.PrivateMemberSuffix
+    value:           _
+  - key:             readability-identifier-naming.GlobalConstantCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.GlobalConstantPrefix
+    value:           k
+  - key:             readability-identifier-naming.StaticConstantCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.StaticConstantPrefix
+    value:           k
+  - key:             readability-identifier-naming.ClassConstantCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.ClassConstantPrefix
+    value:           k
+  - key:             readability-identifier-naming.EnumConstantCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.EnumConstantPrefix
+    value:           k
+  - key:             readability-identifier-naming.MacroDefinitionCase
+    value:           UPPER_CASE
+  - key:             modernize-use-auto.MinTypeNameLength
+    value:           '5'

@@ -1,0 +1,32 @@
+---
+# 基础样式
+BasedOnStyle: Google
+
+# 语言标准
+Standard: c++20
+
+# 核心排版
+ColumnLimit: 120          # 推荐放宽到 100 或 120，Google 默认的 80 在现代显示器上显得太拥挤
+IndentWidth: 4            # 缩进宽度，Google 默认为 2，但 4 更有利于代码层级阅读
+TabWidth: 4               # Tab 宽度
+UseTab: Never             # 禁用 Tab，统一使用空格
+
+# 指针和引用对齐方式
+PointerAlignment: Right   # 指针靠右对齐 (例如: int* a -> int *a; 如果喜欢 int* a, 改为 Left)
+ReferenceAlignment: Right # 引用靠右对齐
+
+# 换行与括号规则
+AllowShortFunctionsOnASingleLine: Empty # 只有空函数可以写在一行
+AllowShortIfStatementsOnASingleLine: Never # if 语句必须换行
+AllowShortLoopsOnASingleLine: false        # 循环语句必须换行
+BreakBeforeBraces: Attach                  # 大括号紧跟在语句后面 (K&R 风格)
+
+# 头文件排序 (非常实用)
+SortIncludes: CaseSensitive # 按字母表排序 #include
+IncludeBlocks: Regroup      # 根据类别分组头文件 (如 <...> 和 "...")
+
+# 命名空间缩进
+NamespaceIndentation: None  # 命名空间内部不缩进，避免过多缩进浪费屏幕空间
+
+# 宏定义与预处理
+IndentPPDirectives: AfterHash # 预处理指令跟随缩进 (如 #  ifdef)
