@@ -1,6 +1,24 @@
 #include <iostream>
-int main() {
-    // 保留最小可运行入口，作为后续业务代码的起点。
-    std::cout << "ShaTV bootstrap" << std::endl;
-    return 0;
+
+#include <QApplication>
+#include <QMainWindow>
+#include <QTimer>
+
+int main(int argc, char *argv[]) {
+    QApplication app(argc, argv);
+
+    QMainWindow window;
+    window.setWindowTitle("ShaTV");
+    window.resize(1280, 720);
+
+    const bool smoke_test = app.arguments().contains("--smoke-test");
+    if (smoke_test) {
+        window.show();
+        std::cout << "ShaTV Qt6 bootstrap" << std::endl;
+        QTimer::singleShot(0, &app, &QCoreApplication::quit);
+        return app.exec();
+    }
+
+    window.show();
+    return app.exec();
 }

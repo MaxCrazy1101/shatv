@@ -45,6 +45,10 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
+## 设计文档
+
+- [核心设计](docs/architecture.md)
+
 ## 作为模板新建项目
 
 在上级目录解压模板压缩包后，建议按以下流程开始新项目：
