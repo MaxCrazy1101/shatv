@@ -2,6 +2,7 @@ add_library(shatv_app
     app/application.cpp
     application/player_controller.cpp
     player/fake_player_backend.cpp
+    player/mpv_player_backend.cpp
     player/mpv_render_widget.cpp
     player/player_backend.cpp
     ui/models/channel_list_model.cpp
@@ -19,6 +20,8 @@ target_link_libraries(shatv_app
     PUBLIC
         Qt6::Core
         Qt6::Widgets
+        Qt6::OpenGLWidgets
+        PkgConfig::MPV
 )
 
 add_executable(shatv
