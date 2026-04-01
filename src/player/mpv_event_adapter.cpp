@@ -1,0 +1,37 @@
+#include "player/mpv_event_adapter.h"
+
+#include "domain/playback_state.h"
+
+namespace shatv::player {
+
+void MpvEventAdapter::ApplyFileLoaded(domain::PlayerSnapshot &snapshot, const QString &channel_name) const {
+    snapshot.state = domain::PlaybackState::kPlaying;
+    snapshot.channel_name = channel_name;
+    snapshot.message = channel_name.isEmpty() ? QString("Playing") : QString("Playing %1").arg(channel_name);
+}
+
+void MpvEventAdapter::ApplyEndFileEof(domain::PlayerSnapshot &snapshot) const {
+    snapshot.state = domain::PlaybackState::kIdle;
+    snapshot.message =
+        snapshot.channel_name.isEmpty() ? QString("Finished") : QString("Finished %1").arg(snapshot.channel_name);
+}
+
+void MpvEventAdapter::ApplyPauseChanged(domain::PlayerSnapshot &snapshot, bool paused) const {
+    if (snapshot.channel_id.isEmpty()) {
+        return;
+    }
+
+    snapshot.state = paused ? domain::PlaybackState::kPaused : domain::PlaybackState::kPlaying;
+    snapshot.message =
+        snapshot.channel_name.isEmpty()
+            ? (paused ? QString("Paused") : QString("Playing"))
+            : (paused ? QString("Paused %1").arg(snapshot.channel_name)
+                      : QString("Playing %1").arg(snapshot.channel_name));
+}
+
+void MpvEventAdapter::ApplyEndFileError(domain::PlayerSnapshot &snapshot, const QString &message) const {
+    snapshot.state = domain::PlaybackState::kError;
+    snapshot.message = message;
+}
+
+}  // namespace shatv::player

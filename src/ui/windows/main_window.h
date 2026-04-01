@@ -37,7 +37,9 @@ class MainWindow final : public QMainWindow {
                         QWidget *parent = nullptr);
 
     void SetChannels(std::vector<domain::Channel> channels);
+    void StartInitialPlayback();
     void StartSmokeScenario();
+    player::MpvRenderWidget *RenderWidget() const;
 
     int ChannelCount() const;
     QString CurrentChannelIdForSmoke() const;

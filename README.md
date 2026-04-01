@@ -1,12 +1,15 @@
 # ShaTV
 
-ShaTV 是一个面向 Linux 的 IPTV 播放器骨架项目，当前阶段采用 `Qt6 Widgets` 构建桌面应用壳，并使用 `FakePlayerBackend` 验证 `MainWindow -> PlayerController -> PlayerBackend` 的基础控制流。
+ShaTV 是一个面向 Linux 的 IPTV 播放器项目，当前阶段采用 `Qt6 Widgets + libmpv render API` 构建桌面播放器壳，并保留 `FakePlayerBackend` 作为骨架 smoke 路径。
 
 当前已具备以下基础能力：
 
 - `Qt6` 应用启动与窗口拉起
 - 最小应用分层：`app / application / domain / player / ui`
-- `FakePlayerBackend` 驱动的垂直切片 smoke 测试
+- `MainWindow -> PlayerController -> PlayerBackend` 的垂直切片
+- `QOpenGLWidget + libmpv render API` 的真实视频渲染链路
+- `FakePlayerBackend` 与 `MpvPlayerBackend` 双后端验证路径
+- `mpv` 事件归一化与最小自动重试
 - `QtTest` 单元测试
 - `clang-format` / `clang-tidy` / `CMake` 工程化配置
 
@@ -51,6 +54,20 @@ ctest --test-dir build --output-on-failure
 ./build/src/shatv --smoke-test
 ```
 
+手动验证 `libmpv` smoke：
+
+```bash
+env QT_QPA_PLATFORM=offscreen SHATV_SMOKE_MEDIA=/absolute/path/to/local.mp4 ./build/src/shatv --mpv-smoke
+```
+
+普通模式下直接打开本地文件或 URL：
+
+```bash
+./build/src/shatv --open-media ./docs/file_example_MP4_1920_18MG.mp4
+./build/src/shatv --open-media http://127.0.0.1:8080/live.m3u8
+./build/src/shatv --open-url http://127.0.0.1:8080/index.m3u8
+```
+
 桌面环境启动：
 
 ```bash
@@ -63,6 +80,27 @@ ctest --test-dir build --output-on-failure
 cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake
 cmake --build build
 ctest --test-dir build --output-on-failure
+```
+
+## 本地 HLS 测试
+
+仓库不保存第三方测试视频文件。请将本地媒体文件放在仓库外，或放到已忽略的 `local-media/` 目录，再运行：
+
+```bash
+bash scripts/start_local_hls_test.sh /absolute/path/to/input.mp4
+```
+
+脚本会：
+
+- 使用 `ffmpeg` 将本地文件循环转成 HLS
+- 在 `http://127.0.0.1:8080/index.m3u8` 提供本地测试流
+- 在退出时清理 `ffmpeg` 和 `python3 -m http.server` 进程
+
+示例：
+
+```bash
+mkdir -p local-media
+bash scripts/start_local_hls_test.sh ./local-media/sample.mp4
 ```
 
 ## 设计文档

@@ -22,7 +22,10 @@ PlaybackStatusPanel::PlaybackStatusPanel(QWidget *parent) : QWidget(parent) {
 void PlaybackStatusPanel::ApplySnapshot(const domain::PlayerSnapshot &snapshot) {
     channel_value_label_->setText(snapshot.channel_name.isEmpty() ? "None" : snapshot.channel_name);
     state_value_label_->setText(domain::PlaybackStateName(snapshot.state));
-    message_value_label_->setText(snapshot.message.isEmpty() ? "Ready" : snapshot.message);
+    const QString message_text =
+        snapshot.retry_count > 0 ? QString("%1 (retry %2)").arg(snapshot.message).arg(snapshot.retry_count)
+                                 : snapshot.message;
+    message_value_label_->setText(message_text.isEmpty() ? "Ready" : message_text);
 }
 
 QString PlaybackStatusPanel::CurrentStateText() const {

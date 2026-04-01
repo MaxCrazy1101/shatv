@@ -40,7 +40,7 @@ void MainWindow::SetChannels(std::vector<domain::Channel> channels) {
     channel_model_->SetChannels(std::move(channels));
 }
 
-void MainWindow::StartSmokeScenario() {
+void MainWindow::StartInitialPlayback() {
     if (channel_model_->rowCount() <= 0) {
         return;
     }
@@ -48,6 +48,14 @@ void MainWindow::StartSmokeScenario() {
     const QModelIndex first_channel = channel_model_->index(0, 0);
     channel_list_view_->setCurrentIndex(first_channel);
     OnChannelActivated(first_channel);
+}
+
+void MainWindow::StartSmokeScenario() {
+    StartInitialPlayback();
+}
+
+player::MpvRenderWidget *MainWindow::RenderWidget() const {
+    return render_widget_;
 }
 
 int MainWindow::ChannelCount() const {

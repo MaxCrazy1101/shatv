@@ -10,6 +10,8 @@ enum class PlaybackState : uint8_t {
     kLoading,
     kPlaying,
     kPaused,
+    kBuffering,
+    kRetrying,
     kError,
 };
 
@@ -23,6 +25,10 @@ inline QString PlaybackStateName(PlaybackState state) {
             return "Playing";
         case PlaybackState::kPaused:
             return "Paused";
+        case PlaybackState::kBuffering:
+            return "Buffering";
+        case PlaybackState::kRetrying:
+            return "Retrying";
         case PlaybackState::kError:
             return "Error";
     }

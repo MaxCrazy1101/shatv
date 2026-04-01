@@ -14,6 +14,7 @@ struct PlayerSnapshot {
     QString message;
     int volume = 50;
     bool muted = false;
+    int retry_count = 0;
 };
 
 }  // namespace shatv::domain

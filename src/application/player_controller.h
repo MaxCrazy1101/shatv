@@ -35,6 +35,9 @@ class PlayerController final : public QObject {
     player::PlayerBackend *backend_ = nullptr;
     domain::Channel current_channel_;
     domain::PlayerSnapshot current_snapshot_;
+    int retry_count_ = 0;
+    int retry_generation_ = 0;
+    static constexpr int kMaxRetryCount = 1;
 };
 
 }  // namespace shatv::application

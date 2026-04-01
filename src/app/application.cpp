@@ -3,6 +3,7 @@
 #include <iostream>
 
 #include <QCoreApplication>
+#include <QDir>
 #include <QFileInfo>
 #include <QTimer>
 
@@ -11,55 +12,63 @@
 #include "domain/playback_state.h"
 #include "player/fake_player_backend.h"
 #include "player/mpv_player_backend.h"
+#include "player/mpv_render_widget.h"
 #include "ui/models/channel_list_model.h"
 #include "ui/windows/main_window.h"
 
 namespace shatv::app {
 
-Application::Application(QApplication *qt_app, bool smoke_test, bool mpv_smoke)
-    : qt_app_(qt_app), smoke_test_(smoke_test), mpv_smoke_(mpv_smoke) {
+Application::Application(QApplication *qt_app, LaunchOptions options)
+    : qt_app_(qt_app), options_(std::move(options)) {
     Q_ASSERT(qt_app_ != nullptr);
 
     qRegisterMetaType<domain::PlayerSnapshot>("shatv::domain::PlayerSnapshot");
 
-    if (mpv_smoke_) {
-        backend_ = std::make_unique<player::MpvPlayerBackend>();
-    } else {
+    if (options_.smoke_test) {
         backend_ = std::make_unique<player::FakePlayerBackend>();
+    } else {
+        backend_ = std::make_unique<player::MpvPlayerBackend>();
     }
     controller_ = std::make_unique<application::PlayerController>(backend_.get());
     channel_model_ = std::make_unique<ui::models::ChannelListModel>();
     main_window_ = std::make_unique<ui::windows::MainWindow>(controller_.get(), channel_model_.get());
 
-    demo_channels_ = BuildDemoChannels();
+    if (auto *mpv_backend = dynamic_cast<player::MpvPlayerBackend *>(backend_.get())) {
+        mpv_backend->AttachRenderWidget(main_window_->RenderWidget());
+        main_window_->RenderWidget()->SetBackend(mpv_backend);
+    }
+
+    startup_channel_ = BuildStartupChannel(options_, qEnvironmentVariable("SHATV_SMOKE_MEDIA"), QDir::currentPath());
+    demo_channels_ = BuildInitialChannels();
     main_window_->SetChannels(demo_channels_);
 }
 
-Application::~Application() = default;
+Application::~Application() {
+    controller_.reset();
+    backend_.reset();
+    main_window_.reset();
+    channel_model_.reset();
+}
 
 int Application::Run() {
     main_window_->show();
 
-    if (smoke_test_) {
+    if (options_.smoke_test) {
         std::cout << "ShaTV Qt6 bootstrap" << std::endl;
         SetupSmokeScenario();
     }
-    if (mpv_smoke_) {
+    if (options_.mpv_smoke) {
         SetupMpvSmokeScenario();
+    } else if (startup_channel_.has_value()) {
+        QTimer::singleShot(0, main_window_.get(), &ui::windows::MainWindow::StartInitialPlayback);
     }
 
     return qt_app_->exec();
 }
 
-std::vector<domain::Channel> Application::BuildDemoChannels() const {
-    const QString smoke_media = qEnvironmentVariable("SHATV_SMOKE_MEDIA");
-    if (mpv_smoke_ && !smoke_media.isEmpty()) {
-        return {{
-            .id = "demo-news",
-            .name = QFileInfo(smoke_media).fileName(),
-            .url = QUrl::fromLocalFile(smoke_media),
-            .group = "Smoke",
-        }};
+std::vector<domain::Channel> Application::BuildInitialChannels() const {
+    if (startup_channel_.has_value()) {
+        return {*startup_channel_};
     }
 
     return {

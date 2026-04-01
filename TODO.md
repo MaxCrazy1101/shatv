@@ -4,7 +4,7 @@
 
 - [x] 验证 Qt6 工程可用
 - [x] 搭建最小应用骨架
-- [ ] 在骨架稳定后接入 `libmpv`
+- [x] 在骨架稳定后接入 `libmpv`
 
 ## 阶段 1：验证 Qt6
 
@@ -29,10 +29,10 @@
 
 ## 阶段 3：接入真实播放后端
 
-- [ ] 引入 `MpvPlayerBackend`
-- [ ] 将占位视频区域替换为 `MpvRenderWidget + libmpv render API`
-- [ ] 验证播放状态从后端正确回流到 UI
-- [ ] 补充错误状态与自动重试最小闭环
+- [x] 引入 `MpvPlayerBackend`
+- [x] 将占位视频区域替换为 `MpvRenderWidget + libmpv render API`
+- [x] 验证播放状态从后端正确回流到 UI
+- [x] 补充错误状态与自动重试最小闭环
 
 ## 暂缓项
 

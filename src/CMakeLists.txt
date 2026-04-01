@@ -1,7 +1,9 @@
 add_library(shatv_app
     app/application.cpp
+    app/launch_options.cpp
     application/player_controller.cpp
     player/fake_player_backend.cpp
+    player/mpv_event_adapter.cpp
     player/mpv_player_backend.cpp
     player/mpv_render_widget.cpp
     player/player_backend.cpp
