@@ -1,9 +1,31 @@
+add_library(shatv_app
+    app/application.cpp
+    application/player_controller.cpp
+    player/fake_player_backend.cpp
+    player/mpv_render_widget.cpp
+    player/player_backend.cpp
+    ui/models/channel_list_model.cpp
+    ui/panels/player_control_bar.cpp
+    ui/panels/playback_status_panel.cpp
+    ui/windows/main_window.cpp
+)
+
+target_include_directories(shatv_app
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_link_libraries(shatv_app
+    PUBLIC
+        Qt6::Core
+        Qt6::Widgets
+)
+
 add_executable(shatv
-    main.cpp
+    app/main.cpp
 )
 
 target_link_libraries(shatv
     PRIVATE
-        Qt6::Core
-        Qt6::Widgets
+        shatv_app
 )

@@ -1,14 +1,14 @@
 # ShaTV
 
-ShaTV 是一个最小化的 C++/CMake 项目骨架，用作后续新项目的起点。
+ShaTV 是一个面向 Linux 的 IPTV 播放器骨架项目，当前阶段采用 `Qt6 Widgets` 构建桌面应用壳，并使用 `FakePlayerBackend` 验证 `MainWindow -> PlayerController -> PlayerBackend` 的基础控制流。
 
-当前模板保留了以下基础能力：
+当前已具备以下基础能力：
 
-- `CMake` 顶层构建配置
-- `clang-format` / `clang-tidy` 工程化配置
-- 最小可执行程序入口
-- 最小 `ctest` smoke test
-- `toolchain.cmake` 编译工具链配置
+- `Qt6` 应用启动与窗口拉起
+- 最小应用分层：`app / application / domain / player / ui`
+- `FakePlayerBackend` 驱动的垂直切片 smoke 测试
+- `QtTest` 单元测试
+- `clang-format` / `clang-tidy` / `CMake` 工程化配置
 
 ## 目录结构
 
@@ -18,11 +18,19 @@ ShaTV 是一个最小化的 C++/CMake 项目骨架，用作后续新项目的起
 ├── .clang-tidy
 ├── .gitignore
 ├── CMakeLists.txt
+├── TODO.md
 ├── README.md
+├── docs
+│   └── architecture.md
 ├── src
-│   ├── CMakeLists.txt
-│   └── main.cpp
+│   ├── app
+│   ├── application
+│   ├── domain
+│   ├── player
+│   ├── ui
+│   └── CMakeLists.txt
 ├── tests
+│   ├── unit
 │   └── CMakeLists.txt
 └── toolchain.cmake
 ```
@@ -37,6 +45,18 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
+手动验证 smoke 模式：
+
+```bash
+./build/src/shatv --smoke-test
+```
+
+桌面环境启动：
+
+```bash
+./build/src/shatv
+```
+
 如需显式使用仓库内工具链文件：
 
 ```bash
@@ -48,19 +68,4 @@ ctest --test-dir build --output-on-failure
 ## 设计文档
 
 - [核心设计](docs/architecture.md)
-
-## 作为模板新建项目
-
-在上级目录解压模板压缩包后，建议按以下流程开始新项目：
-
-```bash
-tar -xzf ShaTV-cpp-template.tar.gz
-mv shatv your-project-name
-cd your-project-name
-git init --initial-branch=main
-cmake -S . -B build
-cmake --build build
-ctest --test-dir build --output-on-failure
-```
-
-如果你修改了项目名称，记得同步调整顶层 `CMakeLists.txt` 中的 `project(...)` 名称。
+- [执行清单](TODO.md)
