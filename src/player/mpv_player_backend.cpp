@@ -4,12 +4,26 @@
 
 #include <QMetaObject>
 #include <QOpenGLContext>
+#include <QString>
 
 #include <mpv/render_gl.h>
 
 #include "player/mpv_render_widget.h"
 
 namespace shatv::player {
+
+namespace {
+
+bool SupportsHttpHeaders(const QUrl &url) {
+    if (!url.isValid() || url.isLocalFile()) {
+        return false;
+    }
+
+    const QString scheme = url.scheme().toLower();
+    return scheme == "http" || scheme == "https";
+}
+
+}  // namespace
 
 MpvPlayerBackend::MpvPlayerBackend(QObject *parent) : PlayerBackend(parent) {
     InitializeMpv();
@@ -172,6 +186,10 @@ void MpvPlayerBackend::SetMuted(bool muted) {
     EmitSnapshot(snapshot);
 }
 
+void MpvPlayerBackend::SetNetworkUserAgent(const QString &user_agent) {
+    user_agent_ = user_agent;
+}
+
 bool MpvPlayerBackend::RenderFrame(int framebuffer_object, int width, int height, double device_pixel_ratio) {
     if (render_context_ == nullptr) {
         return false;
@@ -250,6 +268,12 @@ void MpvPlayerBackend::LoadInternal(const domain::Channel &channel) {
 
     const QByteArray volume_value = QByteArray::number(volume_);
     mpv_set_property_string(handle_, "volume", volume_value.constData());
+
+    const QByteArray header_fields =
+        (!user_agent_.isEmpty() && SupportsHttpHeaders(channel.url))
+            ? QString("User-Agent: %1").arg(user_agent_).toUtf8()
+            : QByteArray();
+    mpv_set_property_string(handle_, "http-header-fields", header_fields.constData());
 
     const QByteArray url = channel.url.toString().toUtf8();
     const char *command[] = {"loadfile", url.constData(), "replace", nullptr};

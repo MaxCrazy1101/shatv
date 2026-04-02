@@ -11,6 +11,8 @@ ShaTV 是一个面向 Linux 的 IPTV 播放器项目，当前阶段采用 `Qt6 W
 - `FakePlayerBackend` 与 `MpvPlayerBackend` 双后端验证路径
 - `mpv` 事件归一化与最小自动重试
 - `QtTest` 单元测试
+- 菜单栏打开本地文件 / 输入链接
+- 基于 `config.toml` 的持久化 `User-Agent` 配置
 - `clang-format` / `clang-tidy` / `CMake` 工程化配置
 
 ## 目录结构
@@ -46,6 +48,11 @@ ShaTV 是一个面向 Linux 的 IPTV 播放器项目，当前阶段采用 `Qt6 W
 cmake -S . -B build -DBUILD_TESTING=OFF
 cmake --build build
 ```
+
+依赖说明：
+
+- 需要系统已安装 `libmpv`
+- 需要系统已安装 `toml11`，例如 Arch Linux 可执行 `sudo pacman -S toml11`
 
 如需启用测试：
 
@@ -85,6 +92,31 @@ env QT_QPA_PLATFORM=offscreen SHATV_SMOKE_MEDIA=/absolute/path/to/local.mp4 ./bu
 ```bash
 ./build/src/shatv
 ```
+
+桌面菜单入口：
+
+- `文件 -> 打开文件...`：打开本地媒体文件，并替换当前左侧频道列表
+- `文件 -> 打开链接...`：输入 `http://` 或 `https://` 链接，并立即播放
+- `设置 -> 网络设置...`：配置持久化 `User-Agent`
+
+配置文件位置：
+
+```text
+~/.config/shatv/config.toml
+```
+
+最小配置示例：
+
+```toml
+[network]
+user_agent = "ShaTV Custom UA/1.0"
+```
+
+该 `User-Agent` 会对所有远程 HTTP/HLS 播放统一生效，包括：
+
+- `--open-url`
+- 菜单“打开链接...”
+- 远程频道列表项
 
 如需显式使用仓库内工具链文件：
 

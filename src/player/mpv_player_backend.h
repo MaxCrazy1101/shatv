@@ -3,6 +3,8 @@
 #include <mpv/client.h>
 #include <mpv/render.h>
 
+#include <QString>
+
 #include "player/mpv_event_adapter.h"
 #include "player/player_backend.h"
 
@@ -26,6 +28,7 @@ class MpvPlayerBackend final : public PlayerBackend {
     void Stop() override;
     void SetVolume(int volume) override;
     void SetMuted(bool muted) override;
+    void SetNetworkUserAgent(const QString &user_agent);
     bool RenderFrame(int framebuffer_object, int width, int height, double device_pixel_ratio);
 
    private:
@@ -46,6 +49,7 @@ class MpvPlayerBackend final : public PlayerBackend {
     domain::PlayerSnapshot current_snapshot_;
     int volume_ = 50;
     bool muted_ = false;
+    QString user_agent_;
     bool pending_load_ = false;
     mpv_handle *handle_ = nullptr;
     mpv_render_context *render_context_ = nullptr;

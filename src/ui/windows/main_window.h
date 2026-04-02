@@ -6,6 +6,7 @@
 #include <QLineEdit>
 #include <QListView>
 #include <QMainWindow>
+#include <QString>
 
 #include "domain/channel.h"
 #include "domain/player_snapshot.h"
@@ -40,12 +41,16 @@ class MainWindow final : public QMainWindow {
     void StartInitialPlayback();
     void StartSmokeScenario();
     player::MpvRenderWidget *RenderWidget() const;
+    void SetConfiguredUserAgent(const QString &user_agent);
 
     int ChannelCount() const;
     QString CurrentChannelIdForSmoke() const;
     domain::PlayerSnapshot LastAppliedSnapshot() const;
 
    signals:
+    void OpenFileSelected(const QString &path);
+    void OpenUrlSelected(const QString &url_text);
+    void UserAgentChanged(const QString &user_agent);
     void UiSnapshotApplied(const shatv::domain::PlayerSnapshot &snapshot);
 
    private slots:
@@ -53,6 +58,9 @@ class MainWindow final : public QMainWindow {
     void OnPlaybackSnapshotChanged(const shatv::domain::PlayerSnapshot &snapshot);
     void OnPlayPauseRequested();
     void OnMuteToggled(bool muted);
+    void OnOpenFileRequested();
+    void OnOpenUrlRequested();
+    void OnNetworkSettingsRequested();
 
    private:
     void BuildUi();
@@ -66,6 +74,7 @@ class MainWindow final : public QMainWindow {
     panels::PlayerControlBar *control_bar_ = nullptr;
     panels::PlaybackStatusPanel *status_panel_ = nullptr;
     domain::PlayerSnapshot last_snapshot_;
+    QString configured_user_agent_;
 };
 
 }  // namespace shatv::ui::windows

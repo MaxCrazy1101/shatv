@@ -5,6 +5,7 @@
 .DS_Store
 
 build/
+build-tests/
 cmake-build-*/
 compile_commands.json
 

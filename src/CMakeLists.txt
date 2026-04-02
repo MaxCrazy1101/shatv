@@ -1,5 +1,6 @@
 add_library(shatv_app
     app/application.cpp
+    app/app_settings.cpp
     app/launch_options.cpp
     application/player_controller.cpp
     player/fake_player_backend.cpp
@@ -24,6 +25,7 @@ target_link_libraries(shatv_app
         Qt6::Widgets
         Qt6::OpenGLWidgets
         PkgConfig::MPV
+        toml11::toml11
 )
 
 add_executable(shatv

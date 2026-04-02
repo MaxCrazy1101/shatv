@@ -5,7 +5,9 @@
 #include <vector>
 
 #include <QApplication>
+#include <QString>
 
+#include "app/app_settings.h"
 #include "app/launch_options.h"
 #include "domain/channel.h"
 
@@ -36,11 +38,16 @@ class Application final {
 
    private:
     std::vector<domain::Channel> BuildInitialChannels() const;
+    void OpenChannel(const domain::Channel &channel);
+    void OpenFile(const QString &path);
+    void OpenUrl(const QString &url_text);
+    void UpdateNetworkUserAgent(const QString &user_agent);
     void SetupSmokeScenario();
     void SetupMpvSmokeScenario();
 
     QApplication *qt_app_ = nullptr;
     LaunchOptions options_;
+    AppSettings settings_;
     bool smoke_completed_ = false;
     std::unique_ptr<player::PlayerBackend> backend_;
     std::unique_ptr<application::PlayerController> controller_;

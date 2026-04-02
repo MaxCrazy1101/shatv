@@ -1,5 +1,8 @@
 #include <QtTest>
+#include <QFile>
+#include <QTemporaryDir>
 
+#include "app/app_settings.h"
 #include "app/launch_options.h"
 #include "domain/playback_state.h"
 #include "player/mpv_event_adapter.h"
@@ -7,6 +10,8 @@
 namespace {
 
 using shatv::app::BuildStartupChannel;
+using shatv::app::AppSettings;
+using shatv::app::IsRemotePlaybackUrl;
 using shatv::app::LaunchOptions;
 using shatv::app::ParseLaunchOptions;
 using shatv::domain::PlaybackState;
@@ -22,6 +27,10 @@ class LaunchOptionsTest : public QObject {
     void build_startup_channel_from_local_media();
     void build_startup_channel_from_http_url();
     void build_startup_channel_prefers_open_url_over_open_media();
+    void remote_playback_url_detection();
+    void load_missing_settings_defaults_to_empty_user_agent();
+    void save_and_load_user_agent_round_trip();
+    void save_settings_preserves_existing_comments_and_fields();
     void end_file_eof_pause_true_keeps_terminal_idle_state();
     void idle_active_true_after_pause_becomes_finished_idle();
     void eof_reached_true_after_pause_becomes_finished_idle();
@@ -84,6 +93,67 @@ void LaunchOptionsTest::build_startup_channel_prefers_open_url_over_open_media()
     QCOMPARE(channel->id, QString("open-url"));
     QCOMPARE(channel->name, QString("index.m3u8"));
     QCOMPARE(channel->url, QUrl("http://127.0.0.1:8080/index.m3u8"));
+}
+
+void LaunchOptionsTest::remote_playback_url_detection() {
+    QVERIFY(IsRemotePlaybackUrl(QUrl("http://127.0.0.1:8080/index.m3u8")));
+    QVERIFY(IsRemotePlaybackUrl(QUrl("https://example.com/live.m3u8")));
+    QVERIFY(!IsRemotePlaybackUrl(QUrl::fromLocalFile("/home/alex/code/shatv/docs/video.mp4")));
+}
+
+void LaunchOptionsTest::load_missing_settings_defaults_to_empty_user_agent() {
+    QTemporaryDir temp_dir;
+    QVERIFY(temp_dir.isValid());
+
+    const QString config_path = temp_dir.filePath("settings/config.toml");
+    AppSettings settings(config_path);
+
+    QVERIFY(settings.Load());
+    QCOMPARE(settings.UserAgent(), QString());
+}
+
+void LaunchOptionsTest::save_and_load_user_agent_round_trip() {
+    QTemporaryDir temp_dir;
+    QVERIFY(temp_dir.isValid());
+
+    const QString config_path = temp_dir.filePath("settings/config.toml");
+
+    AppSettings settings(config_path);
+    settings.SetUserAgent("ShaTV QA Agent/1.0");
+    QVERIFY(settings.Save());
+
+    AppSettings reloaded(config_path);
+    QVERIFY(reloaded.Load());
+    QCOMPARE(reloaded.UserAgent(), QString("ShaTV QA Agent/1.0"));
+}
+
+void LaunchOptionsTest::save_settings_preserves_existing_comments_and_fields() {
+    QTemporaryDir temp_dir;
+    QVERIFY(temp_dir.isValid());
+
+    const QString config_path = temp_dir.filePath("config.toml");
+    QFile seed_file(config_path);
+    QVERIFY(seed_file.open(QIODevice::WriteOnly | QIODevice::Text));
+    seed_file.write("# existing comment\n"
+                    "[network]\n"
+                    "user_agent = \"Old Agent\"\n"
+                    "\n"
+                    "[ui]\n"
+                    "layout = \"classic\"\n");
+    seed_file.close();
+
+    AppSettings settings(config_path);
+    QVERIFY(settings.Load());
+    settings.SetUserAgent("ShaTV Desktop/2.0");
+    QVERIFY(settings.Save());
+
+    QVERIFY(seed_file.open(QIODevice::ReadOnly | QIODevice::Text));
+    const QString file_text = QString::fromUtf8(seed_file.readAll());
+    seed_file.close();
+
+    QVERIFY(file_text.contains("# existing comment"));
+    QVERIFY(file_text.contains("layout = \"classic\""));
+    QVERIFY(file_text.contains("user_agent = \"ShaTV Desktop/2.0\""));
 }
 
 void LaunchOptionsTest::end_file_eof_pause_true_keeps_terminal_idle_state() {

@@ -5,6 +5,8 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
+#include <QMessageBox>
+#include <QStatusBar>
 #include <QTimer>
 
 #include "application/player_controller.h"
@@ -19,7 +21,7 @@
 namespace shatv::app {
 
 Application::Application(QApplication *qt_app, LaunchOptions options)
-    : qt_app_(qt_app), options_(std::move(options)) {
+    : qt_app_(qt_app), options_(std::move(options)), settings_(AppSettings::DefaultConfigPath()) {
     Q_ASSERT(qt_app_ != nullptr);
 
     qRegisterMetaType<domain::PlayerSnapshot>("shatv::domain::PlayerSnapshot");
@@ -33,10 +35,23 @@ Application::Application(QApplication *qt_app, LaunchOptions options)
     channel_model_ = std::make_unique<ui::models::ChannelListModel>();
     main_window_ = std::make_unique<ui::windows::MainWindow>(controller_.get(), channel_model_.get());
 
+    if (!settings_.Load()) {
+        std::cerr << "ShaTV config load failed path=" << settings_.ConfigPath().toStdString() << std::endl;
+    }
+    main_window_->SetConfiguredUserAgent(settings_.UserAgent());
+
     if (auto *mpv_backend = dynamic_cast<player::MpvPlayerBackend *>(backend_.get())) {
+        mpv_backend->SetNetworkUserAgent(settings_.UserAgent());
         mpv_backend->AttachRenderWidget(main_window_->RenderWidget());
         main_window_->RenderWidget()->SetBackend(mpv_backend);
     }
+
+    QObject::connect(main_window_.get(), &ui::windows::MainWindow::OpenFileSelected, qt_app_,
+                     [this](const QString &path) { OpenFile(path); });
+    QObject::connect(main_window_.get(), &ui::windows::MainWindow::OpenUrlSelected, qt_app_,
+                     [this](const QString &url_text) { OpenUrl(url_text); });
+    QObject::connect(main_window_.get(), &ui::windows::MainWindow::UserAgentChanged, qt_app_,
+                     [this](const QString &user_agent) { UpdateNetworkUserAgent(user_agent); });
 
     startup_channel_ = BuildStartupChannel(options_, qEnvironmentVariable("SHATV_SMOKE_MEDIA"), QDir::currentPath());
     demo_channels_ = BuildInitialChannels();
@@ -82,6 +97,55 @@ std::vector<domain::Channel> Application::BuildInitialChannels() const {
          .url = QUrl("https://example.com/demo-movies.m3u8"),
          .group = "Movies"},
     };
+}
+
+void Application::OpenChannel(const domain::Channel &channel) {
+    if (!channel.url.isValid() || channel.url.toString().isEmpty()) {
+        QMessageBox::warning(main_window_.get(), "ShaTV", "Open request failed: invalid media target.");
+        return;
+    }
+
+    // 菜单入口统一替换成单项列表，避免当前阶段再引入复杂播放列表管理。
+    main_window_->SetChannels({channel});
+    main_window_->StartInitialPlayback();
+}
+
+void Application::OpenFile(const QString &path) {
+    if (path.isEmpty()) {
+        return;
+    }
+
+    OpenChannel(BuildOpenMediaChannel(path, QDir::currentPath()));
+}
+
+void Application::OpenUrl(const QString &url_text) {
+    if (url_text.isEmpty()) {
+        return;
+    }
+
+    const domain::Channel channel = BuildOpenUrlChannel(url_text, QDir::currentPath());
+    if (!IsRemotePlaybackUrl(channel.url)) {
+        QMessageBox::warning(main_window_.get(), "ShaTV", "Open Link expects an http:// or https:// URL.");
+        return;
+    }
+
+    OpenChannel(channel);
+}
+
+void Application::UpdateNetworkUserAgent(const QString &user_agent) {
+    settings_.SetUserAgent(user_agent);
+    if (!settings_.Save()) {
+        QMessageBox::warning(
+            main_window_.get(), "ShaTV",
+            QString("Failed to save User-Agent to %1").arg(QDir::toNativeSeparators(settings_.ConfigPath())));
+        return;
+    }
+
+    main_window_->SetConfiguredUserAgent(settings_.UserAgent());
+    if (auto *mpv_backend = dynamic_cast<player::MpvPlayerBackend *>(backend_.get())) {
+        mpv_backend->SetNetworkUserAgent(settings_.UserAgent());
+    }
+    main_window_->statusBar()->showMessage("Network settings saved", 3000);
 }
 
 void Application::SetupSmokeScenario() {

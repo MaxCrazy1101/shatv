@@ -54,6 +54,35 @@ LaunchOptions ParseLaunchOptions(const QStringList &arguments) {
     return options;
 }
 
+domain::Channel BuildOpenUrlChannel(const QString &input, const QString &current_directory) {
+    const QUrl media_url = QUrl::fromUserInput(input, current_directory);
+    return domain::Channel{
+        .id = "open-url",
+        .name = ChannelNameFromUrl(media_url),
+        .url = media_url,
+        .group = "Open URL",
+    };
+}
+
+domain::Channel BuildOpenMediaChannel(const QString &input, const QString &current_directory) {
+    const QUrl media_url = QUrl::fromUserInput(input, current_directory, QUrl::AssumeLocalFile);
+    return domain::Channel{
+        .id = "open-media",
+        .name = ChannelNameFromUrl(media_url),
+        .url = media_url,
+        .group = "Open Media",
+    };
+}
+
+bool IsRemotePlaybackUrl(const QUrl &url) {
+    if (!url.isValid() || url.isLocalFile()) {
+        return false;
+    }
+
+    const QString scheme = url.scheme().toLower();
+    return scheme == "http" || scheme == "https";
+}
+
 std::optional<domain::Channel> BuildStartupChannel(const LaunchOptions &options, const QString &smoke_media,
                                                    const QString &current_directory) {
     if (options.mpv_smoke && !smoke_media.isEmpty()) {
@@ -68,26 +97,14 @@ std::optional<domain::Channel> BuildStartupChannel(const LaunchOptions &options,
 
     // 启动参数冲突时优先使用显式 URL，避免被本地媒体参数覆盖。
     if (!options.open_url_argument.isEmpty()) {
-        const QUrl media_url = QUrl::fromUserInput(options.open_url_argument, current_directory);
-        return domain::Channel{
-            .id = "open-url",
-            .name = ChannelNameFromUrl(media_url),
-            .url = media_url,
-            .group = "Open URL",
-        };
+        return BuildOpenUrlChannel(options.open_url_argument, current_directory);
     }
 
     if (options.open_media_argument.isEmpty()) {
         return std::nullopt;
     }
 
-    const QUrl media_url = QUrl::fromUserInput(options.open_media_argument, current_directory, QUrl::AssumeLocalFile);
-    return domain::Channel{
-        .id = "open-media",
-        .name = ChannelNameFromUrl(media_url),
-        .url = media_url,
-        .group = "Open Media",
-    };
+    return BuildOpenMediaChannel(options.open_media_argument, current_directory);
 }
 
 }  // namespace shatv::app

@@ -1,8 +1,11 @@
 #include "ui/windows/main_window.h"
 
+#include <QFileDialog>
 #include <QHBoxLayout>
+#include <QInputDialog>
 #include <QItemSelectionModel>
 #include <QLabel>
+#include <QMenuBar>
 #include <QSplitter>
 #include <QStatusBar>
 #include <QVBoxLayout>
@@ -66,6 +69,10 @@ QString MainWindow::CurrentChannelIdForSmoke() const {
     return channel_model_->CurrentChannelId();
 }
 
+void MainWindow::SetConfiguredUserAgent(const QString &user_agent) {
+    configured_user_agent_ = user_agent;
+}
+
 domain::PlayerSnapshot MainWindow::LastAppliedSnapshot() const {
     return last_snapshot_;
 }
@@ -109,9 +116,51 @@ void MainWindow::OnMuteToggled(bool muted) {
     controller_->SetMuted(muted);
 }
 
+void MainWindow::OnOpenFileRequested() {
+    const QString selected_file = QFileDialog::getOpenFileName(
+        this, "Open File", QString(), "Media Files (*.m3u8 *.mp4 *.mkv *.ts *.mov *.webm *.mp3 *.flac);;All Files (*)");
+    if (selected_file.isEmpty()) {
+        return;
+    }
+
+    emit OpenFileSelected(selected_file);
+}
+
+void MainWindow::OnOpenUrlRequested() {
+    bool accepted = false;
+    const QString url_text = QInputDialog::getText(this, "Open Link", "URL:", QLineEdit::Normal, "http://",
+                                                   &accepted);
+    if (!accepted || url_text.trimmed().isEmpty()) {
+        return;
+    }
+
+    emit OpenUrlSelected(url_text.trimmed());
+}
+
+void MainWindow::OnNetworkSettingsRequested() {
+    bool accepted = false;
+    const QString user_agent = QInputDialog::getText(this, "Network Settings", "User-Agent:", QLineEdit::Normal,
+                                                     configured_user_agent_, &accepted);
+    if (!accepted) {
+        return;
+    }
+
+    emit UserAgentChanged(user_agent.trimmed());
+}
+
 void MainWindow::BuildUi() {
     setWindowTitle("ShaTV");
     resize(1280, 720);
+
+    auto *file_menu = menuBar()->addMenu("&File");
+    auto *open_file_action = file_menu->addAction("Open &File...");
+    auto *open_url_action = file_menu->addAction("Open &Link...");
+    connect(open_file_action, &QAction::triggered, this, &MainWindow::OnOpenFileRequested);
+    connect(open_url_action, &QAction::triggered, this, &MainWindow::OnOpenUrlRequested);
+
+    auto *settings_menu = menuBar()->addMenu("&Settings");
+    auto *network_settings_action = settings_menu->addAction("&Network Settings...");
+    connect(network_settings_action, &QAction::triggered, this, &MainWindow::OnNetworkSettingsRequested);
 
     auto *splitter = new QSplitter(Qt::Horizontal, this);
 
