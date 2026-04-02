@@ -8,7 +8,8 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
-enable_testing()
+option(BUILD_TESTING "Build ShaTV tests" OFF)
+include(CTest)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -16,9 +17,13 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_compile_options(-Wall -Wextra -Wpedantic)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets OpenGLWidgets Test)
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets OpenGLWidgets)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(MPV REQUIRED IMPORTED_TARGET mpv)
 
 add_subdirectory(src)
-add_subdirectory(tests)
+
+if(BUILD_TESTING)
+    find_package(Qt6 REQUIRED COMPONENTS Test)
+    add_subdirectory(tests)
+endif()

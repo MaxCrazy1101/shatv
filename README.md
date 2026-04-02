@@ -43,10 +43,22 @@ ShaTV 是一个面向 Linux 的 IPTV 播放器项目，当前阶段采用 `Qt6 W
 常规构建：
 
 ```bash
-cmake -S . -B build
+cmake -S . -B build -DBUILD_TESTING=OFF
 cmake --build build
-ctest --test-dir build --output-on-failure
 ```
+
+如需启用测试：
+
+```bash
+cmake -S . -B build-tests -DBUILD_TESTING=ON
+cmake --build build-tests
+ctest --test-dir build-tests --output-on-failure
+```
+
+说明：
+
+- `build/` 默认只生成客户端目标
+- `build-tests/` 用于单独启用测试，避免在同一个构建目录里切换 `BUILD_TESTING` 产生旧 target 残留
 
 手动验证 smoke 模式：
 
@@ -77,9 +89,16 @@ env QT_QPA_PLATFORM=offscreen SHATV_SMOKE_MEDIA=/absolute/path/to/local.mp4 ./bu
 如需显式使用仓库内工具链文件：
 
 ```bash
-cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake
+cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake -DBUILD_TESTING=OFF
 cmake --build build
-ctest --test-dir build --output-on-failure
+```
+
+如需在工具链配置下启用测试：
+
+```bash
+cmake -S . -B build-tests -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake -DBUILD_TESTING=ON
+cmake --build build-tests
+ctest --test-dir build-tests --output-on-failure
 ```
 
 ## 本地 HLS 测试
