@@ -13,6 +13,7 @@ class M3uPlaylistParserTest : public QObject {
    private slots:
     void parses_extinf_entries_into_channels();
     void ignores_invalid_entries_and_hls_manifests();
+    void local_playlist_detection_prefers_m3u_over_single_media();
 };
 
 void M3uPlaylistParserTest::parses_extinf_entries_into_channels() {
@@ -56,6 +57,12 @@ void M3uPlaylistParserTest::ignores_invalid_entries_and_hls_manifests() {
     QCOMPARE(channels.size(), 1);
     QCOMPARE(channels.at(0).name, QString("新闻频道"));
     QVERIFY(!LooksLikeM3uPlaylistText(hls_text));
+}
+
+void M3uPlaylistParserTest::local_playlist_detection_prefers_m3u_over_single_media() {
+    QVERIFY(shatv::app::LooksLikeLocalM3uPath("/tmp/iptv.m3u"));
+    QVERIFY(!shatv::app::LooksLikeLocalM3uPath("/tmp/live.m3u8"));
+    QVERIFY(!shatv::app::LooksLikeLocalM3uPath("/tmp/movie.mp4"));
 }
 
 }  // namespace

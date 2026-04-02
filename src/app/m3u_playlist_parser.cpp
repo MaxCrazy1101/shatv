@@ -28,6 +28,10 @@ QString ChannelNameFromUrl(const QUrl &url) {
 
 }  // namespace
 
+bool LooksLikeLocalM3uPath(const QString &path) {
+    return QFileInfo(path).suffix().compare("m3u", Qt::CaseInsensitive) == 0;
+}
+
 bool LooksLikeM3uPlaylistText(const QString &text) {
     return text.contains("#EXTINF:") && !text.contains("#EXT-X-TARGETDURATION:");
 }

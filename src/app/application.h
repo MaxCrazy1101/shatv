@@ -39,8 +39,11 @@ class Application final {
    private:
     std::vector<domain::Channel> BuildInitialChannels() const;
     void OpenChannel(const domain::Channel &channel);
+    void OpenChannels(std::vector<domain::Channel> channels);
     void OpenFile(const QString &path);
+    void OpenPlaylistFile(const QString &path);
     void OpenUrl(const QString &url_text);
+    void ShowPlaylistImportError(const QString &message);
     void UpdateNetworkUserAgent(const QString &user_agent);
     void SetupSmokeScenario();
     void SetupMpvSmokeScenario();

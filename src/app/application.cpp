@@ -4,11 +4,13 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QMessageBox>
 #include <QStatusBar>
 #include <QTimer>
 
+#include "app/m3u_playlist_parser.h"
 #include "application/player_controller.h"
 #include "domain/player_snapshot.h"
 #include "domain/playback_state.h"
@@ -110,12 +112,44 @@ void Application::OpenChannel(const domain::Channel &channel) {
     main_window_->StartInitialPlayback();
 }
 
+void Application::OpenChannels(std::vector<domain::Channel> channels) {
+    if (channels.empty()) {
+        ShowPlaylistImportError("Playlist contains no playable channels");
+        return;
+    }
+
+    main_window_->SetChannels(std::move(channels));
+    main_window_->StartInitialPlayback();
+}
+
 void Application::OpenFile(const QString &path) {
     if (path.isEmpty()) {
         return;
     }
 
+    if (LooksLikeLocalM3uPath(path)) {
+        OpenPlaylistFile(path);
+        return;
+    }
+
     OpenChannel(BuildOpenMediaChannel(path, QDir::currentPath()));
+}
+
+void Application::OpenPlaylistFile(const QString &path) {
+    QFile input(path);
+    if (!input.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        ShowPlaylistImportError("Failed to open playlist file");
+        return;
+    }
+
+    const QString text = QString::fromUtf8(input.readAll());
+    const auto channels = ParseM3uPlaylistText(text, QFileInfo(path).baseName());
+    if (channels.empty()) {
+        ShowPlaylistImportError("Playlist contains no playable channels");
+        return;
+    }
+
+    OpenChannels(channels);
 }
 
 void Application::OpenUrl(const QString &url_text) {
@@ -128,8 +162,17 @@ void Application::OpenUrl(const QString &url_text) {
         QMessageBox::warning(main_window_.get(), "ShaTV", "Open Link expects an http:// or https:// URL.");
         return;
     }
+    if (LooksLikeRemoteMediaDirectoryUrl(channel.url)) {
+        QMessageBox::warning(main_window_.get(), "ShaTV",
+                             "Open Link needs a full media URL, for example http://127.0.0.1:8080/index.m3u8");
+        return;
+    }
 
     OpenChannel(channel);
+}
+
+void Application::ShowPlaylistImportError(const QString &message) {
+    QMessageBox::warning(main_window_.get(), "ShaTV", message);
 }
 
 void Application::UpdateNetworkUserAgent(const QString &user_agent) {

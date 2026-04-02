@@ -87,6 +87,8 @@ env QT_QPA_PLATFORM=offscreen SHATV_SMOKE_MEDIA=/absolute/path/to/local.mp4 ./bu
 ./build/src/shatv --open-url http://127.0.0.1:8080/index.m3u8
 ```
 
+本地 `.m3u` 文件可通过菜单 `文件 -> 打开文件...` 导入为完整频道列表，并自动播放第一项。
+
 桌面环境启动：
 
 ```bash
