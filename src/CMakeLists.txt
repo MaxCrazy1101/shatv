@@ -2,6 +2,7 @@ add_library(shatv_app
     app/application.cpp
     app/app_settings.cpp
     app/launch_options.cpp
+    app/m3u_playlist_parser.cpp
     application/player_controller.cpp
     player/fake_player_backend.cpp
     player/mpv_event_adapter.cpp

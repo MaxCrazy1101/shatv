@@ -22,3 +22,18 @@ add_test(
     NAME launch_options_test
     COMMAND $<TARGET_FILE:launch_options_test>
 )
+
+add_executable(m3u_playlist_parser_test
+    unit/m3u_playlist_parser_test.cpp
+)
+
+target_link_libraries(m3u_playlist_parser_test
+    PRIVATE
+        shatv_app
+        Qt6::Test
+)
+
+add_test(
+    NAME m3u_playlist_parser_test
+    COMMAND $<TARGET_FILE:m3u_playlist_parser_test>
+)
