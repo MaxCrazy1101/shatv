@@ -11,6 +11,8 @@
 #include "app/launch_options.h"
 #include "domain/channel.h"
 
+class QNetworkAccessManager;
+
 namespace shatv::application {
 class PlayerController;
 }
@@ -43,6 +45,7 @@ class Application final {
     void OpenFile(const QString &path);
     void OpenPlaylistFile(const QString &path);
     void OpenUrl(const QString &url_text);
+    void DownloadPlaylist(const QUrl &url);
     void ShowPlaylistImportError(const QString &message);
     void UpdateNetworkUserAgent(const QString &user_agent);
     void SetupSmokeScenario();
@@ -52,6 +55,7 @@ class Application final {
     LaunchOptions options_;
     AppSettings settings_;
     bool smoke_completed_ = false;
+    std::unique_ptr<QNetworkAccessManager> network_manager_;
     std::unique_ptr<player::PlayerBackend> backend_;
     std::unique_ptr<application::PlayerController> controller_;
     std::unique_ptr<ui::models::ChannelListModel> channel_model_;

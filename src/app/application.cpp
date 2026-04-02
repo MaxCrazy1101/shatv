@@ -7,6 +7,9 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QMessageBox>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QStatusBar>
 #include <QTimer>
 
@@ -36,6 +39,7 @@ Application::Application(QApplication *qt_app, LaunchOptions options)
     controller_ = std::make_unique<application::PlayerController>(backend_.get());
     channel_model_ = std::make_unique<ui::models::ChannelListModel>();
     main_window_ = std::make_unique<ui::windows::MainWindow>(controller_.get(), channel_model_.get());
+    network_manager_ = std::make_unique<QNetworkAccessManager>();
 
     if (!settings_.Load()) {
         std::cerr << "ShaTV config load failed path=" << settings_.ConfigPath().toStdString() << std::endl;
@@ -77,7 +81,18 @@ int Application::Run() {
     if (options_.mpv_smoke) {
         SetupMpvSmokeScenario();
     } else if (startup_channel_.has_value()) {
-        QTimer::singleShot(0, main_window_.get(), &ui::windows::MainWindow::StartInitialPlayback);
+        const domain::Channel startup_channel = *startup_channel_;
+        if (LooksLikePlaylistChannel(startup_channel)) {
+            QTimer::singleShot(0, qt_app_, [this, startup_channel]() {
+                if (startup_channel.url.isLocalFile()) {
+                    OpenPlaylistFile(startup_channel.url.toLocalFile());
+                    return;
+                }
+                DownloadPlaylist(startup_channel.url);
+            });
+        } else {
+            QTimer::singleShot(0, main_window_.get(), &ui::windows::MainWindow::StartInitialPlayback);
+        }
     }
 
     return qt_app_->exec();
@@ -162,6 +177,10 @@ void Application::OpenUrl(const QString &url_text) {
         QMessageBox::warning(main_window_.get(), "ShaTV", "Open Link expects an http:// or https:// URL.");
         return;
     }
+    if (LooksLikeRemoteM3uUrl(channel.url)) {
+        DownloadPlaylist(channel.url);
+        return;
+    }
     if (LooksLikeRemoteMediaDirectoryUrl(channel.url)) {
         QMessageBox::warning(main_window_.get(), "ShaTV",
                              "Open Link needs a full media URL, for example http://127.0.0.1:8080/index.m3u8");
@@ -169,6 +188,41 @@ void Application::OpenUrl(const QString &url_text) {
     }
 
     OpenChannel(channel);
+}
+
+void Application::DownloadPlaylist(const QUrl &url) {
+    QNetworkRequest request(url);
+    if (!settings_.UserAgent().isEmpty()) {
+        request.setHeader(QNetworkRequest::UserAgentHeader, settings_.UserAgent());
+    }
+
+    QNetworkReply *reply = network_manager_->get(request);
+    QObject::connect(reply, &QNetworkReply::finished, main_window_.get(), [this, reply, url]() {
+        const std::unique_ptr<QNetworkReply, void (*)(QNetworkReply *)> cleanup(reply, [](QNetworkReply *r) {
+            if (r != nullptr) {
+                r->deleteLater();
+            }
+        });
+
+        if (reply->error() != QNetworkReply::NoError) {
+            ShowPlaylistImportError("Failed to download playlist");
+            return;
+        }
+
+        const QString text = QString::fromUtf8(reply->readAll());
+        if (!LooksLikeM3uPlaylistText(text)) {
+            ShowPlaylistImportError("Playlist format is not supported");
+            return;
+        }
+
+        const auto channels = ParseM3uPlaylistText(text, QFileInfo(url.path()).baseName());
+        if (channels.empty()) {
+            ShowPlaylistImportError("Playlist contains no playable channels");
+            return;
+        }
+
+        OpenChannels(channels);
+    });
 }
 
 void Application::ShowPlaylistImportError(const QString &message) {

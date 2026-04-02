@@ -25,6 +25,7 @@ target_link_libraries(shatv_app
         Qt6::Core
         Qt6::Widgets
         Qt6::OpenGLWidgets
+        Qt6::Network
         PkgConfig::MPV
         toml11::toml11
 )

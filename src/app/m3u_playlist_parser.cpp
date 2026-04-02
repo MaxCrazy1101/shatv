@@ -32,6 +32,23 @@ bool LooksLikeLocalM3uPath(const QString &path) {
     return QFileInfo(path).suffix().compare("m3u", Qt::CaseInsensitive) == 0;
 }
 
+bool LooksLikeRemoteM3uUrl(const QUrl &url) {
+    if (!url.isValid() || url.isLocalFile()) {
+        return false;
+    }
+    return QFileInfo(url.path()).suffix().compare("m3u", Qt::CaseInsensitive) == 0;
+}
+
+bool LooksLikePlaylistChannel(const domain::Channel &channel) {
+    if (!channel.url.isValid()) {
+        return false;
+    }
+    if (channel.url.isLocalFile()) {
+        return LooksLikeLocalM3uPath(channel.url.toLocalFile());
+    }
+    return LooksLikeRemoteM3uUrl(channel.url);
+}
+
 bool LooksLikeM3uPlaylistText(const QString &text) {
     return text.contains("#EXTINF:") && !text.contains("#EXT-X-TARGETDURATION:");
 }

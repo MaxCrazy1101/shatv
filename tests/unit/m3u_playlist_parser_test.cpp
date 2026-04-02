@@ -14,6 +14,8 @@ class M3uPlaylistParserTest : public QObject {
     void parses_extinf_entries_into_channels();
     void ignores_invalid_entries_and_hls_manifests();
     void local_playlist_detection_prefers_m3u_over_single_media();
+    void remote_playlist_detection_uses_m3u_rules();
+    void playlist_channel_detection_supports_local_remote_and_query();
 };
 
 void M3uPlaylistParserTest::parses_extinf_entries_into_channels() {
@@ -63,6 +65,28 @@ void M3uPlaylistParserTest::local_playlist_detection_prefers_m3u_over_single_med
     QVERIFY(shatv::app::LooksLikeLocalM3uPath("/tmp/iptv.m3u"));
     QVERIFY(!shatv::app::LooksLikeLocalM3uPath("/tmp/live.m3u8"));
     QVERIFY(!shatv::app::LooksLikeLocalM3uPath("/tmp/movie.mp4"));
+}
+
+void M3uPlaylistParserTest::remote_playlist_detection_uses_m3u_rules() {
+    QVERIFY(shatv::app::LooksLikeRemoteM3uUrl(QUrl("https://example.com/iptv.m3u")));
+    QVERIFY(shatv::app::LooksLikeRemoteM3uUrl(QUrl("https://example.com/iptv.m3u?userid=1&token=2")));
+    QVERIFY(!shatv::app::LooksLikeRemoteM3uUrl(QUrl("https://example.com/index.m3u8")));
+    QVERIFY(!shatv::app::LooksLikeRemoteM3uUrl(QUrl("https://example.com/video.mp4")));
+}
+
+void M3uPlaylistParserTest::playlist_channel_detection_supports_local_remote_and_query() {
+    shatv::domain::Channel local_channel;
+    local_channel.url = QUrl::fromLocalFile("/tmp/iptv.m3u");
+
+    shatv::domain::Channel remote_channel;
+    remote_channel.url = QUrl("https://example.com/iptv.m3u?userid=1&token=2");
+
+    shatv::domain::Channel hls_channel;
+    hls_channel.url = QUrl("https://example.com/index.m3u8");
+
+    QVERIFY(shatv::app::LooksLikePlaylistChannel(local_channel));
+    QVERIFY(shatv::app::LooksLikePlaylistChannel(remote_channel));
+    QVERIFY(!shatv::app::LooksLikePlaylistChannel(hls_channel));
 }
 
 }  // namespace

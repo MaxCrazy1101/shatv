@@ -12,6 +12,7 @@ namespace {
 using shatv::app::BuildStartupChannel;
 using shatv::app::AppSettings;
 using shatv::app::IsRemotePlaybackUrl;
+using shatv::app::LooksLikeRemoteMediaDirectoryUrl;
 using shatv::app::LaunchOptions;
 using shatv::app::ParseLaunchOptions;
 using shatv::domain::PlaybackState;
@@ -28,6 +29,7 @@ class LaunchOptionsTest : public QObject {
     void build_startup_channel_from_http_url();
     void build_startup_channel_prefers_open_url_over_open_media();
     void remote_playback_url_detection();
+    void remote_root_url_detection_for_open_link_validation();
     void load_missing_settings_defaults_to_empty_user_agent();
     void save_and_load_user_agent_round_trip();
     void save_settings_preserves_existing_comments_and_fields();
@@ -99,6 +101,13 @@ void LaunchOptionsTest::remote_playback_url_detection() {
     QVERIFY(IsRemotePlaybackUrl(QUrl("http://127.0.0.1:8080/index.m3u8")));
     QVERIFY(IsRemotePlaybackUrl(QUrl("https://example.com/live.m3u8")));
     QVERIFY(!IsRemotePlaybackUrl(QUrl::fromLocalFile("/home/alex/code/shatv/docs/video.mp4")));
+}
+
+void LaunchOptionsTest::remote_root_url_detection_for_open_link_validation() {
+    QVERIFY(LooksLikeRemoteMediaDirectoryUrl(QUrl("http://127.0.0.1:8080")));
+    QVERIFY(LooksLikeRemoteMediaDirectoryUrl(QUrl("https://example.com/")));
+    QVERIFY(!LooksLikeRemoteMediaDirectoryUrl(QUrl("http://127.0.0.1:8080/index.m3u8")));
+    QVERIFY(!LooksLikeRemoteMediaDirectoryUrl(QUrl("http://127.0.0.1:8080/?play=1")));
 }
 
 void LaunchOptionsTest::load_missing_settings_defaults_to_empty_user_agent() {

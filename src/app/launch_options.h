@@ -20,6 +20,7 @@ LaunchOptions ParseLaunchOptions(const QStringList &arguments);
 domain::Channel BuildOpenUrlChannel(const QString &input, const QString &current_directory);
 domain::Channel BuildOpenMediaChannel(const QString &input, const QString &current_directory);
 bool IsRemotePlaybackUrl(const QUrl &url);
+bool LooksLikeRemoteMediaDirectoryUrl(const QUrl &url);
 std::optional<domain::Channel> BuildStartupChannel(const LaunchOptions &options, const QString &smoke_media,
                                                    const QString &current_directory);
 

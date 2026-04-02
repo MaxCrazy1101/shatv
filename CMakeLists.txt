@@ -17,7 +17,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_compile_options(-Wall -Wextra -Wpedantic)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets OpenGLWidgets)
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets OpenGLWidgets Network)
 find_package(PkgConfig REQUIRED)
 find_package(toml11 CONFIG REQUIRED)
 pkg_check_modules(MPV REQUIRED IMPORTED_TARGET mpv)

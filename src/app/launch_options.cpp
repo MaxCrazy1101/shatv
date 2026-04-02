@@ -83,6 +83,19 @@ bool IsRemotePlaybackUrl(const QUrl &url) {
     return scheme == "http" || scheme == "https";
 }
 
+bool LooksLikeRemoteMediaDirectoryUrl(const QUrl &url) {
+    if (!IsRemotePlaybackUrl(url)) {
+        return false;
+    }
+
+    const QString path = url.path();
+    if (!(path.isEmpty() || path == "/")) {
+        return false;
+    }
+
+    return !url.hasQuery();
+}
+
 std::optional<domain::Channel> BuildStartupChannel(const LaunchOptions &options, const QString &smoke_media,
                                                    const QString &current_directory) {
     if (options.mpv_smoke && !smoke_media.isEmpty()) {
