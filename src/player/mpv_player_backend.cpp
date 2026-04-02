@@ -234,6 +234,7 @@ void MpvPlayerBackend::InitializeMpv() {
     mpv_observe_property(handle_, 0, "pause", MPV_FORMAT_FLAG);
     mpv_observe_property(handle_, 0, "media-title", MPV_FORMAT_STRING);
     mpv_observe_property(handle_, 0, "idle-active", MPV_FORMAT_FLAG);
+    mpv_observe_property(handle_, 0, "eof-reached", MPV_FORMAT_FLAG);
 }
 
 void MpvPlayerBackend::LoadInternal(const domain::Channel &channel) {
@@ -292,9 +293,35 @@ void MpvPlayerBackend::HandleEvent(mpv_event *event) {
                 break;
             }
 
+            if (std::string_view(property->name) == "idle-active" && property->format == MPV_FORMAT_FLAG &&
+                property->data != nullptr) {
+                domain::PlayerSnapshot snapshot = current_snapshot_;
+                snapshot.channel_id = current_channel_.id;
+                snapshot.channel_name = current_channel_.name;
+                snapshot.volume = volume_;
+                snapshot.muted = muted_;
+                const int idle_active = *static_cast<int *>(property->data);
+                event_adapter_.ApplyIdleActive(snapshot, idle_active != 0);
+                EmitSnapshot(snapshot);
+                break;
+            }
+
+            if (std::string_view(property->name) == "eof-reached" && property->format == MPV_FORMAT_FLAG &&
+                property->data != nullptr) {
+                domain::PlayerSnapshot snapshot = current_snapshot_;
+                snapshot.channel_id = current_channel_.id;
+                snapshot.channel_name = current_channel_.name;
+                snapshot.volume = volume_;
+                snapshot.muted = muted_;
+                const int eof_reached = *static_cast<int *>(property->data);
+                event_adapter_.ApplyEofReached(snapshot, eof_reached != 0);
+                EmitSnapshot(snapshot);
+                break;
+            }
+
             if (std::string_view(property->name) == "pause" && property->format == MPV_FORMAT_FLAG &&
                 property->data != nullptr) {
-                domain::PlayerSnapshot snapshot;
+                domain::PlayerSnapshot snapshot = current_snapshot_;
                 snapshot.channel_id = current_channel_.id;
                 snapshot.channel_name = current_channel_.name;
                 snapshot.volume = volume_;

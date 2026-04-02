@@ -16,8 +16,28 @@ void MpvEventAdapter::ApplyEndFileEof(domain::PlayerSnapshot &snapshot) const {
         snapshot.channel_name.isEmpty() ? QString("Finished") : QString("Finished %1").arg(snapshot.channel_name);
 }
 
+void MpvEventAdapter::ApplyEofReached(domain::PlayerSnapshot &snapshot, bool eof_reached) const {
+    if (!eof_reached || snapshot.channel_id.isEmpty()) {
+        return;
+    }
+
+    ApplyEndFileEof(snapshot);
+}
+
+void MpvEventAdapter::ApplyIdleActive(domain::PlayerSnapshot &snapshot, bool idle_active) const {
+    if (!idle_active || snapshot.channel_id.isEmpty()) {
+        return;
+    }
+
+    ApplyEndFileEof(snapshot);
+}
+
 void MpvEventAdapter::ApplyPauseChanged(domain::PlayerSnapshot &snapshot, bool paused) const {
     if (snapshot.channel_id.isEmpty()) {
+        return;
+    }
+
+    if (snapshot.state == domain::PlaybackState::kIdle) {
         return;
     }
 
