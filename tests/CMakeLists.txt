@@ -37,3 +37,18 @@ add_test(
     NAME m3u_playlist_parser_test
     COMMAND $<TARGET_FILE:m3u_playlist_parser_test>
 )
+
+add_executable(localization_test
+    unit/localization_test.cpp
+)
+
+target_link_libraries(localization_test
+    PRIVATE
+        shatv_app
+        Qt6::Test
+)
+
+add_test(
+    NAME localization_test
+    COMMAND $<TARGET_FILE:localization_test>
+)

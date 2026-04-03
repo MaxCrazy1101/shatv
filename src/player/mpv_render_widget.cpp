@@ -15,8 +15,8 @@ MpvRenderWidget::MpvRenderWidget(QWidget *parent) : QOpenGLWidget(parent) {
 }
 
 void MpvRenderWidget::ApplySnapshot(const domain::PlayerSnapshot &snapshot) {
-    title_ = snapshot.channel_name.isEmpty() ? "No Channel Selected" : snapshot.channel_name;
-    subtitle_ = QString("Stage 3 OpenGL Placeholder\nState: %1").arg(domain::PlaybackStateName(snapshot.state));
+    title_ = snapshot.channel_name.isEmpty() ? tr("No Channel Selected") : snapshot.channel_name;
+    subtitle_ = tr("Stage 3 OpenGL Placeholder\nState: %1").arg(domain::PlaybackStateName(snapshot.state));
     update();
 }
 

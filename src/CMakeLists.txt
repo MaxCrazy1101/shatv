@@ -38,3 +38,10 @@ target_link_libraries(shatv
     PRIVATE
         shatv_app
 )
+
+qt_add_translations(shatv_app
+    IMMEDIATE_CALL
+    SOURCE_TARGETS shatv_app
+    TS_FILES
+        ${CMAKE_SOURCE_DIR}/translations/shatv_zh_CN.ts
+)

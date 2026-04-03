@@ -105,6 +105,11 @@ env QT_QPA_PLATFORM=offscreen SHATV_SMOKE_MEDIA=/absolute/path/to/local.mp4 ./bu
 - `文件 -> 打开链接...`：输入 `http://` 或 `https://` 链接，并立即播放
 - `设置 -> 网络设置...`：配置持久化 `User-Agent`
 
+多语言支持：
+
+- 当前内置 `zh_CN` 翻译资源
+- 应用启动时会根据系统 locale 自动加载可用翻译
+
 配置文件位置：
 
 ```text

@@ -104,21 +104,25 @@ std::vector<domain::Channel> Application::BuildInitialChannels() const {
     }
 
     return {
-        {.id = "demo-news", .name = "Demo News", .url = QUrl("https://example.com/demo-news.m3u8"), .group = "News"},
+        {.id = "demo-news",
+         .name = QCoreApplication::translate("Application", "Demo News"),
+         .url = QUrl("https://example.com/demo-news.m3u8"),
+         .group = QCoreApplication::translate("Application", "News")},
         {.id = "demo-sports",
-         .name = "Demo Sports",
+         .name = QCoreApplication::translate("Application", "Demo Sports"),
          .url = QUrl("https://example.com/demo-sports.m3u8"),
-         .group = "Sports"},
+         .group = QCoreApplication::translate("Application", "Sports")},
         {.id = "demo-movies",
-         .name = "Demo Movies",
+         .name = QCoreApplication::translate("Application", "Demo Movies"),
          .url = QUrl("https://example.com/demo-movies.m3u8"),
-         .group = "Movies"},
+         .group = QCoreApplication::translate("Application", "Movies")},
     };
 }
 
 void Application::OpenChannel(const domain::Channel &channel) {
     if (!channel.url.isValid() || channel.url.toString().isEmpty()) {
-        QMessageBox::warning(main_window_.get(), "ShaTV", "Open request failed: invalid media target.");
+        QMessageBox::warning(main_window_.get(), QCoreApplication::translate("Application", "ShaTV"),
+                             QCoreApplication::translate("Application", "Open request failed: invalid media target."));
         return;
     }
 
@@ -129,7 +133,7 @@ void Application::OpenChannel(const domain::Channel &channel) {
 
 void Application::OpenChannels(std::vector<domain::Channel> channels) {
     if (channels.empty()) {
-        ShowPlaylistImportError("Playlist contains no playable channels");
+        ShowPlaylistImportError(QCoreApplication::translate("Application", "Playlist contains no playable channels"));
         return;
     }
 
@@ -153,14 +157,14 @@ void Application::OpenFile(const QString &path) {
 void Application::OpenPlaylistFile(const QString &path) {
     QFile input(path);
     if (!input.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        ShowPlaylistImportError("Failed to open playlist file");
+        ShowPlaylistImportError(QCoreApplication::translate("Application", "Failed to open playlist file"));
         return;
     }
 
     const QString text = QString::fromUtf8(input.readAll());
     const auto channels = ParseM3uPlaylistText(text, QFileInfo(path).baseName());
     if (channels.empty()) {
-        ShowPlaylistImportError("Playlist contains no playable channels");
+        ShowPlaylistImportError(QCoreApplication::translate("Application", "Playlist contains no playable channels"));
         return;
     }
 
@@ -174,7 +178,9 @@ void Application::OpenUrl(const QString &url_text) {
 
     const domain::Channel channel = BuildOpenUrlChannel(url_text, QDir::currentPath());
     if (!IsRemotePlaybackUrl(channel.url)) {
-        QMessageBox::warning(main_window_.get(), "ShaTV", "Open Link expects an http:// or https:// URL.");
+        QMessageBox::warning(
+            main_window_.get(), QCoreApplication::translate("Application", "ShaTV"),
+            QCoreApplication::translate("Application", "Open Link expects an http:// or https:// URL."));
         return;
     }
     if (LooksLikeRemoteM3uUrl(channel.url)) {
@@ -182,8 +188,11 @@ void Application::OpenUrl(const QString &url_text) {
         return;
     }
     if (LooksLikeRemoteMediaDirectoryUrl(channel.url)) {
-        QMessageBox::warning(main_window_.get(), "ShaTV",
-                             "Open Link needs a full media URL, for example http://127.0.0.1:8080/index.m3u8");
+        QMessageBox::warning(
+            main_window_.get(), QCoreApplication::translate("Application", "ShaTV"),
+            QCoreApplication::translate(
+                "Application",
+                "Open Link needs a full media URL, for example http://127.0.0.1:8080/index.m3u8"));
         return;
     }
 
@@ -205,19 +214,19 @@ void Application::DownloadPlaylist(const QUrl &url) {
         });
 
         if (reply->error() != QNetworkReply::NoError) {
-            ShowPlaylistImportError("Failed to download playlist");
+            ShowPlaylistImportError(QCoreApplication::translate("Application", "Failed to download playlist"));
             return;
         }
 
         const QString text = QString::fromUtf8(reply->readAll());
         if (!LooksLikeM3uPlaylistText(text)) {
-            ShowPlaylistImportError("Playlist format is not supported");
+            ShowPlaylistImportError(QCoreApplication::translate("Application", "Playlist format is not supported"));
             return;
         }
 
         const auto channels = ParseM3uPlaylistText(text, QFileInfo(url.path()).baseName());
         if (channels.empty()) {
-            ShowPlaylistImportError("Playlist contains no playable channels");
+            ShowPlaylistImportError(QCoreApplication::translate("Application", "Playlist contains no playable channels"));
             return;
         }
 
@@ -226,15 +235,16 @@ void Application::DownloadPlaylist(const QUrl &url) {
 }
 
 void Application::ShowPlaylistImportError(const QString &message) {
-    QMessageBox::warning(main_window_.get(), "ShaTV", message);
+    QMessageBox::warning(main_window_.get(), QCoreApplication::translate("Application", "ShaTV"), message);
 }
 
 void Application::UpdateNetworkUserAgent(const QString &user_agent) {
     settings_.SetUserAgent(user_agent);
     if (!settings_.Save()) {
         QMessageBox::warning(
-            main_window_.get(), "ShaTV",
-            QString("Failed to save User-Agent to %1").arg(QDir::toNativeSeparators(settings_.ConfigPath())));
+            main_window_.get(), QCoreApplication::translate("Application", "ShaTV"),
+            QCoreApplication::translate("Application", "Failed to save User-Agent to %1")
+                .arg(QDir::toNativeSeparators(settings_.ConfigPath())));
         return;
     }
 
@@ -242,7 +252,7 @@ void Application::UpdateNetworkUserAgent(const QString &user_agent) {
     if (auto *mpv_backend = dynamic_cast<player::MpvPlayerBackend *>(backend_.get())) {
         mpv_backend->SetNetworkUserAgent(settings_.UserAgent());
     }
-    main_window_->statusBar()->showMessage("Network settings saved", 3000);
+    main_window_->statusBar()->showMessage(QCoreApplication::translate("Application", "Network settings saved"), 3000);
 }
 
 void Application::SetupSmokeScenario() {

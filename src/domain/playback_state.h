@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QCoreApplication>
 #include <QMetaType>
 #include <QString>
 
@@ -18,21 +19,21 @@ enum class PlaybackState : uint8_t {
 inline QString PlaybackStateName(PlaybackState state) {
     switch (state) {
         case PlaybackState::kIdle:
-            return "Idle";
+            return QCoreApplication::translate("PlaybackState", "Idle");
         case PlaybackState::kLoading:
-            return "Loading";
+            return QCoreApplication::translate("PlaybackState", "Loading");
         case PlaybackState::kPlaying:
-            return "Playing";
+            return QCoreApplication::translate("PlaybackState", "Playing");
         case PlaybackState::kPaused:
-            return "Paused";
+            return QCoreApplication::translate("PlaybackState", "Paused");
         case PlaybackState::kBuffering:
-            return "Buffering";
+            return QCoreApplication::translate("PlaybackState", "Buffering");
         case PlaybackState::kRetrying:
-            return "Retrying";
+            return QCoreApplication::translate("PlaybackState", "Retrying");
         case PlaybackState::kError:
-            return "Error";
+            return QCoreApplication::translate("PlaybackState", "Error");
     }
-    return "Unknown";
+    return QCoreApplication::translate("PlaybackState", "Unknown");
 }
 
 }  // namespace shatv::domain

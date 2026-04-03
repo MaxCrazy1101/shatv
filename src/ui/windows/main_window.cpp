@@ -118,7 +118,8 @@ void MainWindow::OnMuteToggled(bool muted) {
 
 void MainWindow::OnOpenFileRequested() {
     const QString selected_file = QFileDialog::getOpenFileName(
-        this, "Open File", QString(), "Media Files (*.m3u8 *.mp4 *.mkv *.ts *.mov *.webm *.mp3 *.flac);;All Files (*)");
+        this, tr("Open File"), QString(),
+        tr("Media Files (*.m3u *.m3u8 *.mp4 *.mkv *.ts *.mov *.webm *.mp3 *.flac);;All Files (*)"));
     if (selected_file.isEmpty()) {
         return;
     }
@@ -128,7 +129,7 @@ void MainWindow::OnOpenFileRequested() {
 
 void MainWindow::OnOpenUrlRequested() {
     bool accepted = false;
-    const QString url_text = QInputDialog::getText(this, "Open Link", "URL:", QLineEdit::Normal, "http://",
+    const QString url_text = QInputDialog::getText(this, tr("Open Link"), tr("URL:"), QLineEdit::Normal, "http://",
                                                    &accepted);
     if (!accepted || url_text.trimmed().isEmpty()) {
         return;
@@ -139,7 +140,8 @@ void MainWindow::OnOpenUrlRequested() {
 
 void MainWindow::OnNetworkSettingsRequested() {
     bool accepted = false;
-    const QString user_agent = QInputDialog::getText(this, "Network Settings", "User-Agent:", QLineEdit::Normal,
+    const QString user_agent = QInputDialog::getText(this, tr("Network Settings"), tr("User-Agent:"),
+                                                     QLineEdit::Normal,
                                                      configured_user_agent_, &accepted);
     if (!accepted) {
         return;
@@ -149,17 +151,17 @@ void MainWindow::OnNetworkSettingsRequested() {
 }
 
 void MainWindow::BuildUi() {
-    setWindowTitle("ShaTV");
+    setWindowTitle(tr("ShaTV"));
     resize(1280, 720);
 
-    auto *file_menu = menuBar()->addMenu("&File");
-    auto *open_file_action = file_menu->addAction("Open &File...");
-    auto *open_url_action = file_menu->addAction("Open &Link...");
+    auto *file_menu = menuBar()->addMenu(tr("&File"));
+    auto *open_file_action = file_menu->addAction(tr("Open &File..."));
+    auto *open_url_action = file_menu->addAction(tr("Open &Link..."));
     connect(open_file_action, &QAction::triggered, this, &MainWindow::OnOpenFileRequested);
     connect(open_url_action, &QAction::triggered, this, &MainWindow::OnOpenUrlRequested);
 
-    auto *settings_menu = menuBar()->addMenu("&Settings");
-    auto *network_settings_action = settings_menu->addAction("&Network Settings...");
+    auto *settings_menu = menuBar()->addMenu(tr("&Settings"));
+    auto *network_settings_action = settings_menu->addAction(tr("&Network Settings..."));
     connect(network_settings_action, &QAction::triggered, this, &MainWindow::OnNetworkSettingsRequested);
 
     auto *splitter = new QSplitter(Qt::Horizontal, this);
@@ -170,9 +172,9 @@ void MainWindow::BuildUi() {
     left_layout->setSpacing(8);
 
     search_input_ = new QLineEdit(left_panel);
-    search_input_->setPlaceholderText("Search channels");
+    search_input_->setPlaceholderText(tr("Search channels"));
     group_filter_ = new QComboBox(left_panel);
-    group_filter_->addItem("All groups");
+    group_filter_->addItem(tr("All groups"));
     channel_list_view_ = new QListView(left_panel);
     channel_list_view_->setModel(channel_model_);
     channel_list_view_->setSelectionMode(QAbstractItemView::SingleSelection);
@@ -201,7 +203,7 @@ void MainWindow::BuildUi() {
     splitter->setSizes({320, 960});
 
     setCentralWidget(splitter);
-    statusBar()->showMessage("Ready");
+    statusBar()->showMessage(tr("Ready"));
 }
 
 }  // namespace shatv::ui::windows

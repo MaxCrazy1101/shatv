@@ -1,5 +1,6 @@
 #include "app/launch_options.h"
 
+#include <QCoreApplication>
 #include <QFileInfo>
 #include <QUrl>
 
@@ -60,7 +61,7 @@ domain::Channel BuildOpenUrlChannel(const QString &input, const QString &current
         .id = "open-url",
         .name = ChannelNameFromUrl(media_url),
         .url = media_url,
-        .group = "Open URL",
+        .group = QCoreApplication::translate("LaunchOptions", "Open URL"),
     };
 }
 
@@ -70,7 +71,7 @@ domain::Channel BuildOpenMediaChannel(const QString &input, const QString &curre
         .id = "open-media",
         .name = ChannelNameFromUrl(media_url),
         .url = media_url,
-        .group = "Open Media",
+        .group = QCoreApplication::translate("LaunchOptions", "Open Media"),
     };
 }
 
@@ -104,7 +105,7 @@ std::optional<domain::Channel> BuildStartupChannel(const LaunchOptions &options,
             .id = "demo-news",
             .name = QFileInfo(absolute_path).fileName(),
             .url = QUrl::fromLocalFile(absolute_path),
-            .group = "Smoke",
+            .group = QCoreApplication::translate("LaunchOptions", "Smoke"),
         };
     }
 

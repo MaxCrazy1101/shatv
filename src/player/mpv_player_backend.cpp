@@ -64,7 +64,7 @@ void MpvPlayerBackend::InitializeRenderContext() {
 
     auto *context = QOpenGLContext::currentContext();
     if (context == nullptr) {
-        EmitSnapshot(domain::PlaybackState::kError, "mpv render context failed: no current OpenGL context");
+        EmitSnapshot(domain::PlaybackState::kError, tr("mpv render context failed: no current OpenGL context"));
         return;
     }
 
@@ -82,8 +82,7 @@ void MpvPlayerBackend::InitializeRenderContext() {
     const int result = mpv_render_context_create(&render_context_, handle_, params);
     if (result < 0) {
         render_context_ = nullptr;
-        EmitSnapshot(domain::PlaybackState::kError,
-                     QString("mpv render context create failed: %1").arg(mpv_error_string(result)));
+        EmitSnapshot(domain::PlaybackState::kError, tr("mpv render context create failed: %1").arg(mpv_error_string(result)));
         return;
     }
 
@@ -99,10 +98,10 @@ void MpvPlayerBackend::InitializeRenderContext() {
 
 void MpvPlayerBackend::Load(const domain::Channel &channel) {
     current_channel_ = channel;
-    EmitSnapshot(domain::PlaybackState::kLoading, QString("Loading %1").arg(channel.name));
+    EmitSnapshot(domain::PlaybackState::kLoading, tr("Loading %1").arg(channel.name));
 
     if (handle_ == nullptr) {
-        EmitSnapshot(domain::PlaybackState::kError, "mpv backend initialization failed");
+        EmitSnapshot(domain::PlaybackState::kError, tr("mpv backend initialization failed"));
         return;
     }
 
@@ -121,12 +120,12 @@ void MpvPlayerBackend::Play() {
     }
 
     if (handle_ == nullptr) {
-        EmitSnapshot(domain::PlaybackState::kError, "mpv backend initialization failed");
+        EmitSnapshot(domain::PlaybackState::kError, tr("mpv backend initialization failed"));
         return;
     }
 
     mpv_set_property_string(handle_, "pause", "no");
-    EmitSnapshot(domain::PlaybackState::kPlaying, QString("Playing %1").arg(current_channel_.name));
+    EmitSnapshot(domain::PlaybackState::kPlaying, tr("Playing %1").arg(current_channel_.name));
 }
 
 void MpvPlayerBackend::Pause() {
@@ -135,12 +134,12 @@ void MpvPlayerBackend::Pause() {
     }
 
     if (handle_ == nullptr) {
-        EmitSnapshot(domain::PlaybackState::kError, "mpv backend initialization failed");
+        EmitSnapshot(domain::PlaybackState::kError, tr("mpv backend initialization failed"));
         return;
     }
 
     mpv_set_property_string(handle_, "pause", "yes");
-    EmitSnapshot(domain::PlaybackState::kPaused, QString("Paused %1").arg(current_channel_.name));
+    EmitSnapshot(domain::PlaybackState::kPaused, tr("Paused %1").arg(current_channel_.name));
 }
 
 void MpvPlayerBackend::Stop() {
@@ -152,7 +151,7 @@ void MpvPlayerBackend::Stop() {
     current_channel_ = {};
     pending_channel_ = {};
     pending_load_ = false;
-    EmitSnapshot(domain::PlaybackState::kIdle, "Stopped");
+    EmitSnapshot(domain::PlaybackState::kIdle, tr("Stopped"));
 }
 
 void MpvPlayerBackend::SetVolume(int volume) {
@@ -167,7 +166,7 @@ void MpvPlayerBackend::SetVolume(int volume) {
     snapshot.channel_name = current_channel_.name;
     snapshot.volume = volume_;
     snapshot.muted = muted_;
-    snapshot.message = QString("Volume %1").arg(volume_);
+    snapshot.message = tr("Volume %1").arg(volume_);
     EmitSnapshot(snapshot);
 }
 
@@ -182,7 +181,7 @@ void MpvPlayerBackend::SetMuted(bool muted) {
     snapshot.channel_name = current_channel_.name;
     snapshot.volume = volume_;
     snapshot.muted = muted_;
-    snapshot.message = muted_ ? "Muted" : "Unmuted";
+    snapshot.message = muted_ ? tr("Muted") : tr("Unmuted");
     EmitSnapshot(snapshot);
 }
 
@@ -257,7 +256,7 @@ void MpvPlayerBackend::InitializeMpv() {
 
 void MpvPlayerBackend::LoadInternal(const domain::Channel &channel) {
     if (handle_ == nullptr) {
-        EmitSnapshot(domain::PlaybackState::kError, "mpv backend initialization failed");
+        EmitSnapshot(domain::PlaybackState::kError, tr("mpv backend initialization failed"));
         return;
     }
 
@@ -279,8 +278,7 @@ void MpvPlayerBackend::LoadInternal(const domain::Channel &channel) {
     const char *command[] = {"loadfile", url.constData(), "replace", nullptr};
     const int result = mpv_command(handle_, command);
     if (result < 0) {
-        EmitSnapshot(domain::PlaybackState::kError,
-                     QString("mpv loadfile failed: %1").arg(mpv_error_string(result)));
+        EmitSnapshot(domain::PlaybackState::kError, tr("mpv loadfile failed: %1").arg(mpv_error_string(result)));
     }
 }
 
@@ -365,7 +363,7 @@ void MpvPlayerBackend::HandleEvent(mpv_event *event) {
                 snapshot.volume = volume_;
                 snapshot.muted = muted_;
                 event_adapter_.ApplyEndFileError(
-                    snapshot, QString("Playback error: %1").arg(mpv_error_string(end_file->error)));
+                    snapshot, tr("Playback error: %1").arg(mpv_error_string(end_file->error)));
                 EmitSnapshot(snapshot);
             } else if (end_file != nullptr && end_file->reason == MPV_END_FILE_REASON_EOF) {
                 domain::PlayerSnapshot snapshot;
@@ -376,7 +374,7 @@ void MpvPlayerBackend::HandleEvent(mpv_event *event) {
                 event_adapter_.ApplyEndFileEof(snapshot);
                 EmitSnapshot(snapshot);
             } else if (end_file != nullptr && end_file->reason == MPV_END_FILE_REASON_STOP) {
-                EmitSnapshot(domain::PlaybackState::kIdle, "Stopped");
+                EmitSnapshot(domain::PlaybackState::kIdle, tr("Stopped"));
             }
             break;
         }

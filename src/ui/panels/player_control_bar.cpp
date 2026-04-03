@@ -7,9 +7,9 @@
 namespace shatv::ui::panels {
 
 PlayerControlBar::PlayerControlBar(QWidget *parent) : QWidget(parent) {
-    play_pause_button_ = new QPushButton("Play", this);
-    stop_button_ = new QPushButton("Stop", this);
-    mute_button_ = new QPushButton("Mute", this);
+    play_pause_button_ = new QPushButton(tr("Play"), this);
+    stop_button_ = new QPushButton(tr("Stop"), this);
+    mute_button_ = new QPushButton(tr("Mute"), this);
     volume_slider_ = new QSlider(Qt::Horizontal, this);
     volume_slider_->setRange(0, 100);
     volume_slider_->setValue(50);
@@ -31,10 +31,10 @@ PlayerControlBar::PlayerControlBar(QWidget *parent) : QWidget(parent) {
 }
 
 void PlayerControlBar::ApplySnapshot(const domain::PlayerSnapshot &snapshot) {
-    play_pause_button_->setText(snapshot.state == domain::PlaybackState::kPlaying ? "Pause" : "Play");
+    play_pause_button_->setText(snapshot.state == domain::PlaybackState::kPlaying ? tr("Pause") : tr("Play"));
 
     muted_ = snapshot.muted;
-    mute_button_->setText(muted_ ? "Unmute" : "Mute");
+    mute_button_->setText(muted_ ? tr("Unmute") : tr("Mute"));
 
     const bool volume_changed = volume_slider_->value() != snapshot.volume;
     if (volume_changed) {
