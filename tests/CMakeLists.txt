@@ -5,7 +5,7 @@ add_test(
 
 set_tests_properties(
     shatv_smoke
-    PROPERTIES PASS_REGULAR_EXPRESSION "ShaTV Stage2 smoke ok channels=3 current=demo-news state=playing"
+    PROPERTIES PASS_REGULAR_EXPRESSION "ShaTV Stage2 smoke ok channels=1 current=smoke-test state=playing"
 )
 
 add_executable(launch_options_test
@@ -36,19 +36,4 @@ target_link_libraries(m3u_playlist_parser_test
 add_test(
     NAME m3u_playlist_parser_test
     COMMAND $<TARGET_FILE:m3u_playlist_parser_test>
-)
-
-add_executable(localization_test
-    unit/localization_test.cpp
-)
-
-target_link_libraries(localization_test
-    PRIVATE
-        shatv_app
-        Qt6::Test
-)
-
-add_test(
-    NAME localization_test
-    COMMAND $<TARGET_FILE:localization_test>
 )

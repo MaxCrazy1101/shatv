@@ -25,6 +25,19 @@
 
 namespace shatv::app {
 
+namespace {
+
+domain::Channel BuildSmokeTestChannel() {
+    return {
+        .id = "smoke-test",
+        .name = "Smoke Test",
+        .url = QUrl("https://example.com/smoke-test.m3u8"),
+        .group = "Smoke",
+    };
+}
+
+}  // namespace
+
 Application::Application(QApplication *qt_app, LaunchOptions options)
     : qt_app_(qt_app), options_(std::move(options)), settings_(AppSettings::DefaultConfigPath()) {
     Q_ASSERT(qt_app_ != nullptr);
@@ -60,8 +73,8 @@ Application::Application(QApplication *qt_app, LaunchOptions options)
                      [this](const QString &user_agent) { UpdateNetworkUserAgent(user_agent); });
 
     startup_channel_ = BuildStartupChannel(options_, qEnvironmentVariable("SHATV_SMOKE_MEDIA"), QDir::currentPath());
-    demo_channels_ = BuildInitialChannels();
-    main_window_->SetChannels(demo_channels_);
+    initial_channels_ = BuildInitialChannels();
+    main_window_->SetChannels(initial_channels_);
 }
 
 Application::~Application() {
@@ -103,20 +116,11 @@ std::vector<domain::Channel> Application::BuildInitialChannels() const {
         return {*startup_channel_};
     }
 
-    return {
-        {.id = "demo-news",
-         .name = QCoreApplication::translate("Application", "Demo News"),
-         .url = QUrl("https://example.com/demo-news.m3u8"),
-         .group = QCoreApplication::translate("Application", "News")},
-        {.id = "demo-sports",
-         .name = QCoreApplication::translate("Application", "Demo Sports"),
-         .url = QUrl("https://example.com/demo-sports.m3u8"),
-         .group = QCoreApplication::translate("Application", "Sports")},
-        {.id = "demo-movies",
-         .name = QCoreApplication::translate("Application", "Demo Movies"),
-         .url = QUrl("https://example.com/demo-movies.m3u8"),
-         .group = QCoreApplication::translate("Application", "Movies")},
-    };
+    if (options_.smoke_test) {
+        return {BuildSmokeTestChannel()};
+    }
+
+    return {};
 }
 
 void Application::OpenChannel(const domain::Channel &channel) {
@@ -263,8 +267,7 @@ void Application::SetupSmokeScenario() {
                          }
 
                          smoke_completed_ = true;
-                         const QString state_name =
-                             domain::PlaybackStateName(main_window_->LastAppliedSnapshot().state).toLower();
+                         const QString state_name = domain::PlaybackStateToken(main_window_->LastAppliedSnapshot().state);
 
                          std::cout << "ShaTV Stage2 smoke ok channels=" << main_window_->ChannelCount()
                                    << " current=" << main_window_->CurrentChannelIdForSmoke().toStdString()

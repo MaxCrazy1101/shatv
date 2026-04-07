@@ -26,8 +26,8 @@ class MpvRenderWidget final : public QOpenGLWidget {
     void PaintPlaceholder();
 
     MpvPlayerBackend *backend_ = nullptr;
-    QString title_ = "No Channel Selected";
-    QString subtitle_ = "Stage 3 OpenGL Placeholder";
+    QString title_;
+    QString subtitle_;
 };
 
 }  // namespace shatv::player

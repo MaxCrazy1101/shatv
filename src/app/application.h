@@ -60,7 +60,7 @@ class Application final {
     std::unique_ptr<application::PlayerController> controller_;
     std::unique_ptr<ui::models::ChannelListModel> channel_model_;
     std::unique_ptr<ui::windows::MainWindow> main_window_;
-    std::vector<domain::Channel> demo_channels_;
+    std::vector<domain::Channel> initial_channels_;
     std::optional<domain::Channel> startup_channel_;
 };
 

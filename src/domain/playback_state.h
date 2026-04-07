@@ -36,6 +36,26 @@ inline QString PlaybackStateName(PlaybackState state) {
     return QCoreApplication::translate("PlaybackState", "Unknown");
 }
 
+inline QString PlaybackStateToken(PlaybackState state) {
+    switch (state) {
+        case PlaybackState::kIdle:
+            return QStringLiteral("idle");
+        case PlaybackState::kLoading:
+            return QStringLiteral("loading");
+        case PlaybackState::kPlaying:
+            return QStringLiteral("playing");
+        case PlaybackState::kPaused:
+            return QStringLiteral("paused");
+        case PlaybackState::kBuffering:
+            return QStringLiteral("buffering");
+        case PlaybackState::kRetrying:
+            return QStringLiteral("retrying");
+        case PlaybackState::kError:
+            return QStringLiteral("error");
+    }
+    return QStringLiteral("unknown");
+}
+
 }  // namespace shatv::domain
 
 Q_DECLARE_METATYPE(shatv::domain::PlaybackState)

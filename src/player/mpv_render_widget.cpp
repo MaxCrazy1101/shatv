@@ -12,6 +12,10 @@ MpvRenderWidget::MpvRenderWidget(QWidget *parent) : QOpenGLWidget(parent) {
     setMinimumHeight(320);
     setAttribute(Qt::WA_OpaquePaintEvent);
     setAutoFillBackground(false);
+
+    domain::PlayerSnapshot initial_snapshot;
+    initial_snapshot.state = domain::PlaybackState::kIdle;
+    ApplySnapshot(initial_snapshot);
 }
 
 void MpvRenderWidget::ApplySnapshot(const domain::PlayerSnapshot &snapshot) {
