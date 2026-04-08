@@ -1,8 +1,16 @@
 #pragma once
 
+#include <vector>
+
 #include <QString>
 
 namespace shatv::app {
+
+struct RecentOpenItem {
+    QString kind;
+    QString target;
+    QString label;
+};
 
 class AppSettings final {
    public:
@@ -12,7 +20,9 @@ class AppSettings final {
 
     const QString &ConfigPath() const;
     const QString &UserAgent() const;
+    const std::vector<RecentOpenItem> &RecentItems() const;
     void SetUserAgent(const QString &user_agent);
+    void RememberRecentItem(RecentOpenItem item);
 
     bool Load();
     bool Save() const;
@@ -20,6 +30,7 @@ class AppSettings final {
    private:
     QString config_path_;
     QString user_agent_;
+    std::vector<RecentOpenItem> recent_items_;
 };
 
 }  // namespace shatv::app

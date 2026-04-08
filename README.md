@@ -103,6 +103,7 @@ env QT_QPA_PLATFORM=offscreen SHATV_SMOKE_MEDIA=/absolute/path/to/local.mp4 ./bu
 
 - `文件 -> 打开文件...`：打开本地媒体文件，并替换当前左侧频道列表
 - `文件 -> 打开链接...`：输入 `http://` 或 `https://` 链接，并立即播放
+- `文件 -> 最近打开`：展示最近 `5` 条文件或链接记录，启动后可再次选择打开
 - `设置 -> 网络设置...`：配置持久化 `User-Agent`
 
 多语言支持：

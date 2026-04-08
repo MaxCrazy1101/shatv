@@ -1,5 +1,6 @@
 #include "app/app_settings.h"
 
+#include <algorithm>
 #include <fstream>
 #include <stdexcept>
 #include <string>
@@ -18,6 +19,8 @@ std::string ToStdString(const QString &value) {
     return value.toUtf8().toStdString();
 }
 
+constexpr std::size_t kMaxRecentItems = 5;
+
 }  // namespace
 
 AppSettings::AppSettings(QString config_path) : config_path_(std::move(config_path)) {}
@@ -35,13 +38,38 @@ const QString &AppSettings::UserAgent() const {
     return user_agent_;
 }
 
+const std::vector<RecentOpenItem> &AppSettings::RecentItems() const {
+    return recent_items_;
+}
+
 void AppSettings::SetUserAgent(const QString &user_agent) {
     user_agent_ = user_agent;
+}
+
+void AppSettings::RememberRecentItem(RecentOpenItem item) {
+    if (item.kind.isEmpty() || item.target.isEmpty()) {
+        return;
+    }
+
+    if (item.label.isEmpty()) {
+        item.label = item.target;
+    }
+
+    recent_items_.erase(std::remove_if(recent_items_.begin(), recent_items_.end(),
+                                       [&item](const RecentOpenItem &existing) {
+                                           return existing.kind == item.kind && existing.target == item.target;
+                                       }),
+                        recent_items_.end());
+    recent_items_.insert(recent_items_.begin(), std::move(item));
+    if (recent_items_.size() > kMaxRecentItems) {
+        recent_items_.resize(kMaxRecentItems);
+    }
 }
 
 bool AppSettings::Load() {
     if (!QFileInfo::exists(config_path_)) {
         user_agent_.clear();
+        recent_items_.clear();
         return true;
     }
 
@@ -49,6 +77,40 @@ bool AppSettings::Load() {
         const toml::value config = toml::parse(ToStdString(config_path_));
         user_agent_ = QString::fromStdString(
             toml::find_or<std::string>(config, "network", "user_agent", std::string()));
+        recent_items_.clear();
+
+        if (config.contains("history")) {
+            const auto &history = config.at("history");
+            if (history.is_table() && history.contains("recent")) {
+                const auto &recent = history.at("recent");
+                if (recent.is_array()) {
+                    for (const auto &entry : recent.as_array()) {
+                        if (!entry.is_table()) {
+                            continue;
+                        }
+
+                        const QString kind =
+                            QString::fromStdString(toml::find_or<std::string>(entry, "kind", std::string()));
+                        const QString target =
+                            QString::fromStdString(toml::find_or<std::string>(entry, "target", std::string()));
+                        const QString label =
+                            QString::fromStdString(toml::find_or<std::string>(entry, "label", std::string()));
+                        if (kind.isEmpty() || target.isEmpty()) {
+                            continue;
+                        }
+                        recent_items_.push_back(RecentOpenItem{
+                            .kind = kind,
+                            .target = target,
+                            .label = label.isEmpty() ? target : label,
+                        });
+                    }
+                }
+            }
+        }
+
+        if (recent_items_.size() > kMaxRecentItems) {
+            recent_items_.resize(kMaxRecentItems);
+        }
         return true;
     } catch (const std::exception &) {
         return false;
@@ -70,6 +132,15 @@ bool AppSettings::Save() const {
 
         // 配置层只维护一个极小 TOML 结构，避免把平台特定设置后端耦合进来。
         config["network"]["user_agent"] = toml::value(ToStdString(user_agent_));
+        toml::array recent_entries;
+        for (const auto &item : recent_items_) {
+            toml::value entry;
+            entry["kind"] = toml::value(ToStdString(item.kind));
+            entry["target"] = toml::value(ToStdString(item.target));
+            entry["label"] = toml::value(ToStdString(item.label));
+            recent_entries.push_back(std::move(entry));
+        }
+        config["history"]["recent"] = toml::value(std::move(recent_entries));
 
         std::ofstream output(ToStdString(config_path_), std::ios::trunc);
         if (!output.is_open()) {

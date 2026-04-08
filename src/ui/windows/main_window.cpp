@@ -1,5 +1,6 @@
 #include "ui/windows/main_window.h"
 
+#include <QAction>
 #include <QFileDialog>
 #include <QHBoxLayout>
 #include <QInputDialog>
@@ -71,6 +72,11 @@ QString MainWindow::CurrentChannelIdForSmoke() const {
 
 void MainWindow::SetConfiguredUserAgent(const QString &user_agent) {
     configured_user_agent_ = user_agent;
+}
+
+void MainWindow::SetRecentItems(std::vector<app::RecentOpenItem> items) {
+    recent_items_ = std::move(items);
+    RebuildRecentMenu();
 }
 
 domain::PlayerSnapshot MainWindow::LastAppliedSnapshot() const {
@@ -157,8 +163,10 @@ void MainWindow::BuildUi() {
     auto *file_menu = menuBar()->addMenu(tr("&File"));
     auto *open_file_action = file_menu->addAction(tr("Open &File..."));
     auto *open_url_action = file_menu->addAction(tr("Open &Link..."));
+    recent_menu_ = file_menu->addMenu(tr("Open Recent"));
     connect(open_file_action, &QAction::triggered, this, &MainWindow::OnOpenFileRequested);
     connect(open_url_action, &QAction::triggered, this, &MainWindow::OnOpenUrlRequested);
+    RebuildRecentMenu();
 
     auto *settings_menu = menuBar()->addMenu(tr("&Settings"));
     auto *network_settings_action = settings_menu->addAction(tr("&Network Settings..."));
@@ -204,6 +212,26 @@ void MainWindow::BuildUi() {
 
     setCentralWidget(splitter);
     statusBar()->showMessage(tr("Ready"));
+}
+
+void MainWindow::RebuildRecentMenu() {
+    if (recent_menu_ == nullptr) {
+        return;
+    }
+
+    recent_menu_->clear();
+    if (recent_items_.empty()) {
+        recent_menu_->setEnabled(false);
+        return;
+    }
+
+    recent_menu_->setEnabled(true);
+    for (const auto &item : recent_items_) {
+        QAction *action = recent_menu_->addAction(item.label);
+        action->setToolTip(item.target);
+        action->setStatusTip(item.target);
+        connect(action, &QAction::triggered, this, [this, item]() { emit RecentOpenSelected(item.kind, item.target); });
+    }
 }
 
 }  // namespace shatv::ui::windows

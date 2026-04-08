@@ -15,6 +15,7 @@ using shatv::app::IsRemotePlaybackUrl;
 using shatv::app::LooksLikeRemoteMediaDirectoryUrl;
 using shatv::app::LaunchOptions;
 using shatv::app::ParseLaunchOptions;
+using shatv::app::RecentOpenItem;
 using shatv::domain::PlaybackState;
 using shatv::domain::PlayerSnapshot;
 using shatv::player::MpvEventAdapter;
@@ -32,6 +33,7 @@ class LaunchOptionsTest : public QObject {
     void remote_root_url_detection_for_open_link_validation();
     void load_missing_settings_defaults_to_empty_user_agent();
     void save_and_load_user_agent_round_trip();
+    void save_and_load_recent_items_with_dedup_and_limit();
     void save_settings_preserves_existing_comments_and_fields();
     void end_file_eof_pause_true_keeps_terminal_idle_state();
     void idle_active_true_after_pause_becomes_finished_idle();
@@ -134,6 +136,58 @@ void LaunchOptionsTest::save_and_load_user_agent_round_trip() {
     AppSettings reloaded(config_path);
     QVERIFY(reloaded.Load());
     QCOMPARE(reloaded.UserAgent(), QString("ShaTV QA Agent/1.0"));
+}
+
+void LaunchOptionsTest::save_and_load_recent_items_with_dedup_and_limit() {
+    QTemporaryDir temp_dir;
+    QVERIFY(temp_dir.isValid());
+
+    const QString config_path = temp_dir.filePath("settings/config.toml");
+
+    AppSettings settings(config_path);
+    settings.RememberRecentItem(RecentOpenItem{
+        .kind = "url",
+        .target = "https://example.com/live-1.m3u8",
+        .label = "live-1.m3u8",
+    });
+    settings.RememberRecentItem(RecentOpenItem{
+        .kind = "file",
+        .target = "/tmp/playlist-1.m3u",
+        .label = "playlist-1.m3u",
+    });
+    settings.RememberRecentItem(RecentOpenItem{
+        .kind = "url",
+        .target = "https://example.com/live-2.m3u8",
+        .label = "live-2.m3u8",
+    });
+    settings.RememberRecentItem(RecentOpenItem{
+        .kind = "file",
+        .target = "/tmp/playlist-2.m3u",
+        .label = "playlist-2.m3u",
+    });
+    settings.RememberRecentItem(RecentOpenItem{
+        .kind = "url",
+        .target = "https://example.com/live-3.m3u8",
+        .label = "live-3.m3u8",
+    });
+    settings.RememberRecentItem(RecentOpenItem{
+        .kind = "file",
+        .target = "/tmp/playlist-3.m3u",
+        .label = "playlist-3.m3u",
+    });
+    settings.RememberRecentItem(RecentOpenItem{
+        .kind = "url",
+        .target = "https://example.com/live-2.m3u8",
+        .label = "live-2.m3u8",
+    });
+    QVERIFY(settings.Save());
+
+    AppSettings reloaded(config_path);
+    QVERIFY(reloaded.Load());
+    QCOMPARE(reloaded.RecentItems().size(), 5);
+    QCOMPARE(reloaded.RecentItems().at(0).target, QString("https://example.com/live-2.m3u8"));
+    QCOMPARE(reloaded.RecentItems().at(1).target, QString("/tmp/playlist-3.m3u"));
+    QCOMPARE(reloaded.RecentItems().at(4).target, QString("/tmp/playlist-1.m3u"));
 }
 
 void LaunchOptionsTest::save_settings_preserves_existing_comments_and_fields() {

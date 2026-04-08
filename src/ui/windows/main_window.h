@@ -6,8 +6,10 @@
 #include <QLineEdit>
 #include <QListView>
 #include <QMainWindow>
+#include <QMenu>
 #include <QString>
 
+#include "app/app_settings.h"
 #include "domain/channel.h"
 #include "domain/player_snapshot.h"
 
@@ -42,6 +44,7 @@ class MainWindow final : public QMainWindow {
     void StartSmokeScenario();
     player::MpvRenderWidget *RenderWidget() const;
     void SetConfiguredUserAgent(const QString &user_agent);
+    void SetRecentItems(std::vector<app::RecentOpenItem> items);
 
     int ChannelCount() const;
     QString CurrentChannelIdForSmoke() const;
@@ -50,6 +53,7 @@ class MainWindow final : public QMainWindow {
    signals:
     void OpenFileSelected(const QString &path);
     void OpenUrlSelected(const QString &url_text);
+    void RecentOpenSelected(const QString &kind, const QString &target);
     void UserAgentChanged(const QString &user_agent);
     void UiSnapshotApplied(const shatv::domain::PlayerSnapshot &snapshot);
 
@@ -62,8 +66,9 @@ class MainWindow final : public QMainWindow {
     void OnOpenUrlRequested();
     void OnNetworkSettingsRequested();
 
-   private:
+  private:
     void BuildUi();
+    void RebuildRecentMenu();
 
     application::PlayerController *controller_ = nullptr;
     ui::models::ChannelListModel *channel_model_ = nullptr;
@@ -73,6 +78,8 @@ class MainWindow final : public QMainWindow {
     player::MpvRenderWidget *render_widget_ = nullptr;
     panels::PlayerControlBar *control_bar_ = nullptr;
     panels::PlaybackStatusPanel *status_panel_ = nullptr;
+    QMenu *recent_menu_ = nullptr;
+    std::vector<app::RecentOpenItem> recent_items_;
     domain::PlayerSnapshot last_snapshot_;
     QString configured_user_agent_;
 };

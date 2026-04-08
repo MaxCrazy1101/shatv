@@ -48,6 +48,9 @@ class Application final {
     void DownloadPlaylist(const QUrl &url);
     void ShowPlaylistImportError(const QString &message);
     void UpdateNetworkUserAgent(const QString &user_agent);
+    void RememberRecentItem(const RecentOpenItem &item);
+    void RefreshRecentItems();
+    void OpenRecentItem(const QString &kind, const QString &target);
     void SetupSmokeScenario();
     void SetupMpvSmokeScenario();
 

@@ -94,6 +94,10 @@
       <translation>打开链接(&amp;L)...</translation>
     </message>
     <message>
+      <source>Open Recent</source>
+      <translation>最近打开</translation>
+    </message>
+    <message>
       <source>&amp;Settings</source>
       <translation>设置(&amp;S)</translation>
     </message>
@@ -273,6 +277,10 @@ State: %1</source>
     <message>
       <source>Network settings saved</source>
       <translation>网络设置已保存</translation>
+    </message>
+    <message>
+      <source>Failed to save recent history</source>
+      <translation>最近打开记录保存失败</translation>
     </message>
   </context>
   <context>

@@ -36,6 +36,26 @@ domain::Channel BuildSmokeTestChannel() {
     };
 }
 
+RecentOpenItem BuildRecentFileItem(const QString &path, const QString &current_directory) {
+    const domain::Channel channel = BuildOpenMediaChannel(path, current_directory);
+    const QString target =
+        channel.url.isLocalFile() ? QFileInfo(channel.url.toLocalFile()).absoluteFilePath() : channel.url.toString();
+    return {
+        .kind = "file",
+        .target = target,
+        .label = channel.name,
+    };
+}
+
+RecentOpenItem BuildRecentUrlItem(const QString &url_text, const QString &current_directory) {
+    const domain::Channel channel = BuildOpenUrlChannel(url_text, current_directory);
+    return {
+        .kind = "url",
+        .target = channel.url.toString(),
+        .label = channel.name,
+    };
+}
+
 }  // namespace
 
 Application::Application(QApplication *qt_app, LaunchOptions options)
@@ -58,6 +78,7 @@ Application::Application(QApplication *qt_app, LaunchOptions options)
         std::cerr << "ShaTV config load failed path=" << settings_.ConfigPath().toStdString() << std::endl;
     }
     main_window_->SetConfiguredUserAgent(settings_.UserAgent());
+    RefreshRecentItems();
 
     if (auto *mpv_backend = dynamic_cast<player::MpvPlayerBackend *>(backend_.get())) {
         mpv_backend->SetNetworkUserAgent(settings_.UserAgent());
@@ -69,6 +90,8 @@ Application::Application(QApplication *qt_app, LaunchOptions options)
                      [this](const QString &path) { OpenFile(path); });
     QObject::connect(main_window_.get(), &ui::windows::MainWindow::OpenUrlSelected, qt_app_,
                      [this](const QString &url_text) { OpenUrl(url_text); });
+    QObject::connect(main_window_.get(), &ui::windows::MainWindow::RecentOpenSelected, qt_app_,
+                     [this](const QString &kind, const QString &target) { OpenRecentItem(kind, target); });
     QObject::connect(main_window_.get(), &ui::windows::MainWindow::UserAgentChanged, qt_app_,
                      [this](const QString &user_agent) { UpdateNetworkUserAgent(user_agent); });
 
@@ -101,9 +124,15 @@ int Application::Run() {
                     OpenPlaylistFile(startup_channel.url.toLocalFile());
                     return;
                 }
+                RememberRecentItem(BuildRecentUrlItem(startup_channel.url.toString(), QDir::currentPath()));
                 DownloadPlaylist(startup_channel.url);
             });
         } else {
+            if (startup_channel.url.isLocalFile()) {
+                RememberRecentItem(BuildRecentFileItem(startup_channel.url.toLocalFile(), QDir::currentPath()));
+            } else {
+                RememberRecentItem(BuildRecentUrlItem(startup_channel.url.toString(), QDir::currentPath()));
+            }
             QTimer::singleShot(0, main_window_.get(), &ui::windows::MainWindow::StartInitialPlayback);
         }
     }
@@ -155,6 +184,7 @@ void Application::OpenFile(const QString &path) {
         return;
     }
 
+    RememberRecentItem(BuildRecentFileItem(path, QDir::currentPath()));
     OpenChannel(BuildOpenMediaChannel(path, QDir::currentPath()));
 }
 
@@ -172,6 +202,7 @@ void Application::OpenPlaylistFile(const QString &path) {
         return;
     }
 
+    RememberRecentItem(BuildRecentFileItem(path, QDir::currentPath()));
     OpenChannels(channels);
 }
 
@@ -188,6 +219,7 @@ void Application::OpenUrl(const QString &url_text) {
         return;
     }
     if (LooksLikeRemoteM3uUrl(channel.url)) {
+        RememberRecentItem(BuildRecentUrlItem(url_text, QDir::currentPath()));
         DownloadPlaylist(channel.url);
         return;
     }
@@ -200,6 +232,7 @@ void Application::OpenUrl(const QString &url_text) {
         return;
     }
 
+    RememberRecentItem(BuildRecentUrlItem(url_text, QDir::currentPath()));
     OpenChannel(channel);
 }
 
@@ -257,6 +290,34 @@ void Application::UpdateNetworkUserAgent(const QString &user_agent) {
         mpv_backend->SetNetworkUserAgent(settings_.UserAgent());
     }
     main_window_->statusBar()->showMessage(QCoreApplication::translate("Application", "Network settings saved"), 3000);
+}
+
+void Application::RememberRecentItem(const RecentOpenItem &item) {
+    if (options_.smoke_test || options_.mpv_smoke) {
+        return;
+    }
+
+    settings_.RememberRecentItem(item);
+    RefreshRecentItems();
+    if (!settings_.Save()) {
+        std::cerr << "ShaTV recent history save failed path=" << settings_.ConfigPath().toStdString() << std::endl;
+        main_window_->statusBar()->showMessage(QCoreApplication::translate("Application", "Failed to save recent history"),
+                                               3000);
+    }
+}
+
+void Application::RefreshRecentItems() {
+    main_window_->SetRecentItems(settings_.RecentItems());
+}
+
+void Application::OpenRecentItem(const QString &kind, const QString &target) {
+    if (kind == "file") {
+        OpenFile(target);
+        return;
+    }
+    if (kind == "url") {
+        OpenUrl(target);
+    }
 }
 
 void Application::SetupSmokeScenario() {
