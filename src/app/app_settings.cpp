@@ -21,6 +21,34 @@ std::string ToStdString(const QString &value) {
 
 constexpr std::size_t kMaxRecentItems = 5;
 
+bool IsSameRecentItem(const RecentOpenItem &lhs, const RecentOpenItem &rhs) {
+    return lhs.kind == rhs.kind && lhs.target == rhs.target;
+}
+
+void NormalizeRecentItems(std::vector<RecentOpenItem> &items) {
+    std::vector<RecentOpenItem> normalized;
+    normalized.reserve(std::min(items.size(), kMaxRecentItems));
+
+    for (auto &item : items) {
+        if (item.kind.isEmpty() || item.target.isEmpty()) {
+            continue;
+        }
+        if (item.label.isEmpty()) {
+            item.label = item.target;
+        }
+        if (std::any_of(normalized.begin(), normalized.end(),
+                        [&item](const RecentOpenItem &existing) { return IsSameRecentItem(existing, item); })) {
+            continue;
+        }
+        normalized.push_back(std::move(item));
+        if (normalized.size() >= kMaxRecentItems) {
+            break;
+        }
+    }
+
+    items = std::move(normalized);
+}
+
 }  // namespace
 
 AppSettings::AppSettings(QString config_path) : config_path_(std::move(config_path)) {}
@@ -57,7 +85,7 @@ void AppSettings::RememberRecentItem(RecentOpenItem item) {
 
     recent_items_.erase(std::remove_if(recent_items_.begin(), recent_items_.end(),
                                        [&item](const RecentOpenItem &existing) {
-                                           return existing.kind == item.kind && existing.target == item.target;
+                                           return IsSameRecentItem(existing, item);
                                        }),
                         recent_items_.end());
     recent_items_.insert(recent_items_.begin(), std::move(item));
@@ -108,9 +136,7 @@ bool AppSettings::Load() {
             }
         }
 
-        if (recent_items_.size() > kMaxRecentItems) {
-            recent_items_.resize(kMaxRecentItems);
-        }
+        NormalizeRecentItems(recent_items_);
         return true;
     } catch (const std::exception &) {
         return false;

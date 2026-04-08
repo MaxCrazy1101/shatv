@@ -34,6 +34,7 @@ class LaunchOptionsTest : public QObject {
     void load_missing_settings_defaults_to_empty_user_agent();
     void save_and_load_user_agent_round_trip();
     void save_and_load_recent_items_with_dedup_and_limit();
+    void load_recent_items_deduplicates_existing_config_entries();
     void save_settings_preserves_existing_comments_and_fields();
     void end_file_eof_pause_true_keeps_terminal_idle_state();
     void idle_active_true_after_pause_becomes_finished_idle();
@@ -188,6 +189,59 @@ void LaunchOptionsTest::save_and_load_recent_items_with_dedup_and_limit() {
     QCOMPARE(reloaded.RecentItems().at(0).target, QString("https://example.com/live-2.m3u8"));
     QCOMPARE(reloaded.RecentItems().at(1).target, QString("/tmp/playlist-3.m3u"));
     QCOMPARE(reloaded.RecentItems().at(4).target, QString("/tmp/playlist-1.m3u"));
+}
+
+void LaunchOptionsTest::load_recent_items_deduplicates_existing_config_entries() {
+    QTemporaryDir temp_dir;
+    QVERIFY(temp_dir.isValid());
+
+    const QString config_path = temp_dir.filePath("config.toml");
+    QFile seed_file(config_path);
+    QVERIFY(seed_file.open(QIODevice::WriteOnly | QIODevice::Text));
+    seed_file.write(
+        "[network]\n"
+        "user_agent = \"Seed Agent\"\n"
+        "\n"
+        "[[history.recent]]\n"
+        "kind = \"url\"\n"
+        "target = \"https://example.com/live-1.m3u8\"\n"
+        "label = \"live-1.m3u8\"\n"
+        "\n"
+        "[[history.recent]]\n"
+        "kind = \"file\"\n"
+        "target = \"/tmp/playlist-1.m3u\"\n"
+        "label = \"playlist-1.m3u\"\n"
+        "\n"
+        "[[history.recent]]\n"
+        "kind = \"url\"\n"
+        "target = \"https://example.com/live-1.m3u8\"\n"
+        "label = \"live-1 duplicate\"\n"
+        "\n"
+        "[[history.recent]]\n"
+        "kind = \"file\"\n"
+        "target = \"/tmp/playlist-2.m3u\"\n"
+        "label = \"playlist-2.m3u\"\n"
+        "\n"
+        "[[history.recent]]\n"
+        "kind = \"url\"\n"
+        "target = \"https://example.com/live-2.m3u8\"\n"
+        "label = \"live-2.m3u8\"\n"
+        "\n"
+        "[[history.recent]]\n"
+        "kind = \"file\"\n"
+        "target = \"/tmp/playlist-3.m3u\"\n"
+        "label = \"playlist-3.m3u\"\n");
+    seed_file.close();
+
+    AppSettings settings(config_path);
+    QVERIFY(settings.Load());
+    QCOMPARE(settings.UserAgent(), QString("Seed Agent"));
+    QCOMPARE(settings.RecentItems().size(), 5);
+    QCOMPARE(settings.RecentItems().at(0).target, QString("https://example.com/live-1.m3u8"));
+    QCOMPARE(settings.RecentItems().at(1).target, QString("/tmp/playlist-1.m3u"));
+    QCOMPARE(settings.RecentItems().at(2).target, QString("/tmp/playlist-2.m3u"));
+    QCOMPARE(settings.RecentItems().at(3).target, QString("https://example.com/live-2.m3u8"));
+    QCOMPARE(settings.RecentItems().at(4).target, QString("/tmp/playlist-3.m3u"));
 }
 
 void LaunchOptionsTest::save_settings_preserves_existing_comments_and_fields() {

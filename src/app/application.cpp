@@ -113,35 +113,21 @@ int Application::Run() {
     if (options_.smoke_test) {
         std::cout << "ShaTV Qt6 bootstrap" << std::endl;
         SetupSmokeScenario();
-    }
-    if (options_.mpv_smoke) {
+    } else if (options_.mpv_smoke) {
         SetupMpvSmokeScenario();
-    } else if (startup_channel_.has_value()) {
-        const domain::Channel startup_channel = *startup_channel_;
-        if (LooksLikePlaylistChannel(startup_channel)) {
-            QTimer::singleShot(0, qt_app_, [this, startup_channel]() {
-                if (startup_channel.url.isLocalFile()) {
-                    OpenPlaylistFile(startup_channel.url.toLocalFile());
-                    return;
-                }
-                RememberRecentItem(BuildRecentUrlItem(startup_channel.url.toString(), QDir::currentPath()));
-                DownloadPlaylist(startup_channel.url);
-            });
-        } else {
-            if (startup_channel.url.isLocalFile()) {
-                RememberRecentItem(BuildRecentFileItem(startup_channel.url.toLocalFile(), QDir::currentPath()));
-            } else {
-                RememberRecentItem(BuildRecentUrlItem(startup_channel.url.toString(), QDir::currentPath()));
-            }
-            QTimer::singleShot(0, main_window_.get(), &ui::windows::MainWindow::StartInitialPlayback);
-        }
+    } else if (!options_.open_url_argument.isEmpty()) {
+        const QString startup_url = options_.open_url_argument;
+        QTimer::singleShot(0, qt_app_, [this, startup_url]() { OpenUrl(startup_url); });
+    } else if (!options_.open_media_argument.isEmpty()) {
+        const QString startup_media = options_.open_media_argument;
+        QTimer::singleShot(0, qt_app_, [this, startup_media]() { OpenFile(startup_media); });
     }
 
     return qt_app_->exec();
 }
 
 std::vector<domain::Channel> Application::BuildInitialChannels() const {
-    if (startup_channel_.has_value()) {
+    if (options_.mpv_smoke && startup_channel_.has_value()) {
         return {*startup_channel_};
     }
 
