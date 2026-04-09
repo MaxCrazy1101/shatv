@@ -22,6 +22,7 @@ class MpvRenderWidget;
 }
 
 namespace shatv::ui::models {
+class ChannelFilterModel;
 class ChannelListModel;
 }
 
@@ -65,13 +66,16 @@ class MainWindow final : public QMainWindow {
     void OnOpenFileRequested();
     void OnOpenUrlRequested();
     void OnNetworkSettingsRequested();
+    void OnGroupFilterChanged(int index);
 
   private:
     void BuildUi();
+    void RebuildGroupFilter();
     void RebuildRecentMenu();
 
     application::PlayerController *controller_ = nullptr;
     ui::models::ChannelListModel *channel_model_ = nullptr;
+    ui::models::ChannelFilterModel *channel_filter_model_ = nullptr;
     QListView *channel_list_view_ = nullptr;
     QLineEdit *search_input_ = nullptr;
     QComboBox *group_filter_ = nullptr;

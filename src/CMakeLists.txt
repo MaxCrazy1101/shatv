@@ -9,6 +9,7 @@ add_library(shatv_app
     player/mpv_player_backend.cpp
     player/mpv_render_widget.cpp
     player/player_backend.cpp
+    ui/models/channel_filter_model.cpp
     ui/models/channel_list_model.cpp
     ui/panels/player_control_bar.cpp
     ui/panels/playback_status_panel.cpp

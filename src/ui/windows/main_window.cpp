@@ -7,6 +7,7 @@
 #include <QItemSelectionModel>
 #include <QLabel>
 #include <QMenuBar>
+#include <QSignalBlocker>
 #include <QSplitter>
 #include <QStatusBar>
 #include <QVBoxLayout>
@@ -15,6 +16,7 @@
 #include "application/player_controller.h"
 #include "domain/playback_state.h"
 #include "player/mpv_render_widget.h"
+#include "ui/models/channel_filter_model.h"
 #include "ui/models/channel_list_model.h"
 #include "ui/panels/playback_status_panel.h"
 #include "ui/panels/player_control_bar.h"
@@ -42,14 +44,15 @@ MainWindow::MainWindow(application::PlayerController *controller, ui::models::Ch
 
 void MainWindow::SetChannels(std::vector<domain::Channel> channels) {
     channel_model_->SetChannels(std::move(channels));
+    RebuildGroupFilter();
 }
 
 void MainWindow::StartInitialPlayback() {
-    if (channel_model_->rowCount() <= 0) {
+    if (channel_filter_model_->rowCount() <= 0) {
         return;
     }
 
-    const QModelIndex first_channel = channel_model_->index(0, 0);
+    const QModelIndex first_channel = channel_filter_model_->index(0, 0);
     channel_list_view_->setCurrentIndex(first_channel);
     OnChannelActivated(first_channel);
 }
@@ -84,7 +87,9 @@ domain::PlayerSnapshot MainWindow::LastAppliedSnapshot() const {
 }
 
 void MainWindow::OnChannelActivated(const QModelIndex &index) {
-    const domain::Channel channel = channel_model_->ChannelAt(index);
+    // 列表视图绑定的是代理模型，播放前需要映射回源模型。
+    const QModelIndex source_index = channel_filter_model_->mapToSource(index);
+    const domain::Channel channel = channel_model_->ChannelAt(source_index);
     if (channel.id.isEmpty()) {
         return;
     }
@@ -156,6 +161,14 @@ void MainWindow::OnNetworkSettingsRequested() {
     emit UserAgentChanged(user_agent.trimmed());
 }
 
+void MainWindow::OnGroupFilterChanged(int index) {
+    if (index < 0) {
+        return;
+    }
+
+    channel_filter_model_->SetGroupFilter(group_filter_->itemData(index).toString());
+}
+
 void MainWindow::BuildUi() {
     setWindowTitle(tr("ShaTV"));
     resize(1280, 720);
@@ -182,10 +195,13 @@ void MainWindow::BuildUi() {
     search_input_ = new QLineEdit(left_panel);
     search_input_->setPlaceholderText(tr("Search channels"));
     group_filter_ = new QComboBox(left_panel);
-    group_filter_->addItem(tr("All groups"));
+    channel_filter_model_ = new ui::models::ChannelFilterModel(this);
+    channel_filter_model_->setSourceModel(channel_model_);
     channel_list_view_ = new QListView(left_panel);
-    channel_list_view_->setModel(channel_model_);
+    channel_list_view_->setModel(channel_filter_model_);
     channel_list_view_->setSelectionMode(QAbstractItemView::SingleSelection);
+    connect(group_filter_, qOverload<int>(&QComboBox::currentIndexChanged), this, &MainWindow::OnGroupFilterChanged);
+    RebuildGroupFilter();
 
     left_layout->addWidget(search_input_);
     left_layout->addWidget(group_filter_);
@@ -212,6 +228,22 @@ void MainWindow::BuildUi() {
 
     setCentralWidget(splitter);
     statusBar()->showMessage(tr("Ready"));
+}
+
+void MainWindow::RebuildGroupFilter() {
+    const QString current_group = channel_filter_model_->GroupFilter();
+    const QStringList groups = channel_filter_model_->AvailableGroups();
+
+    QSignalBlocker blocker(group_filter_);
+    group_filter_->clear();
+    group_filter_->addItem(tr("All groups"), QString());
+    for (const QString &group : groups) {
+        group_filter_->addItem(group, group);
+    }
+
+    const int next_index = group_filter_->findData(current_group);
+    group_filter_->setCurrentIndex(next_index >= 0 ? next_index : 0);
+    channel_filter_model_->SetGroupFilter(group_filter_->currentData().toString());
 }
 
 void MainWindow::RebuildRecentMenu() {

@@ -23,6 +23,21 @@ add_test(
     COMMAND $<TARGET_FILE:launch_options_test>
 )
 
+add_executable(channel_filter_model_test
+    unit/channel_filter_model_test.cpp
+)
+
+target_link_libraries(channel_filter_model_test
+    PRIVATE
+        shatv_app
+        Qt6::Test
+)
+
+add_test(
+    NAME channel_filter_model_test
+    COMMAND $<TARGET_FILE:channel_filter_model_test>
+)
+
 add_executable(m3u_playlist_parser_test
     unit/m3u_playlist_parser_test.cpp
 )
