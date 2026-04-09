@@ -17,6 +17,8 @@ class ChannelFilterModelTest : public QObject {
     void available_groups_returns_unique_groups_in_first_seen_order();
     void group_filter_restricts_visible_rows();
     void empty_group_filter_shows_all_rows();
+    void search_filter_matches_names_case_insensitively();
+    void search_filter_combines_with_group_filter();
 };
 
 void ChannelFilterModelTest::available_groups_returns_unique_groups_in_first_seen_order() {
@@ -76,6 +78,53 @@ void ChannelFilterModelTest::empty_group_filter_shows_all_rows() {
     filter.SetGroupFilter("");
 
     QCOMPARE(filter.rowCount(), 2);
+}
+
+void ChannelFilterModelTest::search_filter_matches_names_case_insensitively() {
+    ChannelListModel source;
+    source.SetChannels({
+        Channel{.id = "cctv-news",
+                .name = "CCTV News",
+                .url = QUrl("https://example.com/cctv-news.m3u8"),
+                .group = "新闻"},
+        Channel{.id = "dragon",
+                .name = "Dragon TV",
+                .url = QUrl("https://example.com/dragon.m3u8"),
+                .group = "卫视"},
+    });
+
+    ChannelFilterModel filter;
+    filter.setSourceModel(&source);
+    filter.SetSearchText("news");
+
+    QCOMPARE(filter.rowCount(), 1);
+    QCOMPARE(filter.index(0, 0).data(ChannelListModel::kIdRole).toString(), QString("cctv-news"));
+}
+
+void ChannelFilterModelTest::search_filter_combines_with_group_filter() {
+    ChannelListModel source;
+    source.SetChannels({
+        Channel{.id = "cctv-news",
+                .name = "CCTV News",
+                .url = QUrl("https://example.com/cctv-news.m3u8"),
+                .group = "新闻"},
+        Channel{.id = "cctv-sports",
+                .name = "CCTV Sports",
+                .url = QUrl("https://example.com/cctv-sports.m3u8"),
+                .group = "体育"},
+        Channel{.id = "local",
+                .name = "Local News",
+                .url = QUrl("https://example.com/local-news.m3u8"),
+                .group = "新闻"},
+    });
+
+    ChannelFilterModel filter;
+    filter.setSourceModel(&source);
+    filter.SetGroupFilter("新闻");
+    filter.SetSearchText(" local ");
+
+    QCOMPARE(filter.rowCount(), 1);
+    QCOMPARE(filter.index(0, 0).data(ChannelListModel::kIdRole).toString(), QString("local"));
 }
 
 }  // namespace

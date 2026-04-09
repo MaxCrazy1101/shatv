@@ -14,13 +14,17 @@ class ChannelFilterModel final : public QSortFilterProxyModel {
 
     QStringList AvailableGroups() const;
     void SetGroupFilter(const QString &group);
+    void SetSearchText(const QString &search_text);
     QString GroupFilter() const;
 
    protected:
     bool filterAcceptsRow(int source_row, const QModelIndex &source_parent) const override;
 
    private:
+    bool MatchesSearch(int source_row, const QModelIndex &source_parent) const;
+
     QString group_filter_;
+    QString search_text_;
 };
 
 }  // namespace shatv::ui::models

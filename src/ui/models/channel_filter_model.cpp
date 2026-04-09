@@ -39,22 +39,51 @@ void ChannelFilterModel::SetGroupFilter(const QString &group) {
     endFilterChange(Direction::Rows);
 }
 
+void ChannelFilterModel::SetSearchText(const QString &search_text) {
+    const QString normalized_search = search_text.trimmed();
+    if (search_text_ == normalized_search) {
+        return;
+    }
+
+    beginFilterChange();
+    search_text_ = normalized_search;
+    endFilterChange(Direction::Rows);
+}
+
 QString ChannelFilterModel::GroupFilter() const {
     return group_filter_;
 }
 
 bool ChannelFilterModel::filterAcceptsRow(int source_row, const QModelIndex &source_parent) const {
-    if (sourceModel() == nullptr || group_filter_.isEmpty()) {
+    if (sourceModel() == nullptr) {
         return true;
     }
 
     // 分组过滤只影响左侧可见项，不改变底层频道数据。
-    const QString group = sourceModel()
-                              ->index(source_row, 0, source_parent)
-                              .data(ChannelListModel::kGroupRole)
-                              .toString()
-                              .trimmed();
-    return group == group_filter_;
+    if (!group_filter_.isEmpty()) {
+        const QString group = sourceModel()
+                                  ->index(source_row, 0, source_parent)
+                                  .data(ChannelListModel::kGroupRole)
+                                  .toString()
+                                  .trimmed();
+        if (group != group_filter_) {
+            return false;
+        }
+    }
+
+    return MatchesSearch(source_row, source_parent);
+}
+
+bool ChannelFilterModel::MatchesSearch(int source_row, const QModelIndex &source_parent) const {
+    if (sourceModel() == nullptr || search_text_.isEmpty()) {
+        return true;
+    }
+
+    const QString channel_name = sourceModel()
+                                     ->index(source_row, 0, source_parent)
+                                     .data(ChannelListModel::kNameRole)
+                                     .toString();
+    return channel_name.contains(search_text_, Qt::CaseInsensitive);
 }
 
 }  // namespace shatv::ui::models

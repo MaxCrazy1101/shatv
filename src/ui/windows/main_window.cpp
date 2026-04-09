@@ -201,6 +201,7 @@ void MainWindow::BuildUi() {
     channel_list_view_->setModel(channel_filter_model_);
     channel_list_view_->setSelectionMode(QAbstractItemView::SingleSelection);
     connect(group_filter_, qOverload<int>(&QComboBox::currentIndexChanged), this, &MainWindow::OnGroupFilterChanged);
+    connect(search_input_, &QLineEdit::textChanged, channel_filter_model_, &ui::models::ChannelFilterModel::SetSearchText);
     RebuildGroupFilter();
 
     left_layout->addWidget(search_input_);
