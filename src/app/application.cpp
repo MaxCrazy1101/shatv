@@ -78,6 +78,7 @@ Application::Application(QApplication *qt_app, LaunchOptions options)
         std::cerr << "ShaTV config load failed path=" << settings_.ConfigPath().toStdString() << std::endl;
     }
     main_window_->SetConfiguredUserAgent(settings_.UserAgent());
+    main_window_->SetOsdAutoHideSeconds(settings_.OsdAutoHideSeconds());
     RefreshRecentItems();
 
     if (auto *mpv_backend = dynamic_cast<player::MpvPlayerBackend *>(backend_.get())) {

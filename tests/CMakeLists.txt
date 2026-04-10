@@ -53,6 +53,21 @@ add_test(
     COMMAND ${CMAKE_COMMAND} -E env QT_QPA_PLATFORM=offscreen $<TARGET_FILE:playback_viewport_test>
 )
 
+add_executable(main_window_fullscreen_test
+    unit/main_window_fullscreen_test.cpp
+)
+
+target_link_libraries(main_window_fullscreen_test
+    PRIVATE
+        shatv_app
+        Qt6::Test
+)
+
+add_test(
+    NAME main_window_fullscreen_test
+    COMMAND ${CMAKE_COMMAND} -E env QT_QPA_PLATFORM=offscreen $<TARGET_FILE:main_window_fullscreen_test>
+)
+
 add_executable(m3u_playlist_parser_test
     unit/m3u_playlist_parser_test.cpp
 )

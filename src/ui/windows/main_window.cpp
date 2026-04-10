@@ -20,6 +20,7 @@
 #include "ui/models/channel_list_model.h"
 #include "ui/panels/playback_status_panel.h"
 #include "ui/panels/player_control_bar.h"
+#include "ui/widgets/playback_viewport.h"
 
 namespace shatv::ui::windows {
 
@@ -40,6 +41,14 @@ MainWindow::MainWindow(application::PlayerController *controller, ui::models::Ch
     connect(control_bar_, &panels::PlayerControlBar::MuteToggled, this, &MainWindow::OnMuteToggled);
     connect(control_bar_, &panels::PlayerControlBar::VolumeChanged, controller_,
             &application::PlayerController::SetVolume);
+    connect(playback_viewport_, &widgets::PlaybackViewport::PlayPauseRequested, this, &MainWindow::OnPlayPauseRequested);
+    connect(playback_viewport_, &widgets::PlaybackViewport::StopRequested, controller_,
+            &application::PlayerController::Stop);
+    connect(playback_viewport_, &widgets::PlaybackViewport::MuteToggled, this, &MainWindow::OnMuteToggled);
+    connect(playback_viewport_, &widgets::PlaybackViewport::VolumeChanged, controller_,
+            &application::PlayerController::SetVolume);
+    connect(playback_viewport_, &widgets::PlaybackViewport::ExitFullscreenRequested, this,
+            &MainWindow::ExitFullscreen);
 }
 
 void MainWindow::SetChannels(std::vector<domain::Channel> channels) {
@@ -62,11 +71,15 @@ void MainWindow::StartSmokeScenario() {
 }
 
 player::MpvRenderWidget *MainWindow::RenderWidget() const {
-    return render_widget_;
+    return playback_viewport_->RenderWidget();
 }
 
 int MainWindow::ChannelCount() const {
     return channel_model_->rowCount();
+}
+
+bool MainWindow::IsFullscreenModeActive() const {
+    return fullscreen_active_;
 }
 
 QString MainWindow::CurrentChannelIdForSmoke() const {
@@ -75,6 +88,10 @@ QString MainWindow::CurrentChannelIdForSmoke() const {
 
 void MainWindow::SetConfiguredUserAgent(const QString &user_agent) {
     configured_user_agent_ = user_agent;
+}
+
+void MainWindow::SetOsdAutoHideSeconds(int seconds) {
+    playback_viewport_->SetOsdAutoHideSeconds(seconds);
 }
 
 void MainWindow::SetRecentItems(std::vector<app::RecentOpenItem> items) {
@@ -100,7 +117,7 @@ void MainWindow::OnChannelActivated(const QModelIndex &index) {
 void MainWindow::OnPlaybackSnapshotChanged(const shatv::domain::PlayerSnapshot &snapshot) {
     // UI 层只消费归一化后的快照，不直接理解底层播放器事件。
     last_snapshot_ = snapshot;
-    render_widget_->ApplySnapshot(snapshot);
+    playback_viewport_->ApplySnapshot(snapshot);
     control_bar_->ApplySnapshot(snapshot);
     status_panel_->ApplySnapshot(snapshot);
 
@@ -169,9 +186,37 @@ void MainWindow::OnGroupFilterChanged(int index) {
     channel_filter_model_->SetGroupFilter(group_filter_->itemData(index).toString());
 }
 
+void MainWindow::ToggleFullscreen() {
+    ApplyFullscreenUiState(!fullscreen_active_);
+}
+
+void MainWindow::ExitFullscreen() {
+    if (!fullscreen_active_) {
+        return;
+    }
+
+    ApplyFullscreenUiState(false);
+}
+
+void MainWindow::keyPressEvent(QKeyEvent *event) {
+    if (event->key() == Qt::Key_F11) {
+        ToggleFullscreen();
+        event->accept();
+        return;
+    }
+    if (fullscreen_active_ && event->key() == Qt::Key_Escape) {
+        ExitFullscreen();
+        event->accept();
+        return;
+    }
+
+    QMainWindow::keyPressEvent(event);
+}
+
 void MainWindow::BuildUi() {
     setWindowTitle(tr("ShaTV"));
     resize(1280, 720);
+    setFocusPolicy(Qt::StrongFocus);
 
     auto *file_menu = menuBar()->addMenu(tr("&File"));
     auto *open_file_action = file_menu->addAction(tr("Open &File..."));
@@ -185,19 +230,25 @@ void MainWindow::BuildUi() {
     auto *network_settings_action = settings_menu->addAction(tr("&Network Settings..."));
     connect(network_settings_action, &QAction::triggered, this, &MainWindow::OnNetworkSettingsRequested);
 
+    auto *view_menu = menuBar()->addMenu(tr("&View"));
+    toggle_fullscreen_action_ = view_menu->addAction(tr("Toggle Full Screen"));
+    toggle_fullscreen_action_->setShortcut(QKeySequence(Qt::Key_F11));
+    addAction(toggle_fullscreen_action_);
+    connect(toggle_fullscreen_action_, &QAction::triggered, this, &MainWindow::ToggleFullscreen);
+
     auto *splitter = new QSplitter(Qt::Horizontal, this);
 
-    auto *left_panel = new QWidget(splitter);
-    auto *left_layout = new QVBoxLayout(left_panel);
+    left_panel_ = new QWidget(splitter);
+    auto *left_layout = new QVBoxLayout(left_panel_);
     left_layout->setContentsMargins(12, 12, 12, 12);
     left_layout->setSpacing(8);
 
-    search_input_ = new QLineEdit(left_panel);
+    search_input_ = new QLineEdit(left_panel_);
     search_input_->setPlaceholderText(tr("Search channels"));
-    group_filter_ = new QComboBox(left_panel);
+    group_filter_ = new QComboBox(left_panel_);
     channel_filter_model_ = new ui::models::ChannelFilterModel(this);
     channel_filter_model_->setSourceModel(channel_model_);
-    channel_list_view_ = new QListView(left_panel);
+    channel_list_view_ = new QListView(left_panel_);
     channel_list_view_->setModel(channel_filter_model_);
     channel_list_view_->setSelectionMode(QAbstractItemView::SingleSelection);
     connect(group_filter_, qOverload<int>(&QComboBox::currentIndexChanged), this, &MainWindow::OnGroupFilterChanged);
@@ -213,15 +264,15 @@ void MainWindow::BuildUi() {
     right_layout->setContentsMargins(12, 12, 12, 12);
     right_layout->setSpacing(12);
 
-    render_widget_ = new player::MpvRenderWidget(right_panel);
+    playback_viewport_ = new widgets::PlaybackViewport(right_panel);
     control_bar_ = new panels::PlayerControlBar(right_panel);
     status_panel_ = new panels::PlaybackStatusPanel(right_panel);
 
-    right_layout->addWidget(render_widget_, 1);
+    right_layout->addWidget(playback_viewport_, 1);
     right_layout->addWidget(control_bar_);
     right_layout->addWidget(status_panel_);
 
-    splitter->addWidget(left_panel);
+    splitter->addWidget(left_panel_);
     splitter->addWidget(right_panel);
     splitter->setStretchFactor(0, 0);
     splitter->setStretchFactor(1, 1);
@@ -229,6 +280,37 @@ void MainWindow::BuildUi() {
 
     setCentralWidget(splitter);
     statusBar()->showMessage(tr("Ready"));
+}
+
+void MainWindow::ApplyFullscreenUiState(bool active) {
+    if (fullscreen_active_ == active) {
+        return;
+    }
+
+    fullscreen_active_ = active;
+    if (fullscreen_active_) {
+        was_maximized_before_fullscreen_ = isMaximized();
+        menuBar()->hide();
+        statusBar()->hide();
+        left_panel_->hide();
+        control_bar_->hide();
+        status_panel_->hide();
+        showFullScreen();
+        playback_viewport_->SetFullscreenActive(true);
+        return;
+    }
+
+    playback_viewport_->SetFullscreenActive(false);
+    if (was_maximized_before_fullscreen_) {
+        showMaximized();
+    } else {
+        showNormal();
+    }
+    menuBar()->show();
+    statusBar()->show();
+    left_panel_->show();
+    control_bar_->show();
+    status_panel_->show();
 }
 
 void MainWindow::RebuildGroupFilter() {

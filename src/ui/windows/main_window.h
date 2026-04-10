@@ -3,6 +3,7 @@
 #include <vector>
 
 #include <QComboBox>
+#include <QKeyEvent>
 #include <QLineEdit>
 #include <QListView>
 #include <QMainWindow>
@@ -12,6 +13,8 @@
 #include "app/app_settings.h"
 #include "domain/channel.h"
 #include "domain/player_snapshot.h"
+
+class QAction;
 
 namespace shatv::application {
 class PlayerController;
@@ -31,6 +34,10 @@ class PlayerControlBar;
 class PlaybackStatusPanel;
 }
 
+namespace shatv::ui::widgets {
+class PlaybackViewport;
+}
+
 namespace shatv::ui::windows {
 
 class MainWindow final : public QMainWindow {
@@ -45,9 +52,11 @@ class MainWindow final : public QMainWindow {
     void StartSmokeScenario();
     player::MpvRenderWidget *RenderWidget() const;
     void SetConfiguredUserAgent(const QString &user_agent);
+    void SetOsdAutoHideSeconds(int seconds);
     void SetRecentItems(std::vector<app::RecentOpenItem> items);
 
     int ChannelCount() const;
+    bool IsFullscreenModeActive() const;
     QString CurrentChannelIdForSmoke() const;
     domain::PlayerSnapshot LastAppliedSnapshot() const;
 
@@ -67,25 +76,33 @@ class MainWindow final : public QMainWindow {
     void OnOpenUrlRequested();
     void OnNetworkSettingsRequested();
     void OnGroupFilterChanged(int index);
+    void ToggleFullscreen();
+    void ExitFullscreen();
 
   private:
+    void keyPressEvent(QKeyEvent *event) override;
     void BuildUi();
+    void ApplyFullscreenUiState(bool active);
     void RebuildGroupFilter();
     void RebuildRecentMenu();
 
     application::PlayerController *controller_ = nullptr;
     ui::models::ChannelListModel *channel_model_ = nullptr;
     ui::models::ChannelFilterModel *channel_filter_model_ = nullptr;
+    QWidget *left_panel_ = nullptr;
     QListView *channel_list_view_ = nullptr;
     QLineEdit *search_input_ = nullptr;
     QComboBox *group_filter_ = nullptr;
-    player::MpvRenderWidget *render_widget_ = nullptr;
+    ui::widgets::PlaybackViewport *playback_viewport_ = nullptr;
     panels::PlayerControlBar *control_bar_ = nullptr;
     panels::PlaybackStatusPanel *status_panel_ = nullptr;
     QMenu *recent_menu_ = nullptr;
+    QAction *toggle_fullscreen_action_ = nullptr;
     std::vector<app::RecentOpenItem> recent_items_;
     domain::PlayerSnapshot last_snapshot_;
     QString configured_user_agent_;
+    bool fullscreen_active_ = false;
+    bool was_maximized_before_fullscreen_ = false;
 };
 
 }  // namespace shatv::ui::windows
