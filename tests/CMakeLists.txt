@@ -38,6 +38,21 @@ add_test(
     COMMAND $<TARGET_FILE:channel_filter_model_test>
 )
 
+add_executable(playback_viewport_test
+    unit/playback_viewport_test.cpp
+)
+
+target_link_libraries(playback_viewport_test
+    PRIVATE
+        shatv_app
+        Qt6::Test
+)
+
+add_test(
+    NAME playback_viewport_test
+    COMMAND ${CMAKE_COMMAND} -E env QT_QPA_PLATFORM=offscreen $<TARGET_FILE:playback_viewport_test>
+)
+
 add_executable(m3u_playlist_parser_test
     unit/m3u_playlist_parser_test.cpp
 )

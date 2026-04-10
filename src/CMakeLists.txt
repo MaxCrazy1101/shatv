@@ -11,8 +11,10 @@ add_library(shatv_app
     player/player_backend.cpp
     ui/models/channel_filter_model.cpp
     ui/models/channel_list_model.cpp
+    ui/panels/playback_osd_overlay.cpp
     ui/panels/player_control_bar.cpp
     ui/panels/playback_status_panel.cpp
+    ui/widgets/playback_viewport.cpp
     ui/windows/main_window.cpp
 )
 
