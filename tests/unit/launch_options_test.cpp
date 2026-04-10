@@ -32,9 +32,12 @@ class LaunchOptionsTest : public QObject {
     void remote_playback_url_detection();
     void remote_root_url_detection_for_open_link_validation();
     void load_missing_settings_defaults_to_empty_user_agent();
+    void load_missing_settings_defaults_to_osd_auto_hide_three_seconds();
     void save_and_load_user_agent_round_trip();
+    void save_and_load_osd_auto_hide_seconds_round_trip();
     void save_and_load_recent_items_with_dedup_and_limit();
     void load_recent_items_deduplicates_existing_config_entries();
+    void load_invalid_osd_auto_hide_seconds_falls_back_to_default();
     void save_settings_preserves_existing_comments_and_fields();
     void end_file_eof_pause_true_keeps_terminal_idle_state();
     void idle_active_true_after_pause_becomes_finished_idle();
@@ -124,6 +127,17 @@ void LaunchOptionsTest::load_missing_settings_defaults_to_empty_user_agent() {
     QCOMPARE(settings.UserAgent(), QString());
 }
 
+void LaunchOptionsTest::load_missing_settings_defaults_to_osd_auto_hide_three_seconds() {
+    QTemporaryDir temp_dir;
+    QVERIFY(temp_dir.isValid());
+
+    const QString config_path = temp_dir.filePath("settings/config.toml");
+    AppSettings settings(config_path);
+
+    QVERIFY(settings.Load());
+    QCOMPARE(settings.OsdAutoHideSeconds(), 3);
+}
+
 void LaunchOptionsTest::save_and_load_user_agent_round_trip() {
     QTemporaryDir temp_dir;
     QVERIFY(temp_dir.isValid());
@@ -137,6 +151,20 @@ void LaunchOptionsTest::save_and_load_user_agent_round_trip() {
     AppSettings reloaded(config_path);
     QVERIFY(reloaded.Load());
     QCOMPARE(reloaded.UserAgent(), QString("ShaTV QA Agent/1.0"));
+}
+
+void LaunchOptionsTest::save_and_load_osd_auto_hide_seconds_round_trip() {
+    QTemporaryDir temp_dir;
+    QVERIFY(temp_dir.isValid());
+
+    const QString config_path = temp_dir.filePath("settings/config.toml");
+    AppSettings settings(config_path);
+    settings.SetOsdAutoHideSeconds(5);
+    QVERIFY(settings.Save());
+
+    AppSettings reloaded(config_path);
+    QVERIFY(reloaded.Load());
+    QCOMPARE(reloaded.OsdAutoHideSeconds(), 5);
 }
 
 void LaunchOptionsTest::save_and_load_recent_items_with_dedup_and_limit() {
@@ -242,6 +270,23 @@ void LaunchOptionsTest::load_recent_items_deduplicates_existing_config_entries()
     QCOMPARE(settings.RecentItems().at(2).target, QString("/tmp/playlist-2.m3u"));
     QCOMPARE(settings.RecentItems().at(3).target, QString("https://example.com/live-2.m3u8"));
     QCOMPARE(settings.RecentItems().at(4).target, QString("/tmp/playlist-3.m3u"));
+}
+
+void LaunchOptionsTest::load_invalid_osd_auto_hide_seconds_falls_back_to_default() {
+    QTemporaryDir temp_dir;
+    QVERIFY(temp_dir.isValid());
+
+    const QString config_path = temp_dir.filePath("config.toml");
+    QFile seed_file(config_path);
+    QVERIFY(seed_file.open(QIODevice::WriteOnly | QIODevice::Text));
+    seed_file.write(
+        "[ui.osd]\n"
+        "auto_hide_seconds = 0\n");
+    seed_file.close();
+
+    AppSettings settings(config_path);
+    QVERIFY(settings.Load());
+    QCOMPARE(settings.OsdAutoHideSeconds(), 3);
 }
 
 void LaunchOptionsTest::save_settings_preserves_existing_comments_and_fields() {

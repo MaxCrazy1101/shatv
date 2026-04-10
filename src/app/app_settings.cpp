@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <fstream>
+#include <iostream>
 #include <stdexcept>
 #include <string>
 
@@ -20,6 +21,7 @@ std::string ToStdString(const QString &value) {
 }
 
 constexpr std::size_t kMaxRecentItems = 5;
+constexpr int kDefaultOsdAutoHideSeconds = 3;
 
 bool IsSameRecentItem(const RecentOpenItem &lhs, const RecentOpenItem &rhs) {
     return lhs.kind == rhs.kind && lhs.target == rhs.target;
@@ -49,6 +51,39 @@ void NormalizeRecentItems(std::vector<RecentOpenItem> &items) {
     items = std::move(normalized);
 }
 
+int NormalizeOsdAutoHideSeconds(const toml::value &config, const QString &config_path) {
+    if (!config.contains("ui")) {
+        return kDefaultOsdAutoHideSeconds;
+    }
+
+    const auto &ui = config.at("ui");
+    if (!ui.is_table() || !ui.contains("osd")) {
+        return kDefaultOsdAutoHideSeconds;
+    }
+
+    const auto &osd = ui.at("osd");
+    if (!osd.is_table()) {
+        std::cerr << "ShaTV config invalid ui.osd path=" << config_path.toStdString() << std::endl;
+        return kDefaultOsdAutoHideSeconds;
+    }
+
+    try {
+        const int seconds = toml::find_or<int>(osd, "auto_hide_seconds", kDefaultOsdAutoHideSeconds);
+        if (seconds >= 1) {
+            return seconds;
+        }
+
+        std::cerr << "ShaTV config invalid ui.osd.auto_hide_seconds path="
+                  << config_path.toStdString()
+                  << " value=" << seconds << std::endl;
+        return kDefaultOsdAutoHideSeconds;
+    } catch (const std::exception &) {
+        std::cerr << "ShaTV config invalid ui.osd.auto_hide_seconds path="
+                  << config_path.toStdString() << std::endl;
+        return kDefaultOsdAutoHideSeconds;
+    }
+}
+
 }  // namespace
 
 AppSettings::AppSettings(QString config_path) : config_path_(std::move(config_path)) {}
@@ -66,12 +101,22 @@ const QString &AppSettings::UserAgent() const {
     return user_agent_;
 }
 
+int AppSettings::OsdAutoHideSeconds() const {
+    return osd_auto_hide_seconds_;
+}
+
 const std::vector<RecentOpenItem> &AppSettings::RecentItems() const {
     return recent_items_;
 }
 
 void AppSettings::SetUserAgent(const QString &user_agent) {
     user_agent_ = user_agent;
+}
+
+void AppSettings::SetOsdAutoHideSeconds(int seconds) {
+    if (seconds >= 1) {
+        osd_auto_hide_seconds_ = seconds;
+    }
 }
 
 void AppSettings::RememberRecentItem(RecentOpenItem item) {
@@ -97,6 +142,7 @@ void AppSettings::RememberRecentItem(RecentOpenItem item) {
 bool AppSettings::Load() {
     if (!QFileInfo::exists(config_path_)) {
         user_agent_.clear();
+        osd_auto_hide_seconds_ = kDefaultOsdAutoHideSeconds;
         recent_items_.clear();
         return true;
     }
@@ -105,6 +151,7 @@ bool AppSettings::Load() {
         const toml::value config = toml::parse(ToStdString(config_path_));
         user_agent_ = QString::fromStdString(
             toml::find_or<std::string>(config, "network", "user_agent", std::string()));
+        osd_auto_hide_seconds_ = NormalizeOsdAutoHideSeconds(config, config_path_);
         recent_items_.clear();
 
         if (config.contains("history")) {
@@ -158,6 +205,7 @@ bool AppSettings::Save() const {
 
         // 配置层只维护一个极小 TOML 结构，避免把平台特定设置后端耦合进来。
         config["network"]["user_agent"] = toml::value(ToStdString(user_agent_));
+        config["ui"]["osd"]["auto_hide_seconds"] = toml::value(osd_auto_hide_seconds_);
         toml::array recent_entries;
         for (const auto &item : recent_items_) {
             toml::value entry;
