@@ -1,0 +1,14 @@
+# Third-Party Sources
+
+This package bundles or depends on the following third-party components.
+
+## Qt
+- Version: @QT_VERSION@
+- License: LGPL-3.0 or commercial
+- Source releases: https://download.qt.io/official_releases/qt/
+
+## libmpv
+- Version: @MPV_VERSION@
+- License: LGPL or GPL, depending on the upstream build
+- Binary source: @MPV_BINARY_URL@
+- Upstream source: https://github.com/mpv-player/mpv
