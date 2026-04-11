@@ -29,7 +29,7 @@ target_link_libraries(shatv_app
         Qt6::Widgets
         Qt6::OpenGLWidgets
         Qt6::Network
-        PkgConfig::MPV
+        shatv_mpv
         toml11::toml11
 )
 
@@ -42,9 +42,11 @@ target_link_libraries(shatv
         shatv_app
 )
 
-qt_add_translations(shatv_app
-    IMMEDIATE_CALL
-    SOURCE_TARGETS shatv_app
-    TS_FILES
-        ${CMAKE_SOURCE_DIR}/translations/shatv_zh_CN.ts
-)
+if(TARGET Qt6::lrelease)
+    qt_add_translations(shatv_app
+        IMMEDIATE_CALL
+        SOURCE_TARGETS shatv_app
+        TS_FILES
+            ${CMAKE_SOURCE_DIR}/translations/shatv_zh_CN.ts
+    )
+endif()

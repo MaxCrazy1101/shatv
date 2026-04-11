@@ -68,6 +68,26 @@ add_test(
     COMMAND ${CMAKE_COMMAND} -E env QT_QPA_PLATFORM=offscreen $<TARGET_FILE:main_window_fullscreen_test>
 )
 
+add_executable(windows_dependency_config_test
+    unit/windows_dependency_config_test.cpp
+)
+
+target_compile_definitions(windows_dependency_config_test
+    PRIVATE
+        SHATV_TOPLEVEL_CMAKELISTS="${CMAKE_SOURCE_DIR}/CMakeLists.txt"
+        SHATV_SRC_CMAKELISTS="${CMAKE_SOURCE_DIR}/src/CMakeLists.txt"
+)
+
+target_link_libraries(windows_dependency_config_test
+    PRIVATE
+        Qt6::Test
+)
+
+add_test(
+    NAME windows_dependency_config_test
+    COMMAND $<TARGET_FILE:windows_dependency_config_test>
+)
+
 add_executable(m3u_playlist_parser_test
     unit/m3u_playlist_parser_test.cpp
 )
