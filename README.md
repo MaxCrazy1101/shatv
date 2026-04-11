@@ -145,6 +145,60 @@ cmake --build build-tests
 ctest --test-dir build-tests --output-on-failure
 ```
 
+## Windows 构建
+
+仓库提供 [`.github/workflows/windows-portable.yml`](.github/workflows/windows-portable.yml)，会在 `push` 和 `pull_request` 上使用 `windows-latest` 构建 `Release`，并上传 `shatv-windows-x64-portable.zip` artifact。
+
+当前 CI 固定使用 shinchiro 的 `20260411` `mpv-dev` Windows 预编译包：
+
+- 发布页：`https://github.com/shinchiro/mpv-winbuild-cmake/releases/tag/20260411`
+- 二进制直链：`https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/20260411/mpv-dev-x86_64-v3-20260411-git-3e3048a.7z`
+
+Windows 便携包解压后至少包含：
+
+- `shatv.exe`
+- Qt runtime 与 `windeployqt` 收集到的插件
+- `platforms/qwindows.dll`
+- `libmpv-2.dll`
+- `NOTICE.txt`
+- `THIRD_PARTY_SOURCES.md`
+- `licenses/`
+
+本地 Windows 构建前提：
+
+- Visual Studio 2022 / MSVC x64 工具链
+- Qt `6.8.2` MSVC 2022 x64
+- Ninja
+- 上述 shinchiro `mpv-dev` 预编译包
+
+shinchiro 当前 `mpv-dev` 包自带头文件和 `libmpv-2.dll`，但不直接提供 MSVC 可用的 `mpv.lib`。CI 会在 workflow 内根据 DLL 导出表生成 import library，本地如果也走 MSVC，需要先执行同样的步骤：
+
+```powershell
+$exports = & dumpbin /exports C:\deps\mpv\libmpv-2.dll |
+  Select-String '^\s+\d+\s+[0-9A-F]+\s+[0-9A-F]+\s+\S+$' |
+  ForEach-Object { $_.Line -replace '^\s+\d+\s+[0-9A-F]+\s+[0-9A-F]+\s+', '    ' }
+
+@(
+  'LIBRARY libmpv-2.dll'
+  'EXPORTS'
+) + $exports | Set-Content C:\deps\mpv\libmpv.def
+
+lib /def:C:\deps\mpv\libmpv.def /machine:x64 /out:C:\deps\mpv\mpv.lib
+```
+
+生成 `mpv.lib` 后可以配置并编译：
+
+```powershell
+cmake -S . -B build-windows -G Ninja -DCMAKE_BUILD_TYPE=Release `
+  -DCMAKE_PREFIX_PATH=C:/Qt/6.8.2/msvc2022_64 `
+  -DBUILD_TESTING=OFF `
+  -DSHATV_MPV_INCLUDE_DIR=C:/deps/mpv/include `
+  -DSHATV_MPV_LIBRARY=C:/deps/mpv/mpv.lib `
+  -DSHATV_MPV_DLL=C:/deps/mpv/libmpv-2.dll
+cmake --build build-windows --target shatv --config Release
+windeployqt.exe --release build-windows/src/shatv.exe
+```
+
 ## 本地 HLS 测试
 
 仓库不保存第三方测试视频文件。请将本地媒体文件放在仓库外，或放到已忽略的 `local-media/` 目录，再运行：

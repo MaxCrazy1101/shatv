@@ -1,0 +1,117 @@
+name: windows-portable
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-windows-portable:
+    runs-on: windows-latest
+
+    env:
+      BUILD_DIR: build-windows
+      PACKAGE_ROOT: package-root
+      PACKAGE_DIR: package-root/shatv-windows-x64
+      QT_VERSION: 6.8.2
+      MPV_VERSION: 20260411
+      MPV_BINARY_URL: https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/20260411/mpv-dev-x86_64-v3-20260411-git-3e3048a.7z
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
+          modules: qt5compat
+
+      - name: Install Ninja
+        uses: seanmiddleditch/gha-setup-ninja@v5
+
+      - name: Download libmpv
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path deps/mpv | Out-Null
+          Invoke-WebRequest $env:MPV_BINARY_URL -OutFile deps/mpv-dev.7z
+          7z x deps/mpv-dev.7z "-odeps/mpv" | Out-Null
+
+      - name: Create libmpv import library
+        shell: pwsh
+        run: |
+          # shinchiro 的 dev 包提供 DLL 和头文件，但不提供 MSVC import lib，这里按导出表生成 mpv.lib。
+          $dllPath = Join-Path $PWD "deps/mpv/libmpv-2.dll"
+          $defPath = Join-Path $PWD "deps/mpv/libmpv.def"
+          $libPath = Join-Path $PWD "deps/mpv/mpv.lib"
+          $exportLines = & dumpbin /exports $dllPath |
+            Select-String '^\s+\d+\s+[0-9A-F]+\s+[0-9A-F]+\s+\S+$' |
+            ForEach-Object { $_.Line -replace '^\s+\d+\s+[0-9A-F]+\s+[0-9A-F]+\s+', '    ' }
+
+          @(
+            "LIBRARY libmpv-2.dll"
+            "EXPORTS"
+          ) + $exportLines | Set-Content $defPath
+
+          lib /def:$defPath /machine:x64 /out:$libPath
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          cmake -S . -B $env:BUILD_DIR -G Ninja -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR" `
+            -DBUILD_TESTING=OFF `
+            -DSHATV_MPV_INCLUDE_DIR="$PWD/deps/mpv/include" `
+            -DSHATV_MPV_LIBRARY="$PWD/deps/mpv/mpv.lib" `
+            -DSHATV_MPV_DLL="$PWD/deps/mpv/libmpv-2.dll"
+
+      - name: Build
+        shell: pwsh
+        run: cmake --build $env:BUILD_DIR --target shatv --config Release
+
+      - name: Prepare package root
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path $env:PACKAGE_DIR | Out-Null
+          Copy-Item "$env:BUILD_DIR/src/shatv.exe" "$env:PACKAGE_DIR/"
+          Copy-Item "$PWD/deps/mpv/libmpv-2.dll" "$env:PACKAGE_DIR/"
+
+      - name: Deploy Qt runtime
+        shell: pwsh
+        run: windeployqt.exe --release "$env:PACKAGE_DIR/shatv.exe"
+
+      - name: Generate license files
+        shell: pwsh
+        run: |
+          # 仓库里当前没有预置 LICENSES/ 目录，CI 直接拉取许可证正文，避免 artifact 缺文件。
+          New-Item -ItemType Directory -Force -Path "$env:PACKAGE_DIR/licenses" | Out-Null
+          Invoke-WebRequest https://www.gnu.org/licenses/lgpl-3.0.txt -OutFile "$env:PACKAGE_DIR/licenses/LGPL-3.0.txt"
+          Invoke-WebRequest https://www.gnu.org/licenses/old-licenses/lgpl-2.1.txt -OutFile "$env:PACKAGE_DIR/licenses/LGPL-2.1.txt"
+
+          $notice = (Get-Content packaging/windows/NOTICE.txt.in -Raw)
+          $notice = $notice.Replace("@QT_VERSION@", $env:QT_VERSION).Replace("@MPV_VERSION@", $env:MPV_VERSION)
+          Set-Content "$env:PACKAGE_DIR/NOTICE.txt" $notice
+
+          $sources = (Get-Content packaging/windows/THIRD_PARTY_SOURCES.md.in -Raw)
+          $sources = $sources.Replace("@QT_VERSION@", $env:QT_VERSION).Replace("@MPV_VERSION@", $env:MPV_VERSION).Replace("@MPV_BINARY_URL@", $env:MPV_BINARY_URL)
+          Set-Content "$env:PACKAGE_DIR/THIRD_PARTY_SOURCES.md" $sources
+
+      - name: Archive portable package
+        shell: pwsh
+        run: |
+          Push-Location $env:PACKAGE_ROOT
+          Compress-Archive -Path shatv-windows-x64 -DestinationPath "$env:GITHUB_WORKSPACE/shatv-windows-x64-portable.zip" -Force
+          Pop-Location
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: shatv-windows-x64-portable
+          path: shatv-windows-x64-portable.zip
+          if-no-files-found: error

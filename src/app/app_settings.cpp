@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <fstream>
 #include <iostream>
-#include <stdexcept>
 #include <string>
 
 #include <QDir>
@@ -63,7 +62,7 @@ int NormalizeOsdAutoHideSeconds(const toml::value &config, const QString &config
 
     const auto &osd = ui.at("osd");
     if (!osd.is_table()) {
-        std::cerr << "ShaTV config invalid ui.osd path=" << config_path.toStdString() << std::endl;
+        std::cerr << "ShaTV config invalid ui.osd path=" << config_path.toStdString() << '\n';
         return kDefaultOsdAutoHideSeconds;
     }
 
@@ -75,11 +74,11 @@ int NormalizeOsdAutoHideSeconds(const toml::value &config, const QString &config
 
         std::cerr << "ShaTV config invalid ui.osd.auto_hide_seconds path="
                   << config_path.toStdString()
-                  << " value=" << seconds << std::endl;
+                  << " value=" << seconds << '\n';
         return kDefaultOsdAutoHideSeconds;
     } catch (const std::exception &) {
         std::cerr << "ShaTV config invalid ui.osd.auto_hide_seconds path="
-                  << config_path.toStdString() << std::endl;
+                  << config_path.toStdString() << '\n';
         return kDefaultOsdAutoHideSeconds;
     }
 }
