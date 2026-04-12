@@ -13,15 +13,15 @@ jobs:
       BUILD_DIR: build-windows
       PACKAGE_ROOT: package-root
       PACKAGE_DIR: package-root/shatv-windows-x64
-      QT_VERSION: 6.8.2
+      QT_VERSION: 6.10.3
       MPV_VERSION: 20260411
       MPV_BINARY_URL: https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/20260411/mpv-dev-x86_64-v3-20260411-git-3e3048a.7z
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up MSVC
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: TheMrMilchmann/setup-msvc-dev@v4
         with:
           arch: x64
 
