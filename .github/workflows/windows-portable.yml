@@ -2,6 +2,7 @@ name: windows-portable
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 jobs:
@@ -32,11 +33,20 @@ jobs:
           target: desktop
           arch: win64_msvc2022_64
           modules: qt5compat
+          cache: true
 
       - name: Install Ninja
         uses: seanmiddleditch/gha-setup-ninja@v5
 
+      - name: Cache libmpv
+        id: cache-mpv
+        uses: actions/cache@v4
+        with:
+          path: deps/mpv
+          key: mpv-dev-${{ env.MPV_VERSION }}
+
       - name: Download libmpv
+        if: steps.cache-mpv.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path deps/mpv | Out-Null
@@ -44,6 +54,7 @@ jobs:
           7z x deps/mpv-dev.7z "-odeps/mpv" | Out-Null
 
       - name: Create libmpv import library
+        if: steps.cache-mpv.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           # shinchiro 的 dev 包提供 DLL 和头文件，但不提供 MSVC import lib，这里按导出表生成 mpv.lib。

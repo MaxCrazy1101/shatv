@@ -14,3 +14,4 @@ docs/*.mp4
 local-media/
 testdata/media/
 testdata/hls/
+.codex
