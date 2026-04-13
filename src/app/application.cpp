@@ -81,6 +81,9 @@ Application::Application(QApplication *qt_app, LaunchOptions options)
     main_window_->SetOsdAutoHideSeconds(settings_.OsdAutoHideSeconds());
     RefreshRecentItems();
 
+    controller_->SetVolume(settings_.Volume());
+    controller_->SetMuted(settings_.Muted());
+
     if (auto *mpv_backend = dynamic_cast<player::MpvPlayerBackend *>(backend_.get())) {
         mpv_backend->SetNetworkUserAgent(settings_.UserAgent());
         mpv_backend->AttachRenderWidget(main_window_->RenderWidget());
@@ -96,12 +99,25 @@ Application::Application(QApplication *qt_app, LaunchOptions options)
     QObject::connect(main_window_.get(), &ui::windows::MainWindow::UserAgentChanged, qt_app_,
                      [this](const QString &user_agent) { UpdateNetworkUserAgent(user_agent); });
 
+    QObject::connect(controller_.get(), &application::PlayerController::PlaybackSnapshotChanged, qt_app_,
+                     [this](const domain::PlayerSnapshot &snapshot) {
+                         if (snapshot.volume != settings_.Volume()) {
+                             settings_.SetVolume(snapshot.volume);
+                         }
+                         if (snapshot.muted != settings_.Muted()) {
+                             settings_.SetMuted(snapshot.muted);
+                         }
+                     });
+
     startup_channel_ = BuildStartupChannel(options_, qEnvironmentVariable("SHATV_SMOKE_MEDIA"), QDir::currentPath());
     initial_channels_ = BuildInitialChannels();
     main_window_->SetChannels(initial_channels_);
 }
 
 Application::~Application() {
+    if (!settings_.Save()) {
+        std::cerr << "ShaTV config save failed on exit" << std::endl;
+    }
     controller_.reset();
     backend_.reset();
     main_window_.reset();

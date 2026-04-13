@@ -21,6 +21,8 @@ std::string ToStdString(const QString &value) {
 
 constexpr std::size_t kMaxRecentItems = 5;
 constexpr int kDefaultOsdAutoHideSeconds = 3;
+constexpr int kDefaultVolume = 50;
+constexpr bool kDefaultMuted = false;
 
 bool IsSameRecentItem(const RecentOpenItem &lhs, const RecentOpenItem &rhs) {
     return lhs.kind == rhs.kind && lhs.target == rhs.target;
@@ -83,6 +85,35 @@ int NormalizeOsdAutoHideSeconds(const toml::value &config, const QString &config
     }
 }
 
+std::pair<int, bool> NormalizePlaybackState(const toml::value &config, const QString &config_path) {
+    int volume = kDefaultVolume;
+    bool muted = kDefaultMuted;
+
+    if (!config.contains("playback")) {
+        return {volume, muted};
+    }
+
+    const auto &playback = config.at("playback");
+    if (!playback.is_table()) {
+        std::cerr << "ShaTV config invalid playback section path=" << config_path.toStdString() << '\n';
+        return {volume, muted};
+    }
+
+    try {
+        volume = toml::find_or<int>(playback, "volume", kDefaultVolume);
+        if (volume < 0 || volume > 100) {
+            std::cerr << "ShaTV config invalid playback.volume path=" << config_path.toStdString()
+                      << " value=" << volume << '\n';
+            volume = kDefaultVolume;
+        }
+        muted = toml::find_or<bool>(playback, "muted", kDefaultMuted);
+    } catch (const std::exception &) {
+        std::cerr << "ShaTV config invalid playback section path=" << config_path.toStdString() << '\n';
+    }
+
+    return {volume, muted};
+}
+
 }  // namespace
 
 AppSettings::AppSettings(QString config_path) : config_path_(std::move(config_path)) {}
@@ -104,6 +135,14 @@ int AppSettings::OsdAutoHideSeconds() const {
     return osd_auto_hide_seconds_;
 }
 
+int AppSettings::Volume() const {
+    return volume_;
+}
+
+bool AppSettings::Muted() const {
+    return muted_;
+}
+
 const std::vector<RecentOpenItem> &AppSettings::RecentItems() const {
     return recent_items_;
 }
@@ -116,6 +155,16 @@ void AppSettings::SetOsdAutoHideSeconds(int seconds) {
     if (seconds >= 1) {
         osd_auto_hide_seconds_ = seconds;
     }
+}
+
+void AppSettings::SetVolume(int volume) {
+    if (volume >= 0 && volume <= 100) {
+        volume_ = volume;
+    }
+}
+
+void AppSettings::SetMuted(bool muted) {
+    muted_ = muted;
 }
 
 void AppSettings::RememberRecentItem(RecentOpenItem item) {
@@ -142,6 +191,8 @@ bool AppSettings::Load() {
     if (!QFileInfo::exists(config_path_)) {
         user_agent_.clear();
         osd_auto_hide_seconds_ = kDefaultOsdAutoHideSeconds;
+        volume_ = kDefaultVolume;
+        muted_ = kDefaultMuted;
         recent_items_.clear();
         return true;
     }
@@ -151,6 +202,7 @@ bool AppSettings::Load() {
         user_agent_ = QString::fromStdString(
             toml::find_or<std::string>(config, "network", "user_agent", std::string()));
         osd_auto_hide_seconds_ = NormalizeOsdAutoHideSeconds(config, config_path_);
+        std::tie(volume_, muted_) = NormalizePlaybackState(config, config_path_);
         recent_items_.clear();
 
         if (config.contains("history")) {
@@ -205,6 +257,8 @@ bool AppSettings::Save() const {
         // 配置层只维护一个极小 TOML 结构，避免把平台特定设置后端耦合进来。
         config["network"]["user_agent"] = toml::value(ToStdString(user_agent_));
         config["ui"]["osd"]["auto_hide_seconds"] = toml::value(osd_auto_hide_seconds_);
+        config["playback"]["volume"] = toml::value(volume_);
+        config["playback"]["muted"] = toml::value(muted_);
         toml::array recent_entries;
         for (const auto &item : recent_items_) {
             toml::value entry;

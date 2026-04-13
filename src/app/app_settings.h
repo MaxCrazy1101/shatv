@@ -21,9 +21,13 @@ class AppSettings final {
     const QString &ConfigPath() const;
     const QString &UserAgent() const;
     int OsdAutoHideSeconds() const;
+    int Volume() const;
+    bool Muted() const;
     const std::vector<RecentOpenItem> &RecentItems() const;
     void SetUserAgent(const QString &user_agent);
     void SetOsdAutoHideSeconds(int seconds);
+    void SetVolume(int volume);
+    void SetMuted(bool muted);
     void RememberRecentItem(RecentOpenItem item);
 
     bool Load();
@@ -33,6 +37,8 @@ class AppSettings final {
     QString config_path_;
     QString user_agent_;
     int osd_auto_hide_seconds_ = 3;
+    int volume_ = 50;
+    bool muted_ = false;
     std::vector<RecentOpenItem> recent_items_;
 };
 
