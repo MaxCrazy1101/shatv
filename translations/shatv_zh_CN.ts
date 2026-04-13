@@ -117,6 +117,73 @@
       <source>Ready</source>
       <translation>就绪</translation>
     </message>
+    <message>
+      <source>&amp;Help</source>
+      <translation>帮助(&amp;H)</translation>
+    </message>
+    <message>
+      <source>&amp;About ShaTV...</source>
+      <translation>关于 ShaTV(&amp;A)...</translation>
+    </message>
+    <message>
+      <source>About ShaTV</source>
+      <translation>关于 ShaTV</translation>
+    </message>
+    <message>
+      <source>&lt;h2&gt;ShaTV&lt;/h2&gt;&lt;p&gt;A Linux-first IPTV player.&lt;/p&gt;&lt;p&gt;Built with C++20, Qt 6, and libmpv.&lt;/p&gt;&lt;p&gt;Licensed under the terms of the project license.&lt;/p&gt;&lt;p&gt;&lt;a href="https://github.com/MaxCrazy1101/shatv"&gt;github.com/MaxCrazy1101/shatv&lt;/a&gt;&lt;/p&gt;</source>
+      <translation>&lt;h2&gt;ShaTV&lt;/h2&gt;&lt;p&gt;面向 Linux 的 IPTV 播放器。&lt;/p&gt;&lt;p&gt;基于 C++20、Qt 6 和 libmpv 构建。&lt;/p&gt;&lt;p&gt;按项目许可证条款授权。&lt;/p&gt;&lt;p&gt;&lt;a href="https://github.com/MaxCrazy1101/shatv"&gt;github.com/MaxCrazy1101/shatv&lt;/a&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+      <source>&amp;View</source>
+      <translation>视图(&amp;V)</translation>
+    </message>
+    <message>
+      <source>Toggle Full Screen</source>
+      <translation>切换全屏</translation>
+    </message>
+  </context>
+  <context>
+    <name>shatv::ui::windows::AboutDialogContent</name>
+    <message>
+      <source>About ShaTV</source>
+      <translation>关于 ShaTV</translation>
+    </message>
+    <message>
+      <source>ShaTV</source>
+      <translation>ShaTV</translation>
+    </message>
+    <message>
+      <source>A cross-platform IPTV player.</source>
+      <translation>一个跨平台 IPTV 播放器。</translation>
+    </message>
+    <message>
+      <source>Version</source>
+      <translation>版本</translation>
+    </message>
+    <message>
+      <source>Build</source>
+      <translation>构建</translation>
+    </message>
+    <message>
+      <source>Built with C++20, Qt 6, and libmpv.</source>
+      <translation>基于 C++20、Qt 6 和 libmpv 构建。</translation>
+    </message>
+    <message>
+      <source>Authors</source>
+      <translation>作者</translation>
+    </message>
+    <message>
+      <source>Not specified</source>
+      <translation>未指定</translation>
+    </message>
+    <message>
+      <source>License</source>
+      <translation>许可证</translation>
+    </message>
+    <message>
+      <source>Repository</source>
+      <translation>仓库</translation>
+    </message>
   </context>
   <context>
     <name>shatv::ui::panels::PlaybackStatusPanel</name>

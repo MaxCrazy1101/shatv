@@ -78,6 +78,7 @@ class MainWindow final : public QMainWindow {
     void OnGroupFilterChanged(int index);
     void ToggleFullscreen();
     void ExitFullscreen();
+    void OnAboutRequested();
 
   private:
     void keyPressEvent(QKeyEvent *event) override;

@@ -1,3 +1,9 @@
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/app/build_info.h.in
+    ${CMAKE_CURRENT_BINARY_DIR}/app/build_info.h
+    @ONLY
+)
+
 add_library(shatv_app
     app/application.cpp
     app/app_settings.cpp
@@ -15,12 +21,14 @@ add_library(shatv_app
     ui/panels/player_control_bar.cpp
     ui/panels/playback_status_panel.cpp
     ui/widgets/playback_viewport.cpp
+    ui/windows/about_dialog_content.cpp
     ui/windows/main_window.cpp
 )
 
 target_include_directories(shatv_app
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_BINARY_DIR}
 )
 
 target_link_libraries(shatv_app

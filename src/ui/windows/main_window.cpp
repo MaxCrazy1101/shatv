@@ -20,6 +20,7 @@
 #include "ui/models/channel_list_model.h"
 #include "ui/panels/playback_status_panel.h"
 #include "ui/panels/player_control_bar.h"
+#include "ui/windows/about_dialog_content.h"
 #include "ui/widgets/playback_viewport.h"
 
 namespace shatv::ui::windows {
@@ -236,6 +237,10 @@ void MainWindow::BuildUi() {
     addAction(toggle_fullscreen_action_);
     connect(toggle_fullscreen_action_, &QAction::triggered, this, &MainWindow::ToggleFullscreen);
 
+    auto *help_menu = menuBar()->addMenu(tr("&Help"));
+    auto *about_action = help_menu->addAction(tr("&About ShaTV..."));
+    connect(about_action, &QAction::triggered, this, &MainWindow::OnAboutRequested);
+
     auto *splitter = new QSplitter(Qt::Horizontal, this);
 
     left_panel_ = new QWidget(splitter);
@@ -347,6 +352,11 @@ void MainWindow::RebuildRecentMenu() {
         action->setStatusTip(item.target);
         connect(action, &QAction::triggered, this, [this, item]() { emit RecentOpenSelected(item.kind, item.target); });
     }
+}
+
+void MainWindow::OnAboutRequested() {
+    AboutDialog dialog(this);
+    dialog.exec();
 }
 
 }  // namespace shatv::ui::windows

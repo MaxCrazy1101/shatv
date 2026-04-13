@@ -1,6 +1,6 @@
 # ShaTV
 
-ShaTV 是一个面向 Linux 的 IPTV 播放器项目，当前阶段采用 `Qt6 Widgets + libmpv render API` 构建桌面播放器壳，并保留 `FakePlayerBackend` 作为骨架 smoke 路径。
+ShaTV 是一个跨平台 IPTV 播放器项目，当前阶段采用 `Qt6 Widgets + libmpv render API` 构建桌面播放器壳，并保留 `FakePlayerBackend` 作为骨架 smoke 路径。
 
 当前已具备以下基础能力：
 

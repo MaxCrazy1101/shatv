@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(ShaTV LANGUAGES CXX)
+project(ShaTV VERSION 0.1.0 LANGUAGES CXX)
 
 # 为 clangd 等工具导出编译数据库，便于后续开发。
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -22,6 +22,22 @@ else()
 endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
+set(SHATV_BUILD_ID "unknown")
+find_package(Git QUIET)
+if(GIT_FOUND AND EXISTS "${CMAKE_SOURCE_DIR}/.git")
+    execute_process(
+        COMMAND "${GIT_EXECUTABLE}" rev-parse --short HEAD
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        OUTPUT_VARIABLE SHATV_BUILD_ID
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+        RESULT_VARIABLE SHATV_GIT_RESULT
+    )
+    if(NOT SHATV_GIT_RESULT EQUAL 0 OR SHATV_BUILD_ID STREQUAL "")
+        set(SHATV_BUILD_ID "unknown")
+    endif()
+endif()
 
 set(SHATV_MPV_INCLUDE_DIR "" CACHE PATH "Path to libmpv headers for Windows builds")
 set(SHATV_MPV_LIBRARY "" CACHE FILEPATH "Path to libmpv import library for Windows builds")

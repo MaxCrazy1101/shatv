@@ -1,0 +1,8 @@
+#pragma once
+
+namespace shatv::app {
+
+inline constexpr char kProjectVersion[] = "@PROJECT_VERSION@";
+inline constexpr char kBuildId[] = "@SHATV_BUILD_ID@";
+
+}  // namespace shatv::app
