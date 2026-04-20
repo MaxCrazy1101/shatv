@@ -159,6 +159,8 @@ Windows 便携包解压后至少包含：
 - `shatv.exe`
 - Qt runtime 与 `windeployqt` 收集到的插件
 - `platforms/qwindows.dll`
+- `qml/QtQuick/Controls/`
+- `qml/QtQuick/Layouts/`
 - `libmpv-2.dll`
 - `NOTICE.txt`
 - `THIRD_PARTY_SOURCES.md`
@@ -196,7 +198,16 @@ cmake -S . -B build-windows -G Ninja -DCMAKE_BUILD_TYPE=Release `
   -DSHATV_MPV_LIBRARY=C:/deps/mpv/mpv.lib `
   -DSHATV_MPV_DLL=C:/deps/mpv/libmpv-2.dll
 cmake --build build-windows --target shatv --config Release
-windeployqt.exe --release build-windows/src/shatv.exe
+windeployqt.exe --release --qmldir C:/path/to/shatv/src/ui/qml build-windows/src/shatv.exe
+cmake -DPORTABLE_PACKAGE_DIR=C:/path/to/shatv/build-windows/src `
+  -P packaging/windows/validate-portable-package.cmake
+```
+
+`--qmldir` 不能省略。当前主界面 `MainWindow.qml` 通过资源路径加载，并依赖 `QtQuick.Controls` / `QtQuick.Layouts`；如果只运行 `windeployqt.exe --release shatv.exe`，Windows 便携包里通常不会带上这些 QML 模块，启动时会报：
+
+```text
+module "QtQuick.Controls" is not installed
+module "QtQuick.Layouts" is not installed
 ```
 
 ## 本地 HLS 测试
