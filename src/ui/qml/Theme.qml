@@ -4,7 +4,6 @@ import QtQuick
 
 QtObject {
     readonly property color windowBackground: "#1f2430"
-    readonly property color toolbarBackground: "#252b3a"
     readonly property color sidebarBackground: "#202534"
     readonly property color contentBackground: "#181c26"
     readonly property color panelBackground: "#242b3c"
@@ -16,7 +15,6 @@ QtObject {
 
     readonly property int radiusMd: 10
 
-    readonly property int toolbarHeight: 52
     readonly property int sidebarPreferredWidth: 320
     readonly property int sidebarMinWidth: 280
     readonly property int sidebarMaxWidth: 440

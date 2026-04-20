@@ -32,67 +32,64 @@ Rectangle {
         anchors.fill: parent
         spacing: 0
 
-        Rectangle {
-            Layout.fillWidth: true
-            implicitHeight: bridge.fullscreenActive ? 0 : Theme.toolbarHeight
+        MenuBar {
             visible: !bridge.fullscreenActive
-            color: Theme.toolbarBackground
 
-            RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: Theme.spacingMd
-                anchors.rightMargin: Theme.spacingMd
-                spacing: Theme.spacingSm
+            Menu {
+                title: qsTr("&File")
 
-                ToolButton {
-                    text: qsTr("Open File")
-                    onClicked: bridge.requestOpenFile()
+                Action {
+                    text: qsTr("Open &File...")
+                    onTriggered: bridge.requestOpenFile()
+                }
+                Action {
+                    text: qsTr("Open &Link...")
+                    onTriggered: bridge.requestOpenUrl()
                 }
 
-                ToolButton {
-                    text: qsTr("Open Link")
-                    onClicked: bridge.requestOpenUrl()
-                }
-
-                MenuSeparator {}
-
-                ToolButton {
-                    text: qsTr("Recent")
+                Menu {
+                    id: recentMenu
+                    title: qsTr("Open &Recent")
                     enabled: bridge.recentItems.length > 0
-                    onClicked: recentMenu.open()
 
-                    Menu {
-                        id: recentMenu
+                    Repeater {
+                        model: bridge.recentItems
 
-                        Repeater {
-                            model: bridge.recentItems
+                        delegate: MenuItem {
+                            required property int index
+                            required property var modelData
 
-                            delegate: MenuItem {
-                                required property int index
-                                required property var modelData
-
-                                text: modelData.label
-                                onTriggered: bridge.openRecentAt(index)
-                            }
+                            text: modelData.label
+                            onTriggered: bridge.openRecentAt(index)
                         }
                     }
                 }
+            }
 
-                ToolButton {
-                    text: qsTr("Network")
-                    onClicked: bridge.requestNetworkSettings()
+            Menu {
+                title: qsTr("&Settings")
+
+                Action {
+                    text: qsTr("&Network Settings...")
+                    onTriggered: bridge.requestNetworkSettings()
                 }
+            }
 
-                Item { Layout.fillWidth: true }
+            Menu {
+                title: qsTr("&View")
 
-                ToolButton {
-                    text: qsTr("About")
-                    onClicked: bridge.requestAbout()
+                Action {
+                    text: qsTr("Toggle &Full Screen")
+                    onTriggered: bridge.toggleFullscreen()
                 }
+            }
 
-                ToolButton {
-                    text: qsTr("Full Screen")
-                    onClicked: bridge.toggleFullscreen()
+            Menu {
+                title: qsTr("&Help")
+
+                Action {
+                    text: qsTr("&About ShaTV...")
+                    onTriggered: bridge.requestAbout()
                 }
             }
         }

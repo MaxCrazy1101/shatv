@@ -24,7 +24,7 @@ QAbstractItemModel *MainWindowBridge::ChannelModel() const {
 QStringList MainWindowBridge::AvailableGroups() const {
     return available_groups_;
 }
-
+ 
 QString MainWindowBridge::CurrentGroupFilter() const {
     return current_group_filter_;
 }

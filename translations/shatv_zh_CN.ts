@@ -143,6 +143,85 @@
     </message>
   </context>
   <context>
+    <name>MainWindow</name>
+    <message>
+      <source>All groups</source>
+      <translation>全部分组</translation>
+    </message>
+    <message>
+      <source>&amp;File</source>
+      <translation>文件(&amp;F)</translation>
+    </message>
+    <message>
+      <source>Open &amp;File...</source>
+      <translation>打开文件(&amp;F)...</translation>
+    </message>
+    <message>
+      <source>Open &amp;Link...</source>
+      <translation>打开链接(&amp;L)...</translation>
+    </message>
+    <message>
+      <source>Open &amp;Recent</source>
+      <translation>最近打开(&amp;R)</translation>
+    </message>
+    <message>
+      <source>&amp;Settings</source>
+      <translation>设置(&amp;S)</translation>
+    </message>
+    <message>
+      <source>&amp;Network Settings...</source>
+      <translation>网络设置(&amp;N)...</translation>
+    </message>
+    <message>
+      <source>&amp;View</source>
+      <translation>视图(&amp;V)</translation>
+    </message>
+    <message>
+      <source>Toggle &amp;Full Screen</source>
+      <translation>切换全屏(&amp;F)</translation>
+    </message>
+    <message>
+      <source>&amp;Help</source>
+      <translation>帮助(&amp;H)</translation>
+    </message>
+    <message>
+      <source>&amp;About ShaTV...</source>
+      <translation>关于 ShaTV(&amp;A)...</translation>
+    </message>
+    <message>
+      <source>Search channels</source>
+      <translation>搜索频道</translation>
+    </message>
+    <message>
+      <source>Pause</source>
+      <translation>暂停</translation>
+    </message>
+    <message>
+      <source>Play</source>
+      <translation>播放</translation>
+    </message>
+    <message>
+      <source>Stop</source>
+      <translation>停止</translation>
+    </message>
+    <message>
+      <source>Unmute</source>
+      <translation>取消静音</translation>
+    </message>
+    <message>
+      <source>Mute</source>
+      <translation>静音</translation>
+    </message>
+    <message>
+      <source>Full Screen</source>
+      <translation>全屏</translation>
+    </message>
+    <message>
+      <source>Ready</source>
+      <translation>就绪</translation>
+    </message>
+  </context>
+  <context>
     <name>shatv::ui::windows::AboutDialogContent</name>
     <message>
       <source>About ShaTV</source>
