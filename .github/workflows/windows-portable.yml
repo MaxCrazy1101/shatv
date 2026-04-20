@@ -97,10 +97,9 @@ jobs:
       - name: Generate license files
         shell: pwsh
         run: |
-          # 仓库里当前没有预置 LICENSES/ 目录，CI 直接拉取许可证正文，避免 artifact 缺文件。
           New-Item -ItemType Directory -Force -Path "$env:PACKAGE_DIR/licenses" | Out-Null
-          Invoke-WebRequest https://www.gnu.org/licenses/lgpl-3.0.txt -OutFile "$env:PACKAGE_DIR/licenses/LGPL-3.0.txt"
-          Invoke-WebRequest https://www.gnu.org/licenses/old-licenses/lgpl-2.1.txt -OutFile "$env:PACKAGE_DIR/licenses/LGPL-2.1.txt"
+          Copy-Item "packaging/licenses/LGPL-3.0.txt" "$env:PACKAGE_DIR/licenses/LGPL-3.0.txt"
+          Copy-Item "packaging/licenses/LGPL-2.1.txt" "$env:PACKAGE_DIR/licenses/LGPL-2.1.txt"
 
           $notice = (Get-Content packaging/windows/NOTICE.txt.in -Raw)
           $notice = $notice.Replace("@QT_VERSION@", $env:QT_VERSION).Replace("@MPV_VERSION@", $env:MPV_VERSION)

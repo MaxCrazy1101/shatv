@@ -166,6 +166,8 @@ Windows 便携包解压后至少包含：
 - `THIRD_PARTY_SOURCES.md`
 - `licenses/`
 
+Windows CI 打包阶段不再依赖外网拉取 GNU 许可证正文，artifact 使用仓库内的 [packaging/licenses/LGPL-3.0.txt](/home/alex/code/shatv/packaging/licenses/LGPL-3.0.txt) 和 [packaging/licenses/LGPL-2.1.txt](/home/alex/code/shatv/packaging/licenses/LGPL-2.1.txt)。
+
 本地 Windows 构建前提：
 
 - Visual Studio 2022 / MSVC x64 工具链
