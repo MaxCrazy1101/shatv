@@ -58,6 +58,16 @@ MainWindow::MainWindow(application::PlayerController *controller, ui::models::Ch
     connect(bridge_, &MainWindowBridge::ExitFullscreenRequested, this, &MainWindow::ExitFullscreen);
 }
 
+MainWindow::~MainWindow() {
+    // 关闭窗口时，QQuickWidget 会销毁内部 QQuickItem 树。
+    // video_host_item_ 在析构过程中会发 visible/x/y 等变更信号，
+    // 如果仍然直连到 MainWindow 成员槽，会在 MainWindow 析构阶段触发 Qt 断言。
+    status_message_timer_.stop();
+    if (video_host_item_ != nullptr) {
+        QObject::disconnect(video_host_item_, nullptr, this, nullptr);
+    }
+}
+
 void MainWindow::SetChannels(std::vector<domain::Channel> channels) {
     channel_model_->SetChannels(std::move(channels));
     RebuildGroupFilter();

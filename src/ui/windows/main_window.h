@@ -43,6 +43,7 @@ class MainWindow final : public QMainWindow {
    public:
     explicit MainWindow(application::PlayerController *controller, ui::models::ChannelListModel *channel_model,
                         QWidget *parent = nullptr);
+    ~MainWindow() override;
 
     void SetChannels(std::vector<domain::Channel> channels);
     void StartInitialPlayback();
@@ -90,7 +91,7 @@ class MainWindow final : public QMainWindow {
     QWidget *content_host_ = nullptr;
     QQuickWidget *qml_view_ = nullptr;
     QPointer<QObject> qml_root_object_;
-    QQuickItem *video_host_item_ = nullptr;
+    QPointer<QQuickItem> video_host_item_;
     MainWindowBridge *bridge_ = nullptr;
     ui::widgets::PlaybackViewport *playback_viewport_ = nullptr;
     std::vector<app::RecentOpenItem> recent_items_;
