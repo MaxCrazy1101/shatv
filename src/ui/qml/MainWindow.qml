@@ -8,7 +8,7 @@ import "."
 Rectangle {
     id: root
     objectName: "mainWindowRoot"
-    color: Theme.windowBackground
+    color: Theme.surfaceDim
 
     readonly property var bridge: mainWindowBridge
     readonly property var groupItems: [qsTr("All groups"), ...bridge.availableGroups]
@@ -28,15 +28,123 @@ Rectangle {
         bridge.setGroupFilter(bridge.availableGroups[index - 1])
     }
 
+    property Component menuPopupBackground: Rectangle {
+        color: Theme.surfaceContainer
+        radius: Theme.radiusMd
+        border.color: Theme.outline
+        border.width: 1
+    }
+
+    Component {
+        id: menuBarItemDelegate
+
+        MenuBarItem {
+            id: control
+
+            implicitHeight: 32
+            leftPadding: Theme.spacingMd
+            rightPadding: Theme.spacingMd
+
+            palette.windowText: Theme.textPrimary
+            palette.disabled.windowText: Theme.textDisabled
+
+            background: Rectangle {
+                radius: Theme.radiusSm
+                color: control.highlighted || control.down ? Theme.surfaceContainerHighest : "transparent"
+            }
+        }
+    }
+
+    Component {
+        id: menuItemDelegate
+
+        MenuItem {
+            id: control
+
+            implicitHeight: 32
+            leftPadding: Theme.spacingMd
+            rightPadding: Theme.spacingMd
+
+            palette.windowText: Theme.textPrimary
+            palette.disabled.windowText: Theme.textDisabled
+
+            arrow: Canvas {
+                x: control.mirrored ? Theme.spacingSm : control.width - width - Theme.spacingSm
+                y: (control.height - height) / 2
+                width: 8
+                height: 8
+                visible: control.subMenu
+
+                onPaint: {
+                    const context = getContext("2d")
+                    context.reset()
+                    context.moveTo(0, 0)
+                    context.lineTo(width, height / 2)
+                    context.lineTo(0, height)
+                    context.closePath()
+                    context.fillStyle = Theme.textSecondary
+                    context.fill()
+                }
+            }
+
+            indicator: Item {
+                implicitWidth: 0
+                implicitHeight: 0
+            }
+
+            background: Rectangle {
+                radius: Theme.radiusSm
+                color: control.highlighted ? Theme.surfaceContainerHighest : "transparent"
+            }
+        }
+    }
+
+    Component {
+        id: recentItemDelegate
+
+        MenuItem {
+            id: control
+            required property int index
+            required property var modelData
+
+            implicitHeight: 32
+            leftPadding: Theme.spacingMd
+            rightPadding: Theme.spacingMd
+            text: modelData.label
+
+            palette.windowText: Theme.textPrimary
+            palette.disabled.windowText: Theme.textDisabled
+
+            background: Rectangle {
+                radius: Theme.radiusSm
+                color: control.highlighted ? Theme.surfaceContainerHighest : "transparent"
+            }
+
+            onTriggered: bridge.openRecentAt(index)
+        }
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
 
         MenuBar {
             visible: !bridge.fullscreenActive
+            leftPadding: Theme.spacingSm
+            rightPadding: Theme.spacingSm
+            topPadding: Theme.spacingXs
+            bottomPadding: Theme.spacingXs
+            spacing: Theme.spacingXs
+            delegate: menuBarItemDelegate
+
+            background: Rectangle {
+                color: Theme.surfaceContainerHigh
+            }
 
             Menu {
                 title: qsTr("&File")
+                delegate: menuItemDelegate
+                background: root.menuPopupBackground.createObject(root)
 
                 Action {
                     text: qsTr("Open &File...")
@@ -51,15 +159,30 @@ Rectangle {
                     id: recentMenu
                     title: qsTr("Open &Recent")
                     enabled: bridge.recentItems.length > 0
+                    delegate: recentItemDelegate
+                    background: root.menuPopupBackground.createObject(root)
 
                     Repeater {
                         model: bridge.recentItems
 
                         delegate: MenuItem {
+                            id: recentControl
                             required property int index
                             required property var modelData
 
+                            implicitHeight: 32
+                            leftPadding: Theme.spacingMd
+                            rightPadding: Theme.spacingMd
                             text: modelData.label
+
+                            palette.windowText: Theme.textPrimary
+                            palette.disabled.windowText: Theme.textDisabled
+
+                            background: Rectangle {
+                                radius: Theme.radiusSm
+                                color: recentControl.highlighted ? Theme.surfaceContainerHighest : "transparent"
+                            }
+
                             onTriggered: bridge.openRecentAt(index)
                         }
                     }
@@ -68,6 +191,8 @@ Rectangle {
 
             Menu {
                 title: qsTr("&Settings")
+                delegate: menuItemDelegate
+                background: root.menuPopupBackground.createObject(root)
 
                 Action {
                     text: qsTr("&Network Settings...")
@@ -77,6 +202,8 @@ Rectangle {
 
             Menu {
                 title: qsTr("&View")
+                delegate: menuItemDelegate
+                background: root.menuPopupBackground.createObject(root)
 
                 Action {
                     text: qsTr("Toggle &Full Screen")
@@ -86,6 +213,8 @@ Rectangle {
 
             Menu {
                 title: qsTr("&Help")
+                delegate: menuItemDelegate
+                background: root.menuPopupBackground.createObject(root)
 
                 Action {
                     text: qsTr("&About ShaTV...")
@@ -101,7 +230,7 @@ Rectangle {
 
             Rectangle {
                 visible: !bridge.fullscreenActive
-                color: Theme.sidebarBackground
+                color: Theme.surfaceContainer
                 implicitWidth: visible ? Theme.sidebarPreferredWidth : 0
                 SplitView.preferredWidth: visible ? Theme.sidebarPreferredWidth : 0
                 SplitView.minimumWidth: visible ? Theme.sidebarMinWidth : 0
@@ -150,7 +279,7 @@ Rectangle {
             }
 
             Rectangle {
-                color: Theme.contentBackground
+                color: Theme.surface
                 SplitView.fillWidth: true
                 SplitView.fillHeight: true
 
@@ -172,7 +301,7 @@ Rectangle {
                         Layout.fillWidth: true
                         implicitHeight: Theme.controlPanelHeight
                         radius: Theme.radiusMd
-                        color: Theme.panelBackground
+                        color: Theme.surfaceBright
 
                         RowLayout {
                             anchors.fill: parent
@@ -215,7 +344,7 @@ Rectangle {
                         Layout.fillWidth: true
                         implicitHeight: Theme.statusPanelHeight
                         radius: Theme.radiusMd
-                        color: Theme.panelBackground
+                        color: Theme.surfaceBright
 
                         RowLayout {
                             anchors.fill: parent
