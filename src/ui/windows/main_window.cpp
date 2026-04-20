@@ -1,15 +1,10 @@
 #include "ui/windows/main_window.h"
 
-#include <QAction>
 #include <QFileDialog>
-#include <QHBoxLayout>
 #include <QInputDialog>
-#include <QItemSelectionModel>
-#include <QLabel>
-#include <QMenuBar>
-#include <QSignalBlocker>
-#include <QSplitter>
-#include <QStatusBar>
+#include <QQuickItem>
+#include <QQuickWidget>
+#include <QQmlContext>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -18,10 +13,9 @@
 #include "player/mpv_render_widget.h"
 #include "ui/models/channel_filter_model.h"
 #include "ui/models/channel_list_model.h"
-#include "ui/panels/playback_status_panel.h"
-#include "ui/panels/player_control_bar.h"
-#include "ui/windows/about_dialog_content.h"
 #include "ui/widgets/playback_viewport.h"
+#include "ui/windows/about_dialog_content.h"
+#include "ui/windows/main_window_bridge.h"
 
 namespace shatv::ui::windows {
 
@@ -33,15 +27,8 @@ MainWindow::MainWindow(application::PlayerController *controller, ui::models::Ch
 
     BuildUi();
 
-    connect(channel_list_view_, &QListView::clicked, this, &MainWindow::OnChannelActivated);
     connect(controller_, &application::PlayerController::PlaybackSnapshotChanged, this,
             &MainWindow::OnPlaybackSnapshotChanged);
-    connect(control_bar_, &panels::PlayerControlBar::PlayPauseRequested, this, &MainWindow::OnPlayPauseRequested);
-    connect(control_bar_, &panels::PlayerControlBar::StopRequested, controller_,
-            &application::PlayerController::Stop);
-    connect(control_bar_, &panels::PlayerControlBar::MuteToggled, this, &MainWindow::OnMuteToggled);
-    connect(control_bar_, &panels::PlayerControlBar::VolumeChanged, controller_,
-            &application::PlayerController::SetVolume);
     connect(playback_viewport_, &widgets::PlaybackViewport::PlayPauseRequested, this, &MainWindow::OnPlayPauseRequested);
     connect(playback_viewport_, &widgets::PlaybackViewport::StopRequested, controller_,
             &application::PlayerController::Stop);
@@ -50,11 +37,31 @@ MainWindow::MainWindow(application::PlayerController *controller, ui::models::Ch
             &application::PlayerController::SetVolume);
     connect(playback_viewport_, &widgets::PlaybackViewport::ExitFullscreenRequested, this,
             &MainWindow::ExitFullscreen);
+    status_message_timer_.setSingleShot(true);
+    connect(&status_message_timer_, &QTimer::timeout, this, [this]() {
+        status_message_.clear();
+        bridge_->SetStatusMessage(QString());
+    });
+
+    connect(bridge_, &MainWindowBridge::ActivateChannelRequested, this, &MainWindow::OnChannelActivated);
+    connect(bridge_, &MainWindowBridge::PlayPauseRequested, this, &MainWindow::OnPlayPauseRequested);
+    connect(bridge_, &MainWindowBridge::StopRequested, controller_, &application::PlayerController::Stop);
+    connect(bridge_, &MainWindowBridge::MuteRequested, controller_, &application::PlayerController::SetMuted);
+    connect(bridge_, &MainWindowBridge::VolumeRequested, controller_, &application::PlayerController::SetVolume);
+    connect(bridge_, &MainWindowBridge::OpenFileRequested, this, &MainWindow::OnOpenFileRequested);
+    connect(bridge_, &MainWindowBridge::OpenUrlRequested, this, &MainWindow::OnOpenUrlRequested);
+    connect(bridge_, &MainWindowBridge::NetworkSettingsRequested, this, &MainWindow::OnNetworkSettingsRequested);
+    connect(bridge_, &MainWindowBridge::AboutRequested, this, &MainWindow::OnAboutRequested);
+    connect(bridge_, &MainWindowBridge::RecentOpenRequested, this,
+            [this](const QString &kind, const QString &target) { emit RecentOpenSelected(kind, target); });
+    connect(bridge_, &MainWindowBridge::ToggleFullscreenRequested, this, &MainWindow::ToggleFullscreen);
+    connect(bridge_, &MainWindowBridge::ExitFullscreenRequested, this, &MainWindow::ExitFullscreen);
 }
 
 void MainWindow::SetChannels(std::vector<domain::Channel> channels) {
     channel_model_->SetChannels(std::move(channels));
     RebuildGroupFilter();
+    SyncPlaybackViewportGeometry();
 }
 
 void MainWindow::StartInitialPlayback() {
@@ -62,9 +69,7 @@ void MainWindow::StartInitialPlayback() {
         return;
     }
 
-    const QModelIndex first_channel = channel_filter_model_->index(0, 0);
-    channel_list_view_->setCurrentIndex(first_channel);
-    OnChannelActivated(first_channel);
+    OnChannelActivated(channel_filter_model_->index(0, 0));
 }
 
 void MainWindow::StartSmokeScenario() {
@@ -73,6 +78,31 @@ void MainWindow::StartSmokeScenario() {
 
 player::MpvRenderWidget *MainWindow::RenderWidget() const {
     return playback_viewport_->RenderWidget();
+}
+
+void MainWindow::SetConfiguredUserAgent(const QString &user_agent) {
+    configured_user_agent_ = user_agent;
+}
+
+void MainWindow::SetOsdAutoHideSeconds(int seconds) {
+    playback_viewport_->SetOsdAutoHideSeconds(seconds);
+}
+
+void MainWindow::SetRecentItems(std::vector<app::RecentOpenItem> items) {
+    recent_items_ = std::move(items);
+    bridge_->SetRecentItems(recent_items_);
+}
+
+void MainWindow::ShowStatusMessage(const QString &message, int timeout_ms) {
+    status_message_ = message;
+    bridge_->SetStatusMessage(status_message_);
+    status_message_timer_.stop();
+
+    if (timeout_ms <= 0 || message.isEmpty()) {
+        return;
+    }
+
+    status_message_timer_.start(timeout_ms);
 }
 
 int MainWindow::ChannelCount() const {
@@ -87,25 +117,11 @@ QString MainWindow::CurrentChannelIdForSmoke() const {
     return channel_model_->CurrentChannelId();
 }
 
-void MainWindow::SetConfiguredUserAgent(const QString &user_agent) {
-    configured_user_agent_ = user_agent;
-}
-
-void MainWindow::SetOsdAutoHideSeconds(int seconds) {
-    playback_viewport_->SetOsdAutoHideSeconds(seconds);
-}
-
-void MainWindow::SetRecentItems(std::vector<app::RecentOpenItem> items) {
-    recent_items_ = std::move(items);
-    RebuildRecentMenu();
-}
-
 domain::PlayerSnapshot MainWindow::LastAppliedSnapshot() const {
     return last_snapshot_;
 }
 
 void MainWindow::OnChannelActivated(const QModelIndex &index) {
-    // 列表视图绑定的是代理模型，播放前需要映射回源模型。
     const QModelIndex source_index = channel_filter_model_->mapToSource(index);
     const domain::Channel channel = channel_model_->ChannelAt(source_index);
     if (channel.id.isEmpty()) {
@@ -116,17 +132,15 @@ void MainWindow::OnChannelActivated(const QModelIndex &index) {
 }
 
 void MainWindow::OnPlaybackSnapshotChanged(const shatv::domain::PlayerSnapshot &snapshot) {
-    // UI 层只消费归一化后的快照，不直接理解底层播放器事件。
     last_snapshot_ = snapshot;
     playback_viewport_->ApplySnapshot(snapshot);
-    control_bar_->ApplySnapshot(snapshot);
-    status_panel_->ApplySnapshot(snapshot);
+    bridge_->SetPlaybackSnapshot(snapshot);
 
     if (!snapshot.channel_id.isEmpty()) {
         channel_model_->SetCurrentChannelId(snapshot.channel_id);
     }
     if (!snapshot.message.isEmpty()) {
-        statusBar()->showMessage(snapshot.message, 3000);
+        ShowStatusMessage(snapshot.message, 3000);
     }
 
     emit UiSnapshotApplied(snapshot);
@@ -179,14 +193,6 @@ void MainWindow::OnNetworkSettingsRequested() {
     emit UserAgentChanged(user_agent.trimmed());
 }
 
-void MainWindow::OnGroupFilterChanged(int index) {
-    if (index < 0) {
-        return;
-    }
-
-    channel_filter_model_->SetGroupFilter(group_filter_->itemData(index).toString());
-}
-
 void MainWindow::ToggleFullscreen() {
     ApplyFullscreenUiState(!fullscreen_active_);
 }
@@ -197,6 +203,11 @@ void MainWindow::ExitFullscreen() {
     }
 
     ApplyFullscreenUiState(false);
+}
+
+void MainWindow::OnAboutRequested() {
+    AboutDialog dialog(this);
+    dialog.exec();
 }
 
 void MainWindow::keyPressEvent(QKeyEvent *event) {
@@ -219,72 +230,48 @@ void MainWindow::BuildUi() {
     resize(1280, 720);
     setFocusPolicy(Qt::StrongFocus);
 
-    auto *file_menu = menuBar()->addMenu(tr("&File"));
-    auto *open_file_action = file_menu->addAction(tr("Open &File..."));
-    auto *open_url_action = file_menu->addAction(tr("Open &Link..."));
-    recent_menu_ = file_menu->addMenu(tr("Open Recent"));
-    connect(open_file_action, &QAction::triggered, this, &MainWindow::OnOpenFileRequested);
-    connect(open_url_action, &QAction::triggered, this, &MainWindow::OnOpenUrlRequested);
-    RebuildRecentMenu();
-
-    auto *settings_menu = menuBar()->addMenu(tr("&Settings"));
-    auto *network_settings_action = settings_menu->addAction(tr("&Network Settings..."));
-    connect(network_settings_action, &QAction::triggered, this, &MainWindow::OnNetworkSettingsRequested);
-
-    auto *view_menu = menuBar()->addMenu(tr("&View"));
-    toggle_fullscreen_action_ = view_menu->addAction(tr("Toggle Full Screen"));
-    toggle_fullscreen_action_->setShortcut(QKeySequence(Qt::Key_F11));
-    addAction(toggle_fullscreen_action_);
-    connect(toggle_fullscreen_action_, &QAction::triggered, this, &MainWindow::ToggleFullscreen);
-
-    auto *help_menu = menuBar()->addMenu(tr("&Help"));
-    auto *about_action = help_menu->addAction(tr("&About ShaTV..."));
-    connect(about_action, &QAction::triggered, this, &MainWindow::OnAboutRequested);
-
-    auto *splitter = new QSplitter(Qt::Horizontal, this);
-
-    left_panel_ = new QWidget(splitter);
-    auto *left_layout = new QVBoxLayout(left_panel_);
-    left_layout->setContentsMargins(12, 12, 12, 12);
-    left_layout->setSpacing(8);
-
-    search_input_ = new QLineEdit(left_panel_);
-    search_input_->setPlaceholderText(tr("Search channels"));
-    group_filter_ = new QComboBox(left_panel_);
     channel_filter_model_ = new ui::models::ChannelFilterModel(this);
     channel_filter_model_->setSourceModel(channel_model_);
-    channel_list_view_ = new QListView(left_panel_);
-    channel_list_view_->setModel(channel_filter_model_);
-    channel_list_view_->setSelectionMode(QAbstractItemView::SingleSelection);
-    connect(group_filter_, qOverload<int>(&QComboBox::currentIndexChanged), this, &MainWindow::OnGroupFilterChanged);
-    connect(search_input_, &QLineEdit::textChanged, channel_filter_model_, &ui::models::ChannelFilterModel::SetSearchText);
-    RebuildGroupFilter();
 
-    left_layout->addWidget(search_input_);
-    left_layout->addWidget(group_filter_);
-    left_layout->addWidget(channel_list_view_, 1);
+    content_host_ = new QWidget(this);
+    auto *host_layout = new QVBoxLayout(content_host_);
+    host_layout->setContentsMargins(0, 0, 0, 0);
+    host_layout->setSpacing(0);
 
-    auto *right_panel = new QWidget(splitter);
-    auto *right_layout = new QVBoxLayout(right_panel);
-    right_layout->setContentsMargins(12, 12, 12, 12);
-    right_layout->setSpacing(12);
+    bridge_ = new MainWindowBridge(channel_filter_model_, this);
 
-    playback_viewport_ = new widgets::PlaybackViewport(right_panel);
-    control_bar_ = new panels::PlayerControlBar(right_panel);
-    status_panel_ = new panels::PlaybackStatusPanel(right_panel);
+    qml_view_ = new QQuickWidget(content_host_);
+    qml_view_->setObjectName(QStringLiteral("mainWindowQmlView"));
+    qml_view_->setResizeMode(QQuickWidget::SizeRootObjectToView);
+    qml_view_->rootContext()->setContextProperty(QStringLiteral("mainWindowBridge"), bridge_);
+    host_layout->addWidget(qml_view_);
 
-    right_layout->addWidget(playback_viewport_, 1);
-    right_layout->addWidget(control_bar_);
-    right_layout->addWidget(status_panel_);
+    playback_viewport_ = new widgets::PlaybackViewport(content_host_);
+    playback_viewport_->hide();
 
-    splitter->addWidget(left_panel_);
-    splitter->addWidget(right_panel);
-    splitter->setStretchFactor(0, 0);
-    splitter->setStretchFactor(1, 1);
-    splitter->setSizes({320, 960});
+    setCentralWidget(content_host_);
 
-    setCentralWidget(splitter);
-    statusBar()->showMessage(tr("Ready"));
+    qml_view_->setSource(QUrl(QStringLiteral("qrc:/qt/qml/MainWindow.qml")));
+    qml_root_object_ = qml_view_->rootObject();
+    Q_ASSERT(qml_root_object_ != nullptr);
+
+    video_host_item_ = qobject_cast<QQuickItem *>(qml_root_object_->findChild<QObject *>(QStringLiteral("videoHost")));
+    Q_ASSERT(video_host_item_ != nullptr);
+
+    connect(video_host_item_, &QQuickItem::xChanged, this, &MainWindow::SyncPlaybackViewportGeometry);
+    connect(video_host_item_, &QQuickItem::yChanged, this, &MainWindow::SyncPlaybackViewportGeometry);
+    connect(video_host_item_, &QQuickItem::widthChanged, this, &MainWindow::SyncPlaybackViewportGeometry);
+    connect(video_host_item_, &QQuickItem::heightChanged, this, &MainWindow::SyncPlaybackViewportGeometry);
+    connect(video_host_item_, &QQuickItem::visibleChanged, this, &MainWindow::SyncPlaybackViewportGeometry);
+    QTimer::singleShot(0, this, &MainWindow::SyncPlaybackViewportGeometry);
+
+    bridge_->SetAvailableGroups(channel_filter_model_->AvailableGroups());
+    bridge_->SetCurrentGroupFilter(channel_filter_model_->GroupFilter());
+    bridge_->SetSearchTextValue(channel_filter_model_->SearchText());
+    bridge_->SetRecentItems(recent_items_);
+    bridge_->SetFullscreenActive(fullscreen_active_);
+    bridge_->SetStatusMessage(status_message_);
+    bridge_->SetPlaybackSnapshot(last_snapshot_);
 }
 
 void MainWindow::ApplyFullscreenUiState(bool active) {
@@ -293,70 +280,53 @@ void MainWindow::ApplyFullscreenUiState(bool active) {
     }
 
     fullscreen_active_ = active;
+    bridge_->SetFullscreenActive(fullscreen_active_);
+
     if (fullscreen_active_) {
         was_maximized_before_fullscreen_ = isMaximized();
-        menuBar()->hide();
-        statusBar()->hide();
-        left_panel_->hide();
-        control_bar_->hide();
-        status_panel_->hide();
         showFullScreen();
         playback_viewport_->SetFullscreenActive(true);
+    } else {
+        playback_viewport_->SetFullscreenActive(false);
+        if (was_maximized_before_fullscreen_) {
+            showMaximized();
+        } else {
+            showNormal();
+        }
+    }
+
+    SyncPlaybackViewportGeometry();
+}
+
+void MainWindow::SyncPlaybackViewportGeometry() {
+    if (content_host_ == nullptr || video_host_item_ == nullptr) {
         return;
     }
 
-    playback_viewport_->SetFullscreenActive(false);
-    if (was_maximized_before_fullscreen_) {
-        showMaximized();
-    } else {
-        showNormal();
+    const QPointF top_left = video_host_item_->mapToScene(QPointF(0.0, 0.0));
+    const QRect geometry(qRound(top_left.x()), qRound(top_left.y()), qRound(video_host_item_->width()),
+                         qRound(video_host_item_->height()));
+    if (!video_host_item_->isVisible() || geometry.isEmpty()) {
+        playback_viewport_->hide();
+        return;
     }
-    menuBar()->show();
-    statusBar()->show();
-    left_panel_->show();
-    control_bar_->show();
-    status_panel_->show();
+
+    playback_viewport_->setGeometry(geometry);
+    playback_viewport_->show();
+    playback_viewport_->raise();
 }
 
 void MainWindow::RebuildGroupFilter() {
-    const QString current_group = channel_filter_model_->GroupFilter();
     const QStringList groups = channel_filter_model_->AvailableGroups();
+    QString current_group = channel_filter_model_->GroupFilter();
 
-    QSignalBlocker blocker(group_filter_);
-    group_filter_->clear();
-    group_filter_->addItem(tr("All groups"), QString());
-    for (const QString &group : groups) {
-        group_filter_->addItem(group, group);
+    if (!current_group.isEmpty() && !groups.contains(current_group)) {
+        current_group.clear();
+        channel_filter_model_->SetGroupFilter(current_group);
     }
 
-    const int next_index = group_filter_->findData(current_group);
-    group_filter_->setCurrentIndex(next_index >= 0 ? next_index : 0);
-    channel_filter_model_->SetGroupFilter(group_filter_->currentData().toString());
-}
-
-void MainWindow::RebuildRecentMenu() {
-    if (recent_menu_ == nullptr) {
-        return;
-    }
-
-    recent_menu_->clear();
-    if (recent_items_.empty()) {
-        recent_menu_->setEnabled(false);
-        return;
-    }
-
-    recent_menu_->setEnabled(true);
-    for (const auto &item : recent_items_) {
-        QAction *action = recent_menu_->addAction(item.label);
-        action->setToolTip(item.target);
-        action->setStatusTip(item.target);
-        connect(action, &QAction::triggered, this, [this, item]() { emit RecentOpenSelected(item.kind, item.target); });
-    }
-}
-
-void MainWindow::OnAboutRequested() {
-    AboutDialog dialog(this);
-    dialog.exec();
+    bridge_->SetAvailableGroups(groups);
+    bridge_->SetCurrentGroupFilter(current_group);
 }
 
 }  // namespace shatv::ui::windows

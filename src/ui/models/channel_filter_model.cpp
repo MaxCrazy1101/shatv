@@ -40,18 +40,21 @@ void ChannelFilterModel::SetGroupFilter(const QString &group) {
 }
 
 void ChannelFilterModel::SetSearchText(const QString &search_text) {
-    const QString normalized_search = search_text.trimmed();
-    if (search_text_ == normalized_search) {
+    if (search_text_ == search_text) {
         return;
     }
 
     beginFilterChange();
-    search_text_ = normalized_search;
+    search_text_ = search_text;
     endFilterChange(Direction::Rows);
 }
 
 QString ChannelFilterModel::GroupFilter() const {
     return group_filter_;
+}
+
+QString ChannelFilterModel::SearchText() const {
+    return search_text_;
 }
 
 bool ChannelFilterModel::filterAcceptsRow(int source_row, const QModelIndex &source_parent) const {
@@ -75,7 +78,8 @@ bool ChannelFilterModel::filterAcceptsRow(int source_row, const QModelIndex &sou
 }
 
 bool ChannelFilterModel::MatchesSearch(int source_row, const QModelIndex &source_parent) const {
-    if (sourceModel() == nullptr || search_text_.isEmpty()) {
+    const QString effective_search = search_text_.trimmed();
+    if (sourceModel() == nullptr || effective_search.isEmpty()) {
         return true;
     }
 
@@ -83,7 +87,7 @@ bool ChannelFilterModel::MatchesSearch(int source_row, const QModelIndex &source
                                      ->index(source_row, 0, source_parent)
                                      .data(ChannelListModel::kNameRole)
                                      .toString();
-    return channel_name.contains(search_text_, Qt::CaseInsensitive);
+    return channel_name.contains(effective_search, Qt::CaseInsensitive);
 }
 
 }  // namespace shatv::ui::models

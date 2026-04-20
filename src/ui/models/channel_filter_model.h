@@ -16,6 +16,7 @@ class ChannelFilterModel final : public QSortFilterProxyModel {
     void SetGroupFilter(const QString &group);
     void SetSearchText(const QString &search_text);
     QString GroupFilter() const;
+    QString SearchText() const;
 
    protected:
     bool filterAcceptsRow(int source_row, const QModelIndex &source_parent) const override;

@@ -22,6 +22,7 @@ add_library(shatv_app
     ui/panels/playback_status_panel.cpp
     ui/widgets/playback_viewport.cpp
     ui/windows/about_dialog_content.cpp
+    ui/windows/main_window_bridge.cpp
     ui/windows/main_window.cpp
 )
 
@@ -37,6 +38,10 @@ target_link_libraries(shatv_app
         Qt6::Widgets
         Qt6::OpenGLWidgets
         Qt6::Network
+        Qt6::Qml
+        Qt6::Quick
+        Qt6::QuickControls2
+        Qt6::QuickWidgets
         shatv_mpv
         toml11::toml11
 )
@@ -58,3 +63,17 @@ if(TARGET Qt6::lrelease)
             ${CMAKE_SOURCE_DIR}/translations/shatv_zh_CN.ts
     )
 endif()
+
+set_source_files_properties(
+    ui/qml/MainWindow.qml
+    PROPERTIES QT_RESOURCE_ALIAS MainWindow.qml
+)
+
+qt_add_resources(shatv_app shatv_app_main_window_qml
+    PREFIX /qt/qml
+    BASE ${CMAKE_CURRENT_SOURCE_DIR}/ui/qml
+    FILES
+        ui/qml/MainWindow.qml
+        ui/qml/Theme.qml
+        ui/qml/qmldir
+)

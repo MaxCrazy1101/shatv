@@ -2,19 +2,19 @@
 
 #include <vector>
 
-#include <QComboBox>
 #include <QKeyEvent>
-#include <QLineEdit>
-#include <QListView>
 #include <QMainWindow>
-#include <QMenu>
+#include <QPointer>
 #include <QString>
+#include <QTimer>
 
 #include "app/app_settings.h"
 #include "domain/channel.h"
 #include "domain/player_snapshot.h"
 
-class QAction;
+class QQuickItem;
+class QQuickWidget;
+class QWidget;
 
 namespace shatv::application {
 class PlayerController;
@@ -29,16 +29,13 @@ class ChannelFilterModel;
 class ChannelListModel;
 }
 
-namespace shatv::ui::panels {
-class PlayerControlBar;
-class PlaybackStatusPanel;
-}
-
 namespace shatv::ui::widgets {
 class PlaybackViewport;
 }
 
 namespace shatv::ui::windows {
+
+class MainWindowBridge;
 
 class MainWindow final : public QMainWindow {
     Q_OBJECT
@@ -54,6 +51,7 @@ class MainWindow final : public QMainWindow {
     void SetConfiguredUserAgent(const QString &user_agent);
     void SetOsdAutoHideSeconds(int seconds);
     void SetRecentItems(std::vector<app::RecentOpenItem> items);
+    void ShowStatusMessage(const QString &message, int timeout_ms = 3000);
 
     int ChannelCount() const;
     bool IsFullscreenModeActive() const;
@@ -75,7 +73,6 @@ class MainWindow final : public QMainWindow {
     void OnOpenFileRequested();
     void OnOpenUrlRequested();
     void OnNetworkSettingsRequested();
-    void OnGroupFilterChanged(int index);
     void ToggleFullscreen();
     void ExitFullscreen();
     void OnAboutRequested();
@@ -84,24 +81,23 @@ class MainWindow final : public QMainWindow {
     void keyPressEvent(QKeyEvent *event) override;
     void BuildUi();
     void ApplyFullscreenUiState(bool active);
+    void SyncPlaybackViewportGeometry();
     void RebuildGroupFilter();
-    void RebuildRecentMenu();
 
     application::PlayerController *controller_ = nullptr;
     ui::models::ChannelListModel *channel_model_ = nullptr;
     ui::models::ChannelFilterModel *channel_filter_model_ = nullptr;
-    QWidget *left_panel_ = nullptr;
-    QListView *channel_list_view_ = nullptr;
-    QLineEdit *search_input_ = nullptr;
-    QComboBox *group_filter_ = nullptr;
+    QWidget *content_host_ = nullptr;
+    QQuickWidget *qml_view_ = nullptr;
+    QPointer<QObject> qml_root_object_;
+    QQuickItem *video_host_item_ = nullptr;
+    MainWindowBridge *bridge_ = nullptr;
     ui::widgets::PlaybackViewport *playback_viewport_ = nullptr;
-    panels::PlayerControlBar *control_bar_ = nullptr;
-    panels::PlaybackStatusPanel *status_panel_ = nullptr;
-    QMenu *recent_menu_ = nullptr;
-    QAction *toggle_fullscreen_action_ = nullptr;
     std::vector<app::RecentOpenItem> recent_items_;
     domain::PlayerSnapshot last_snapshot_;
     QString configured_user_agent_;
+    QString status_message_;
+    QTimer status_message_timer_;
     bool fullscreen_active_ = false;
     bool was_maximized_before_fullscreen_ = false;
 };

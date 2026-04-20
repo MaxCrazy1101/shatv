@@ -10,7 +10,6 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
-#include <QStatusBar>
 #include <QTimer>
 
 #include "app/m3u_playlist_parser.h"
@@ -292,7 +291,7 @@ void Application::UpdateNetworkUserAgent(const QString &user_agent) {
     if (auto *mpv_backend = dynamic_cast<player::MpvPlayerBackend *>(backend_.get())) {
         mpv_backend->SetNetworkUserAgent(settings_.UserAgent());
     }
-    main_window_->statusBar()->showMessage(QCoreApplication::translate("Application", "Network settings saved"), 3000);
+    main_window_->ShowStatusMessage(QCoreApplication::translate("Application", "Network settings saved"), 3000);
 }
 
 void Application::RememberRecentItem(const RecentOpenItem &item) {
@@ -304,8 +303,8 @@ void Application::RememberRecentItem(const RecentOpenItem &item) {
     RefreshRecentItems();
     if (!settings_.Save()) {
         std::cerr << "ShaTV recent history save failed path=" << settings_.ConfigPath().toStdString() << std::endl;
-        main_window_->statusBar()->showMessage(QCoreApplication::translate("Application", "Failed to save recent history"),
-                                               3000);
+        main_window_->ShowStatusMessage(QCoreApplication::translate("Application", "Failed to save recent history"),
+                                        3000);
     }
 }
 
