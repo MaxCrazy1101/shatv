@@ -213,6 +213,10 @@
       <translation>静音</translation>
     </message>
     <message>
+      <source>Exit Full Screen</source>
+      <translation>退出全屏</translation>
+    </message>
+    <message>
       <source>Full Screen</source>
       <translation>全屏</translation>
     </message>

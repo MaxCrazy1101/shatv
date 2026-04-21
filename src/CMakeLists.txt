@@ -13,14 +13,10 @@ add_library(shatv_app
     player/fake_player_backend.cpp
     player/mpv_event_adapter.cpp
     player/mpv_player_backend.cpp
-    player/mpv_render_widget.cpp
     player/player_backend.cpp
     ui/qml_spike/mpv_video_item.cpp
     ui/models/channel_filter_model.cpp
     ui/models/channel_list_model.cpp
-    ui/panels/playback_osd_overlay.cpp
-    ui/panels/player_control_bar.cpp
-    ui/widgets/playback_viewport.cpp
     ui/windows/about_dialog_content.cpp
     ui/windows/main_window_bridge.cpp
     ui/windows/main_window.cpp
@@ -36,7 +32,6 @@ target_link_libraries(shatv_app
     PUBLIC
         Qt6::Core
         Qt6::Widgets
-        Qt6::OpenGLWidgets
         Qt6::Network
         Qt6::Qml
         Qt6::Quick
