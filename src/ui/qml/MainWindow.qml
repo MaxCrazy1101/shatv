@@ -12,6 +12,7 @@ Rectangle {
 
     readonly property var bridge: mainWindowBridge
     readonly property var groupItems: [qsTr("All groups"), ...bridge.availableGroups]
+    readonly property int menuPopupType: Qt.platform.pluginName !== "wayland" ? Popup.Window : Popup.Item
     readonly property int selectedGroupIndex: {
         if (bridge.currentGroupFilter.length === 0) {
             return 0
@@ -143,6 +144,7 @@ Rectangle {
 
             Menu {
                 title: qsTr("&File")
+                popupType: root.menuPopupType
                 delegate: menuItemDelegate
                 background: root.menuPopupBackground.createObject(root)
 
@@ -159,6 +161,7 @@ Rectangle {
                     id: recentMenu
                     title: qsTr("Open &Recent")
                     enabled: bridge.recentItems.length > 0
+                    popupType: root.menuPopupType
                     delegate: recentItemDelegate
                     background: root.menuPopupBackground.createObject(root)
 
@@ -191,6 +194,7 @@ Rectangle {
 
             Menu {
                 title: qsTr("&Settings")
+                popupType: root.menuPopupType
                 delegate: menuItemDelegate
                 background: root.menuPopupBackground.createObject(root)
 
@@ -202,6 +206,7 @@ Rectangle {
 
             Menu {
                 title: qsTr("&View")
+                popupType: root.menuPopupType
                 delegate: menuItemDelegate
                 background: root.menuPopupBackground.createObject(root)
 
@@ -213,6 +218,7 @@ Rectangle {
 
             Menu {
                 title: qsTr("&Help")
+                popupType: root.menuPopupType
                 delegate: menuItemDelegate
                 background: root.menuPopupBackground.createObject(root)
 
