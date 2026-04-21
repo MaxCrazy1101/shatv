@@ -18,7 +18,6 @@
 #include "domain/playback_state.h"
 #include "player/fake_player_backend.h"
 #include "player/mpv_player_backend.h"
-#include "player/mpv_render_widget.h"
 #include "ui/models/channel_list_model.h"
 #include "ui/windows/main_window.h"
 
@@ -85,8 +84,7 @@ Application::Application(QApplication *qt_app, LaunchOptions options)
 
     if (auto *mpv_backend = dynamic_cast<player::MpvPlayerBackend *>(backend_.get())) {
         mpv_backend->SetNetworkUserAgent(settings_.UserAgent());
-        mpv_backend->AttachRenderWidget(main_window_->RenderWidget());
-        main_window_->RenderWidget()->SetBackend(mpv_backend);
+        main_window_->AttachMpvBackend(mpv_backend);
     }
 
     QObject::connect(main_window_.get(), &ui::windows::MainWindow::OpenFileSelected, qt_app_,

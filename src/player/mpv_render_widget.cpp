@@ -28,6 +28,22 @@ void MpvRenderWidget::SetBackend(MpvPlayerBackend *backend) {
     backend_ = backend;
 }
 
+QOpenGLContext *MpvRenderWidget::CurrentContext() const {
+    return context();
+}
+
+void MpvRenderWidget::MakeCurrent() {
+    makeCurrent();
+}
+
+void MpvRenderWidget::DoneCurrent() {
+    doneCurrent();
+}
+
+void MpvRenderWidget::RequestUpdate() {
+    update();
+}
+
 void MpvRenderWidget::initializeGL() {
     if (backend_ != nullptr) {
         backend_->InitializeRenderContext();

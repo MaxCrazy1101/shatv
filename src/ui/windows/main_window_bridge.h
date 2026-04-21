@@ -28,6 +28,7 @@ class MainWindowBridge final : public QObject {
     Q_PROPERTY(QString statusMessage READ StatusMessage NOTIFY StatusMessageChanged)
     Q_PROPERTY(QString currentChannelName READ CurrentChannelName NOTIFY CurrentChannelNameChanged)
     Q_PROPERTY(QString playbackStateText READ PlaybackStateText NOTIFY PlaybackStateTextChanged)
+    Q_PROPERTY(QString playbackStateToken READ PlaybackStateToken NOTIFY PlaybackStateTokenChanged)
     Q_PROPERTY(bool playing READ Playing NOTIFY PlayingChanged)
     Q_PROPERTY(bool muted READ Muted NOTIFY MutedChanged)
     Q_PROPERTY(int volume READ Volume NOTIFY VolumeChanged)
@@ -44,6 +45,7 @@ class MainWindowBridge final : public QObject {
     QString StatusMessage() const;
     QString CurrentChannelName() const;
     QString PlaybackStateText() const;
+    QString PlaybackStateToken() const;
     bool Playing() const;
     bool Muted() const;
     int Volume() const;
@@ -80,6 +82,7 @@ class MainWindowBridge final : public QObject {
     void StatusMessageChanged();
     void CurrentChannelNameChanged();
     void PlaybackStateTextChanged();
+    void PlaybackStateTokenChanged();
     void PlayingChanged();
     void MutedChanged();
     void VolumeChanged();
@@ -107,6 +110,7 @@ class MainWindowBridge final : public QObject {
     QString status_message_;
     QString current_channel_name_;
     QString playback_state_text_;
+    QString playback_state_token_;
     bool playing_ = false;
     bool muted_ = false;
     int volume_ = 50;

@@ -8,8 +8,6 @@
 
 #include <mpv/render_gl.h>
 
-#include "player/mpv_render_widget.h"
-
 namespace shatv::player {
 
 namespace {
@@ -32,10 +30,10 @@ MpvPlayerBackend::MpvPlayerBackend(QObject *parent) : PlayerBackend(parent) {
 MpvPlayerBackend::~MpvPlayerBackend() {
     if (render_context_ != nullptr) {
         mpv_render_context_set_update_callback(render_context_, nullptr, nullptr);
-        if (render_widget_ != nullptr && render_widget_->context() != nullptr) {
-            render_widget_->makeCurrent();
+        if (render_host_ != nullptr && render_host_->CurrentContext() != nullptr) {
+            render_host_->MakeCurrent();
             mpv_render_context_free(render_context_);
-            render_widget_->doneCurrent();
+            render_host_->DoneCurrent();
         } else {
             mpv_render_context_free(render_context_);
         }
@@ -49,20 +47,23 @@ MpvPlayerBackend::~MpvPlayerBackend() {
     }
 }
 
-void MpvPlayerBackend::AttachRenderWidget(MpvRenderWidget *render_widget) {
-    render_widget_ = render_widget;
+void MpvPlayerBackend::AttachRenderHost(MpvRenderHost *render_host) {
+    render_host_ = render_host;
 }
 
-void MpvPlayerBackend::DetachRenderWidget() {
-    render_widget_ = nullptr;
+void MpvPlayerBackend::DetachRenderHost() {
+    render_host_ = nullptr;
 }
 
 void MpvPlayerBackend::InitializeRenderContext() {
-    if (handle_ == nullptr || render_context_ != nullptr || render_widget_ == nullptr) {
+    if (handle_ == nullptr || render_context_ != nullptr || render_host_ == nullptr) {
         return;
     }
 
-    auto *context = QOpenGLContext::currentContext();
+    auto *context = render_host_->CurrentContext();
+    if (context == nullptr) {
+        context = QOpenGLContext::currentContext();
+    }
     if (context == nullptr) {
         EmitSnapshot(domain::PlaybackState::kError, tr("mpv render context failed: no current OpenGL context"));
         return;
@@ -187,6 +188,10 @@ void MpvPlayerBackend::SetMuted(bool muted) {
 
 void MpvPlayerBackend::SetNetworkUserAgent(const QString &user_agent) {
     user_agent_ = user_agent;
+}
+
+bool MpvPlayerBackend::HasRenderContext() const {
+    return render_context_ != nullptr;
 }
 
 bool MpvPlayerBackend::RenderFrame(int framebuffer_object, int width, int height, double device_pixel_ratio) {
@@ -384,8 +389,8 @@ void MpvPlayerBackend::HandleEvent(mpv_event *event) {
 }
 
 void MpvPlayerBackend::RequestRenderUpdate() {
-    if (render_widget_ != nullptr) {
-        render_widget_->update();
+    if (render_host_ != nullptr) {
+        render_host_->RequestUpdate();
     }
 }
 

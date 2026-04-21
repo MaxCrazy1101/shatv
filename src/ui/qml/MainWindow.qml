@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import ShaTV.Video 1.0
 import "."
 
 Rectangle {
@@ -10,9 +11,51 @@ Rectangle {
     objectName: "mainWindowRoot"
     color: Theme.surfaceDim
 
-    readonly property var bridge: mainWindowBridge
+    QtObject {
+        id: bridgeFallback
+
+        property var channelModel: null
+        property var availableGroups: []
+        property string currentGroupFilter: ""
+        property string searchText: ""
+        property var recentItems: []
+        property bool fullscreenActive: false
+        property string statusMessage: ""
+        property string currentChannelName: ""
+        property string playbackStateText: ""
+        property string playbackStateToken: "idle"
+        property bool playing: false
+        property bool muted: false
+        property int volume: 50
+
+        function activateChannelRow(row) {}
+        function setSearchText(text) {}
+        function setGroupFilter(group) {}
+        function requestPlayPause() {}
+        function requestStop() {}
+        function toggleMute() {}
+        function setVolume(volume) {}
+        function requestOpenFile() {}
+        function requestOpenUrl() {}
+        function requestNetworkSettings() {}
+        function requestAbout() {}
+        function openRecentAt(index) {}
+        function toggleFullscreen() {}
+        function exitFullscreen() {}
+    }
+
+    readonly property var bridge: (typeof mainWindowBridge !== "undefined" && mainWindowBridge !== null)
+        ? mainWindowBridge
+        : bridgeFallback
     readonly property var groupItems: [qsTr("All groups"), ...bridge.availableGroups]
     readonly property int menuPopupType: Qt.platform.pluginName !== "wayland" ? Popup.Window : Popup.Item
+    readonly property string effectiveStatusText: bridge.statusMessage.length > 0
+        ? bridge.statusMessage
+        : (bridge.playbackStateText.length > 0 ? bridge.playbackStateText : qsTr("Ready"))
+    readonly property bool showPauseAction: bridge.playbackStateToken === "playing"
+        || bridge.playbackStateToken === "loading"
+        || bridge.playbackStateToken === "buffering"
+        || bridge.playbackStateToken === "retrying"
     readonly property int selectedGroupIndex: {
         if (bridge.currentGroupFilter.length === 0) {
             return 0
@@ -294,12 +337,99 @@ Rectangle {
                     anchors.margins: bridge.fullscreenActive ? 0 : Theme.spacingMd
                     spacing: bridge.fullscreenActive ? 0 : Theme.spacingMd
 
-                    Item {
-                        id: videoHost
-                        objectName: "videoHost"
+                    Rectangle {
+                        id: videoSurface
+                        color: "#000000"
+                        radius: bridge.fullscreenActive ? 0 : Theme.radiusMd
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         Layout.minimumHeight: Theme.videoMinHeight
+
+                        MpvVideoItem {
+                            id: playerVideoItem
+                            objectName: "playerVideoItem"
+                            anchors.fill: parent
+                        }
+
+                        Label {
+                            anchors.centerIn: parent
+                            visible: !playerVideoItem.ready
+                            text: root.effectiveStatusText
+                            color: Theme.textPrimary
+                        }
+
+                        Rectangle {
+                            visible: bridge.fullscreenActive
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.bottom: parent.bottom
+                            anchors.margins: Theme.spacingMd
+                            implicitHeight: fullscreenOverlayContent.implicitHeight + Theme.spacingMd * 2
+                            radius: Theme.radiusMd
+                            color: "#A8101B31"
+                            border.width: 1
+                            border.color: Theme.outline
+
+                            ColumnLayout {
+                                id: fullscreenOverlayContent
+                                anchors.fill: parent
+                                anchors.margins: Theme.spacingMd
+                                spacing: Theme.spacingSm
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: Theme.spacingMd
+
+                                    ToolButton {
+                                        text: root.showPauseAction ? qsTr("Pause") : qsTr("Play")
+                                        onClicked: bridge.requestPlayPause()
+                                    }
+
+                                    ToolButton {
+                                        text: qsTr("Stop")
+                                        onClicked: bridge.requestStop()
+                                    }
+
+                                    ToolButton {
+                                        text: bridge.muted ? qsTr("Unmute") : qsTr("Mute")
+                                        onClicked: bridge.toggleMute()
+                                    }
+
+                                    Slider {
+                                        Layout.fillWidth: true
+                                        from: 0
+                                        to: 100
+                                        stepSize: 1
+                                        value: bridge.volume
+                                        onMoved: bridge.setVolume(Math.round(value))
+                                    }
+
+                                    ToolButton {
+                                        text: qsTr("Exit Full Screen")
+                                        onClicked: bridge.exitFullscreen()
+                                    }
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+
+                                    Label {
+                                        text: bridge.currentChannelName
+                                        color: Theme.textPrimary
+                                        visible: bridge.currentChannelName.length > 0
+                                        Layout.fillWidth: true
+                                        elide: Text.ElideRight
+                                    }
+
+                                    Label {
+                                        text: root.effectiveStatusText
+                                        color: Theme.textPrimary
+                                        Layout.fillWidth: true
+                                        elide: Text.ElideRight
+                                    }
+                                }
+                            }
+                        }
                     }
 
                     Rectangle {
@@ -315,7 +445,7 @@ Rectangle {
                             spacing: Theme.spacingMd
 
                             ToolButton {
-                                text: bridge.playing ? qsTr("Pause") : qsTr("Play")
+                                text: root.showPauseAction ? qsTr("Pause") : qsTr("Play")
                                 onClicked: bridge.requestPlayPause()
                             }
 
@@ -369,9 +499,7 @@ Rectangle {
                                 }
 
                                 Label {
-                                    text: bridge.statusMessage.length > 0
-                                          ? bridge.statusMessage
-                                          : (bridge.playbackStateText.length > 0 ? bridge.playbackStateText : qsTr("Ready"))
+                                    text: root.effectiveStatusText
                                     color: Theme.textPrimary
                                     Layout.fillWidth: true
                                     elide: Text.ElideRight

@@ -2,18 +2,16 @@
 
 #include <QFileDialog>
 #include <QInputDialog>
-#include <QQuickItem>
 #include <QQuickWidget>
 #include <QQmlContext>
-#include <QVBoxLayout>
 #include <QWidget>
 
 #include "application/player_controller.h"
 #include "domain/playback_state.h"
-#include "player/mpv_render_widget.h"
+#include "player/mpv_player_backend.h"
 #include "ui/models/channel_filter_model.h"
 #include "ui/models/channel_list_model.h"
-#include "ui/widgets/playback_viewport.h"
+#include "ui/qml_spike/mpv_video_item.h"
 #include "ui/windows/about_dialog_content.h"
 #include "ui/windows/main_window_bridge.h"
 
@@ -29,14 +27,6 @@ MainWindow::MainWindow(application::PlayerController *controller, ui::models::Ch
 
     connect(controller_, &application::PlayerController::PlaybackSnapshotChanged, this,
             &MainWindow::OnPlaybackSnapshotChanged);
-    connect(playback_viewport_, &widgets::PlaybackViewport::PlayPauseRequested, this, &MainWindow::OnPlayPauseRequested);
-    connect(playback_viewport_, &widgets::PlaybackViewport::StopRequested, controller_,
-            &application::PlayerController::Stop);
-    connect(playback_viewport_, &widgets::PlaybackViewport::MuteToggled, this, &MainWindow::OnMuteToggled);
-    connect(playback_viewport_, &widgets::PlaybackViewport::VolumeChanged, controller_,
-            &application::PlayerController::SetVolume);
-    connect(playback_viewport_, &widgets::PlaybackViewport::ExitFullscreenRequested, this,
-            &MainWindow::ExitFullscreen);
     status_message_timer_.setSingleShot(true);
     connect(&status_message_timer_, &QTimer::timeout, this, [this]() {
         status_message_.clear();
@@ -59,19 +49,15 @@ MainWindow::MainWindow(application::PlayerController *controller, ui::models::Ch
 }
 
 MainWindow::~MainWindow() {
-    // 关闭窗口时，QQuickWidget 会销毁内部 QQuickItem 树。
-    // video_host_item_ 在析构过程中会发 visible/x/y 等变更信号，
-    // 如果仍然直连到 MainWindow 成员槽，会在 MainWindow 析构阶段触发 Qt 断言。
     status_message_timer_.stop();
-    if (video_host_item_ != nullptr) {
-        QObject::disconnect(video_host_item_, nullptr, this, nullptr);
+    if (video_item_ != nullptr) {
+        video_item_->SetBackend(nullptr);
     }
 }
 
 void MainWindow::SetChannels(std::vector<domain::Channel> channels) {
     channel_model_->SetChannels(std::move(channels));
     RebuildGroupFilter();
-    SyncPlaybackViewportGeometry();
 }
 
 void MainWindow::StartInitialPlayback() {
@@ -86,8 +72,12 @@ void MainWindow::StartSmokeScenario() {
     StartInitialPlayback();
 }
 
-player::MpvRenderWidget *MainWindow::RenderWidget() const {
-    return playback_viewport_->RenderWidget();
+void MainWindow::AttachMpvBackend(player::MpvPlayerBackend *backend) {
+    if (video_item_ == nullptr) {
+        return;
+    }
+
+    video_item_->SetBackend(backend);
 }
 
 void MainWindow::SetConfiguredUserAgent(const QString &user_agent) {
@@ -95,7 +85,8 @@ void MainWindow::SetConfiguredUserAgent(const QString &user_agent) {
 }
 
 void MainWindow::SetOsdAutoHideSeconds(int seconds) {
-    playback_viewport_->SetOsdAutoHideSeconds(seconds);
+    Q_UNUSED(seconds);
+    // 第一刀迁移先去掉 QWidget OSD 视口，自动隐藏策略后续在纯 QML overlay 中恢复。
 }
 
 void MainWindow::SetRecentItems(std::vector<app::RecentOpenItem> items) {
@@ -143,7 +134,6 @@ void MainWindow::OnChannelActivated(const QModelIndex &index) {
 
 void MainWindow::OnPlaybackSnapshotChanged(const shatv::domain::PlayerSnapshot &snapshot) {
     last_snapshot_ = snapshot;
-    playback_viewport_->ApplySnapshot(snapshot);
     bridge_->SetPlaybackSnapshot(snapshot);
 
     if (!snapshot.channel_id.isEmpty()) {
@@ -243,37 +233,22 @@ void MainWindow::BuildUi() {
     channel_filter_model_ = new ui::models::ChannelFilterModel(this);
     channel_filter_model_->setSourceModel(channel_model_);
 
-    content_host_ = new QWidget(this);
-    auto *host_layout = new QVBoxLayout(content_host_);
-    host_layout->setContentsMargins(0, 0, 0, 0);
-    host_layout->setSpacing(0);
-
     bridge_ = new MainWindowBridge(channel_filter_model_, this);
 
-    qml_view_ = new QQuickWidget(content_host_);
+    qml_view_ = new QQuickWidget(this);
     qml_view_->setObjectName(QStringLiteral("mainWindowQmlView"));
     qml_view_->setResizeMode(QQuickWidget::SizeRootObjectToView);
     qml_view_->rootContext()->setContextProperty(QStringLiteral("mainWindowBridge"), bridge_);
-    host_layout->addWidget(qml_view_);
-
-    playback_viewport_ = new widgets::PlaybackViewport(content_host_);
-    playback_viewport_->hide();
-
-    setCentralWidget(content_host_);
+    ui::qml_spike::RegisterQmlVideoTypes();
+    setCentralWidget(qml_view_);
 
     qml_view_->setSource(QUrl(QStringLiteral("qrc:/qt/qml/MainWindow.qml")));
     qml_root_object_ = qml_view_->rootObject();
     Q_ASSERT(qml_root_object_ != nullptr);
 
-    video_host_item_ = qobject_cast<QQuickItem *>(qml_root_object_->findChild<QObject *>(QStringLiteral("videoHost")));
-    Q_ASSERT(video_host_item_ != nullptr);
-
-    connect(video_host_item_, &QQuickItem::xChanged, this, &MainWindow::SyncPlaybackViewportGeometry);
-    connect(video_host_item_, &QQuickItem::yChanged, this, &MainWindow::SyncPlaybackViewportGeometry);
-    connect(video_host_item_, &QQuickItem::widthChanged, this, &MainWindow::SyncPlaybackViewportGeometry);
-    connect(video_host_item_, &QQuickItem::heightChanged, this, &MainWindow::SyncPlaybackViewportGeometry);
-    connect(video_host_item_, &QQuickItem::visibleChanged, this, &MainWindow::SyncPlaybackViewportGeometry);
-    QTimer::singleShot(0, this, &MainWindow::SyncPlaybackViewportGeometry);
+    video_item_ =
+        qobject_cast<ui::qml_spike::MpvVideoItem *>(qml_root_object_->findChild<QObject *>(QStringLiteral("playerVideoItem")));
+    Q_ASSERT(video_item_ != nullptr);
 
     bridge_->SetAvailableGroups(channel_filter_model_->AvailableGroups());
     bridge_->SetCurrentGroupFilter(channel_filter_model_->GroupFilter());
@@ -295,35 +270,13 @@ void MainWindow::ApplyFullscreenUiState(bool active) {
     if (fullscreen_active_) {
         was_maximized_before_fullscreen_ = isMaximized();
         showFullScreen();
-        playback_viewport_->SetFullscreenActive(true);
     } else {
-        playback_viewport_->SetFullscreenActive(false);
         if (was_maximized_before_fullscreen_) {
             showMaximized();
         } else {
             showNormal();
         }
     }
-
-    SyncPlaybackViewportGeometry();
-}
-
-void MainWindow::SyncPlaybackViewportGeometry() {
-    if (content_host_ == nullptr || video_host_item_ == nullptr) {
-        return;
-    }
-
-    const QPointF top_left = video_host_item_->mapToScene(QPointF(0.0, 0.0));
-    const QRect geometry(qRound(top_left.x()), qRound(top_left.y()), qRound(video_host_item_->width()),
-                         qRound(video_host_item_->height()));
-    if (!video_host_item_->isVisible() || geometry.isEmpty()) {
-        playback_viewport_->hide();
-        return;
-    }
-
-    playback_viewport_->setGeometry(geometry);
-    playback_viewport_->show();
-    playback_viewport_->raise();
 }
 
 void MainWindow::RebuildGroupFilter() {

@@ -12,7 +12,6 @@
 #include "domain/channel.h"
 #include "domain/player_snapshot.h"
 
-class QQuickItem;
 class QQuickWidget;
 class QWidget;
 
@@ -21,7 +20,7 @@ class PlayerController;
 }
 
 namespace shatv::player {
-class MpvRenderWidget;
+class MpvPlayerBackend;
 }
 
 namespace shatv::ui::models {
@@ -29,8 +28,8 @@ class ChannelFilterModel;
 class ChannelListModel;
 }
 
-namespace shatv::ui::widgets {
-class PlaybackViewport;
+namespace shatv::ui::qml_spike {
+class MpvVideoItem;
 }
 
 namespace shatv::ui::windows {
@@ -48,7 +47,7 @@ class MainWindow final : public QMainWindow {
     void SetChannels(std::vector<domain::Channel> channels);
     void StartInitialPlayback();
     void StartSmokeScenario();
-    player::MpvRenderWidget *RenderWidget() const;
+    void AttachMpvBackend(player::MpvPlayerBackend *backend);
     void SetConfiguredUserAgent(const QString &user_agent);
     void SetOsdAutoHideSeconds(int seconds);
     void SetRecentItems(std::vector<app::RecentOpenItem> items);
@@ -82,18 +81,15 @@ class MainWindow final : public QMainWindow {
     void keyPressEvent(QKeyEvent *event) override;
     void BuildUi();
     void ApplyFullscreenUiState(bool active);
-    void SyncPlaybackViewportGeometry();
     void RebuildGroupFilter();
 
     application::PlayerController *controller_ = nullptr;
     ui::models::ChannelListModel *channel_model_ = nullptr;
     ui::models::ChannelFilterModel *channel_filter_model_ = nullptr;
-    QWidget *content_host_ = nullptr;
     QQuickWidget *qml_view_ = nullptr;
     QPointer<QObject> qml_root_object_;
-    QPointer<QQuickItem> video_host_item_;
+    QPointer<ui::qml_spike::MpvVideoItem> video_item_;
     MainWindowBridge *bridge_ = nullptr;
-    ui::widgets::PlaybackViewport *playback_viewport_ = nullptr;
     std::vector<app::RecentOpenItem> recent_items_;
     domain::PlayerSnapshot last_snapshot_;
     QString configured_user_agent_;

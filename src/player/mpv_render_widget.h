@@ -3,12 +3,13 @@
 #include <QOpenGLWidget>
 
 #include "domain/player_snapshot.h"
+#include "player/mpv_render_host.h"
 
 namespace shatv::player {
 
 class MpvPlayerBackend;
 
-class MpvRenderWidget final : public QOpenGLWidget {
+class MpvRenderWidget final : public QOpenGLWidget, public MpvRenderHost {
     Q_OBJECT
 
    public:
@@ -16,6 +17,10 @@ class MpvRenderWidget final : public QOpenGLWidget {
 
     void ApplySnapshot(const domain::PlayerSnapshot &snapshot);
     void SetBackend(MpvPlayerBackend *backend);
+    QOpenGLContext *CurrentContext() const override;
+    void MakeCurrent() override;
+    void DoneCurrent() override;
+    void RequestUpdate() override;
 
    protected:
     void initializeGL() override;

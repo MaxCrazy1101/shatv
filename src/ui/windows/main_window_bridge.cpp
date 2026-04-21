@@ -53,6 +53,10 @@ QString MainWindowBridge::PlaybackStateText() const {
     return playback_state_text_;
 }
 
+QString MainWindowBridge::PlaybackStateToken() const {
+    return playback_state_token_;
+}
+
 bool MainWindowBridge::Playing() const {
     return playing_;
 }
@@ -131,7 +135,11 @@ void MainWindowBridge::SetStatusMessage(const QString &message) {
 
 void MainWindowBridge::SetPlaybackSnapshot(const domain::PlayerSnapshot &snapshot) {
     const QString state_text = domain::PlaybackStateName(snapshot.state);
-    const bool playing = snapshot.state == domain::PlaybackState::kPlaying;
+    const QString state_token = domain::PlaybackStateToken(snapshot.state);
+    const bool playing = snapshot.state == domain::PlaybackState::kPlaying ||
+                         snapshot.state == domain::PlaybackState::kLoading ||
+                         snapshot.state == domain::PlaybackState::kBuffering ||
+                         snapshot.state == domain::PlaybackState::kRetrying;
 
     if (current_channel_name_ != snapshot.channel_name) {
         current_channel_name_ = snapshot.channel_name;
@@ -140,6 +148,10 @@ void MainWindowBridge::SetPlaybackSnapshot(const domain::PlayerSnapshot &snapsho
     if (playback_state_text_ != state_text) {
         playback_state_text_ = state_text;
         emit PlaybackStateTextChanged();
+    }
+    if (playback_state_token_ != state_token) {
+        playback_state_token_ = state_token;
+        emit PlaybackStateTokenChanged();
     }
     if (playing_ != playing) {
         playing_ = playing;

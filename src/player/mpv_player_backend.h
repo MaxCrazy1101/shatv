@@ -6,11 +6,10 @@
 #include <QString>
 
 #include "player/mpv_event_adapter.h"
+#include "player/mpv_render_host.h"
 #include "player/player_backend.h"
 
 namespace shatv::player {
-
-class MpvRenderWidget;
 
 class MpvPlayerBackend final : public PlayerBackend {
     Q_OBJECT
@@ -19,8 +18,8 @@ class MpvPlayerBackend final : public PlayerBackend {
     explicit MpvPlayerBackend(QObject *parent = nullptr);
     ~MpvPlayerBackend() override;
 
-    void AttachRenderWidget(MpvRenderWidget *render_widget);
-    void DetachRenderWidget();
+    void AttachRenderHost(MpvRenderHost *render_host);
+    void DetachRenderHost();
     void InitializeRenderContext();
     void Load(const domain::Channel &channel) override;
     void Play() override;
@@ -29,6 +28,7 @@ class MpvPlayerBackend final : public PlayerBackend {
     void SetVolume(int volume) override;
     void SetMuted(bool muted) override;
     void SetNetworkUserAgent(const QString &user_agent);
+    bool HasRenderContext() const;
     bool RenderFrame(int framebuffer_object, int width, int height, double device_pixel_ratio);
 
    private:
@@ -53,7 +53,7 @@ class MpvPlayerBackend final : public PlayerBackend {
     bool pending_load_ = false;
     mpv_handle *handle_ = nullptr;
     mpv_render_context *render_context_ = nullptr;
-    MpvRenderWidget *render_widget_ = nullptr;
+    MpvRenderHost *render_host_ = nullptr;
     MpvEventAdapter event_adapter_;
 };
 
