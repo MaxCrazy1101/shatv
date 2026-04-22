@@ -170,6 +170,7 @@ Rectangle {
         delegate: ItemDelegate {
             id: optionDelegate
             required property var modelData
+            required property int index
 
             width: control.width
             text: modelData
