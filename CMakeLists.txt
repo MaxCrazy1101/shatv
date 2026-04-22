@@ -48,12 +48,38 @@ if(WIN32)
     find_package(Qt6 QUIET COMPONENTS LinguistTools)
     # Windows 上几乎不存在 toml11 系统包，默认启用 FetchContent。
     option(SHATV_FETCH_TOML11 "Fetch toml11 during configure" ON)
+    option(SHATV_FETCH_ZLIB "Fetch zlib during configure" ON)
 else()
     find_package(Qt6 REQUIRED COMPONENTS Core Widgets Network Qml Quick QuickControls2 QuickWidgets LinguistTools)
     option(SHATV_FETCH_TOML11 "Fetch toml11 during configure" OFF)
+    option(SHATV_FETCH_ZLIB "Fetch zlib during configure" OFF)
 endif()
 
-find_package(ZLIB REQUIRED)
+include(FetchContent)
+
+find_package(ZLIB QUIET)
+if(NOT ZLIB_FOUND)
+    if(NOT SHATV_FETCH_ZLIB)
+        message(FATAL_ERROR
+            "ZLIB not found. Install it (e.g. 'sudo pacman -S zlib') "
+            "or re-run with -DSHATV_FETCH_ZLIB=ON.")
+    endif()
+    set(ZLIB_BUILD_EXAMPLES OFF CACHE BOOL "Disable zlib example binaries" FORCE)
+    FetchContent_Declare(
+        zlib
+        URL https://github.com/madler/zlib/archive/refs/tags/v1.3.1.tar.gz
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    )
+    FetchContent_MakeAvailable(zlib)
+
+    if(TARGET zlibstatic)
+        add_library(ZLIB::ZLIB ALIAS zlibstatic)
+    elseif(TARGET zlib)
+        add_library(ZLIB::ZLIB ALIAS zlib)
+    else()
+        message(FATAL_ERROR "Fetched zlib, but no usable library target was exported.")
+    endif()
+endif()
 
 qt_policy(SET QTP0001 NEW)
 qt_policy(SET QTP0004 NEW)
@@ -66,7 +92,6 @@ if(NOT toml11_FOUND)
             "or re-run with -DSHATV_FETCH_TOML11=ON.")
     endif()
 
-    include(FetchContent)
     FetchContent_Declare(
         toml11
         GIT_REPOSITORY https://github.com/ToruNiina/toml11.git
