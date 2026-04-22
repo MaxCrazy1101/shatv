@@ -44,13 +44,13 @@ set(SHATV_MPV_LIBRARY "" CACHE FILEPATH "Path to libmpv import library for Windo
 set(SHATV_MPV_DLL "" CACHE FILEPATH "Path to libmpv runtime DLL for Windows portable packaging")
 
 if(WIN32)
-    find_package(Qt6 REQUIRED COMPONENTS Core Widgets Network Qml Quick QuickControls2 QuickWidgets)
+    find_package(Qt6 REQUIRED COMPONENTS Core Network Qml Quick QuickControls2 QuickDialogs2)
     find_package(Qt6 QUIET COMPONENTS LinguistTools)
     # Windows 上几乎不存在 toml11 系统包，默认启用 FetchContent。
     option(SHATV_FETCH_TOML11 "Fetch toml11 during configure" ON)
     option(SHATV_FETCH_ZLIB "Fetch zlib during configure" ON)
 else()
-    find_package(Qt6 REQUIRED COMPONENTS Core Widgets Network Qml Quick QuickControls2 QuickWidgets LinguistTools)
+    find_package(Qt6 REQUIRED COMPONENTS Core Network Qml Quick QuickControls2 QuickDialogs2 LinguistTools)
     option(SHATV_FETCH_TOML11 "Fetch toml11 during configure" OFF)
     option(SHATV_FETCH_ZLIB "Fetch zlib during configure" OFF)
 endif()

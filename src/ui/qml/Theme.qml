@@ -42,10 +42,16 @@ QtObject {
     readonly property int radiusMd: 10
 
     // Layout
+    readonly property int titleBarHeight: 42
+    readonly property int windowButtonWidth: 44
     readonly property int sidebarPreferredWidth: 320
     readonly property int sidebarMinWidth: 280
     readonly property int sidebarMaxWidth: 440
     readonly property int videoMinHeight: 320
     readonly property int controlPanelHeight: 56
     readonly property int statusPanelHeight: 44
+
+    // Title bar
+    readonly property color titleBarCloseHover: "#c94f4f"
+    readonly property color titleBarClosePressed: "#a63d3d"
 }

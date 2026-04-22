@@ -2,14 +2,25 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Dialogs
 import QtQuick.Layouts
+import QtQuick.Window
 import ShaTV.Video 1.0
-import "."
+import "." as Shell
+import "controls" as Controls
+import "dialogs" as Dialogs
 
-Rectangle {
+ApplicationWindow {
     id: root
     objectName: "mainWindowRoot"
-    color: Theme.surfaceDim
+    visible: true
+    width: 1280
+    height: 720
+    minimumWidth: 960
+    minimumHeight: 600
+    title: qsTr("ShaTV")
+    color: Shell.Theme.surfaceDim
+    flags: Qt.Window | Qt.FramelessWindowHint
 
     QtObject {
         id: bridgeFallback
@@ -19,7 +30,6 @@ Rectangle {
         property string currentGroupFilter: ""
         property string searchText: ""
         property var recentItems: []
-        property bool fullscreenActive: false
         property string statusMessage: ""
         property string currentChannelName: ""
         property string currentProgrammeText: ""
@@ -29,6 +39,12 @@ Rectangle {
         property bool playing: false
         property bool muted: false
         property int volume: 50
+        property string configuredUserAgent: ""
+        property string configuredEpgUrl: ""
+        property string appVersion: ""
+        property string buildId: ""
+        property string alertMessage: ""
+        property bool alertVisible: false
 
         function activateChannelRow(row) {}
         function setSearchText(text) {}
@@ -37,20 +53,23 @@ Rectangle {
         function requestStop() {}
         function toggleMute() {}
         function setVolume(volume) {}
-        function requestOpenFile() {}
-        function requestOpenUrl() {}
-        function requestNetworkSettings() {}
-        function requestAbout() {}
+        function submitOpenFile(path) {}
+        function submitOpenUrl(urlText) {}
+        function submitNetworkSettings(userAgent, epgUrl) {}
         function openRecentAt(index) {}
-        function toggleFullscreen() {}
-        function exitFullscreen() {}
+        function dismissAlert() {}
     }
 
-    readonly property var bridge: (typeof mainWindowBridge !== "undefined" && mainWindowBridge !== null)
-        ? mainWindowBridge
+    readonly property var bridge: (typeof appShellBridge !== "undefined" && appShellBridge !== null)
+        ? appShellBridge
         : bridgeFallback
+    readonly property bool fullscreenActive: visibility === Window.FullScreen
+    readonly property bool canResizeWindow: !root.fullscreenActive && visibility !== Window.Maximized
+    property int lastNonFullscreenVisibility: Window.Windowed
+    property int fullscreenRestoreVisibility: Window.Windowed
+    property bool fullscreenTransitionActive: false
     readonly property var groupItems: [qsTr("All groups"), ...bridge.availableGroups]
-    readonly property int menuPopupType: Popup.Item
+    readonly property int menuPopupType: Qt.platform.pluginName !== "wayland" ? Popup.Window : Popup.Item
     readonly property string effectiveStatusText: bridge.statusMessage.length > 0
         ? bridge.statusMessage
         : (bridge.playbackStateText.length > 0 ? bridge.playbackStateText : qsTr("Ready"))
@@ -74,244 +93,156 @@ Rectangle {
         bridge.setGroupFilter(bridge.availableGroups[index - 1])
     }
 
-    property Component menuPopupBackground: Rectangle {
-        color: Theme.surfaceContainer
-        radius: Theme.radiusMd
-        border.color: Theme.outline
-        border.width: 1
+    function maximizeWindow() {
+        root.lastNonFullscreenVisibility = Window.Maximized
+        root.showMaximized()
     }
 
-    component ThemedToolButton: ToolButton {
+    function restoreWindow() {
+        root.lastNonFullscreenVisibility = Window.Windowed
+        root.showNormal()
+    }
+
+    function enterFullscreen() {
+        if (root.fullscreenActive) {
+            return
+        }
+
+        root.fullscreenRestoreVisibility = root.visibility === Window.Maximized
+            ? Window.Maximized
+            : root.lastNonFullscreenVisibility
+        root.fullscreenTransitionActive = true
+        root.showFullScreen()
+    }
+
+    function toggleFullscreen() {
+        if (root.fullscreenActive) {
+            root.exitFullscreen()
+            return
+        }
+        root.enterFullscreen()
+    }
+
+    function exitFullscreen() {
+        if (!root.fullscreenActive) {
+            return
+        }
+
+        const targetVisibility = root.fullscreenRestoreVisibility
+
+        // FullScreen -> Maximized 在部分平台会先经历一次 Windowed 过渡，
+        // 这里先显式退出全屏，再在下一轮事件循环恢复目标状态，避免中间态把最终状态冲掉。
+        root.fullscreenTransitionActive = true
+        root.showNormal()
+
+        Qt.callLater(function() {
+            if (targetVisibility === Window.Maximized) {
+                root.maximizeWindow()
+            } else {
+                root.restoreWindow()
+            }
+            root.fullscreenTransitionActive = false
+        })
+    }
+
+    onVisibilityChanged: function(newVisibility) {
+        if (newVisibility === Window.FullScreen) {
+            root.fullscreenTransitionActive = false
+            return
+        }
+
+        if (newVisibility === Window.Hidden) {
+            return
+        }
+
+        if (root.fullscreenTransitionActive) {
+            return
+        }
+
+        root.lastNonFullscreenVisibility = newVisibility
+    }
+
+    Shortcut {
+        sequence: "F11"
+        onActivated: root.toggleFullscreen()
+    }
+
+    Shortcut {
+        sequence: "Escape"
+        enabled: root.fullscreenActive
+        onActivated: root.exitFullscreen()
+    }
+
+    function openFileMenu(button) {
+        const point = button.mapToItem(titleBar, 0, button.height + Shell.Theme.spacingXs)
+        fileMenu.x = point.x
+        fileMenu.y = titleBar.height - Shell.Theme.spacingXs
+        fileMenu.open()
+    }
+
+    function openSettingsMenu(button) {
+        const point = button.mapToItem(titleBar, 0, button.height + Shell.Theme.spacingXs)
+        settingsMenu.x = point.x
+        settingsMenu.y = titleBar.height - Shell.Theme.spacingXs
+        settingsMenu.open()
+    }
+
+    function resizeCursor(edges) {
+        if (edges === (Qt.LeftEdge | Qt.TopEdge) || edges === (Qt.RightEdge | Qt.BottomEdge)) {
+            return Qt.SizeFDiagCursor
+        }
+        if (edges === (Qt.RightEdge | Qt.TopEdge) || edges === (Qt.LeftEdge | Qt.BottomEdge)) {
+            return Qt.SizeBDiagCursor
+        }
+        if (edges === Qt.LeftEdge || edges === Qt.RightEdge) {
+            return Qt.SizeHorCursor
+        }
+        if (edges === Qt.TopEdge || edges === Qt.BottomEdge) {
+            return Qt.SizeVerCursor
+        }
+        return Qt.ArrowCursor
+    }
+
+    component HeaderActionButton: ToolButton {
         id: control
 
-        implicitHeight: 34
-        leftPadding: Theme.spacingMd
-        rightPadding: Theme.spacingMd
-        topPadding: Theme.spacingSm
-        bottomPadding: Theme.spacingSm
+        implicitHeight: Shell.Theme.titleBarHeight - Shell.Theme.spacingSm
+        leftPadding: Shell.Theme.spacingMd
+        rightPadding: Shell.Theme.spacingMd
+        topPadding: Shell.Theme.spacingSm
+        bottomPadding: Shell.Theme.spacingSm
         hoverEnabled: true
 
         contentItem: Text {
             text: control.text
             font: control.font
-            color: Theme.textPrimary
+            color: Shell.Theme.textPrimary
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
             elide: Text.ElideRight
         }
 
         background: Rectangle {
-            radius: Theme.radiusSm
+            radius: Shell.Theme.radiusSm
             color: control.down
-                ? Theme.controlSurfacePressed
-                : (control.hovered ? Theme.controlSurfaceHover : Theme.controlSurface)
-            border.width: 1
-            border.color: control.visualFocus ? Theme.controlBorderStrong : Theme.controlBorder
-            opacity: control.enabled ? 1.0 : 0.6
+                ? Shell.Theme.surfaceContainerHighest
+                : (control.hovered ? Shell.Theme.controlSurfaceHover : "transparent")
         }
     }
 
-    component ThemedTextField: TextField {
-        id: control
+    component ResizeHandle: MouseArea {
+        required property int edges
 
-        implicitHeight: 38
-        color: Theme.textPrimary
-        placeholderTextColor: Theme.textSecondary
-        selectedTextColor: Theme.surface
-        selectionColor: Theme.controlAccent
-        leftPadding: Theme.spacingMd
-        rightPadding: Theme.spacingMd
-        topPadding: Theme.spacingSm
-        bottomPadding: Theme.spacingSm
-
-        background: Rectangle {
-            radius: Theme.radiusSm
-            color: control.enabled ? Theme.controlSurface : Theme.controlSurfaceDisabled
-            border.width: 1
-            border.color: control.activeFocus ? Theme.controlBorderStrong : Theme.controlBorder
-        }
-    }
-
-    component ThemedItemDelegate: ItemDelegate {
-        id: control
-
-        leftPadding: Theme.spacingMd
-        rightPadding: Theme.spacingMd
-        topPadding: Theme.spacingSm
-        bottomPadding: Theme.spacingSm
+        acceptedButtons: Qt.LeftButton
         hoverEnabled: true
+        preventStealing: true
+        visible: root.canResizeWindow
+        enabled: root.canResizeWindow
+        cursorShape: root.resizeCursor(edges)
 
-        contentItem: Text {
-            text: control.text
-            font: control.font
-            color: Theme.textPrimary
-            elide: Text.ElideRight
-            verticalAlignment: Text.AlignVCenter
-        }
-
-        background: Rectangle {
-            radius: Theme.radiusSm
-            color: control.highlighted
-                ? Theme.listItemCurrent
-                : (control.hovered ? Theme.listItemHover : "transparent")
-            border.width: control.visualFocus ? 1 : 0
-            border.color: Theme.controlBorderStrong
-        }
-    }
-
-    component ThemedComboBox: ComboBox {
-        id: control
-
-        implicitHeight: 38
-        leftPadding: Theme.spacingMd
-        rightPadding: Theme.spacingMd + indicator.width + Theme.spacingSm
-        topPadding: Theme.spacingSm
-        bottomPadding: Theme.spacingSm
-        hoverEnabled: true
-
-        delegate: ItemDelegate {
-            id: optionDelegate
-            required property var modelData
-            required property int index
-
-            width: control.width
-            text: modelData
-            highlighted: control.highlightedIndex === index
-            hoverEnabled: true
-
-            contentItem: Text {
-                text: optionDelegate.text
-                font: optionDelegate.font
-                color: Theme.textPrimary
-                elide: Text.ElideRight
-                verticalAlignment: Text.AlignVCenter
-            }
-
-            background: Rectangle {
-                radius: Theme.radiusSm
-                color: optionDelegate.highlighted
-                    ? Theme.listItemCurrent
-                    : (optionDelegate.hovered ? Theme.listItemHover : "transparent")
-            }
-        }
-
-        contentItem: TextInput {
-            leftPadding: 0
-            rightPadding: 0
-            text: control.displayText
-            font: control.font
-            color: Theme.textPrimary
-            verticalAlignment: Text.AlignVCenter
-            readOnly: true
-            selectByMouse: false
-            cursorVisible: false
-            selectionColor: "transparent"
-            selectedTextColor: color
-        }
-
-        indicator: Canvas {
-            x: control.width - width - Theme.spacingMd
-            y: (control.height - height) / 2
-            width: 10
-            height: 6
-
-            onPaint: {
-                const context = getContext("2d")
-                context.reset()
-                context.moveTo(0, 0)
-                context.lineTo(width, 0)
-                context.lineTo(width / 2, height)
-                context.closePath()
-                context.fillStyle = Theme.textSecondary
-                context.fill()
-            }
-        }
-
-        background: Rectangle {
-            radius: Theme.radiusSm
-            color: control.pressed
-                ? Theme.controlSurfacePressed
-                : (control.hovered ? Theme.controlSurfaceHover : Theme.controlSurface)
-            border.width: 1
-            border.color: control.visualFocus ? Theme.controlBorderStrong : Theme.controlBorder
-        }
-
-        popup: Popup {
-            y: control.height + Theme.spacingXs
-            width: control.width
-            padding: Theme.spacingXs
-
-            background: Rectangle {
-                color: Theme.surfaceContainer
-                radius: Theme.radiusMd
-                border.width: 1
-                border.color: Theme.outline
-            }
-
-            contentItem: ListView {
-                clip: true
-                implicitHeight: contentHeight
-                model: control.delegateModel
-                currentIndex: control.highlightedIndex
-            }
-        }
-    }
-
-    component ThemedSlider: Slider {
-        id: control
-
-        implicitHeight: 24
-
-        background: Rectangle {
-            x: control.leftPadding
-            y: control.topPadding + (control.availableHeight - height) / 2
-            width: control.availableWidth
-            height: 4
-            radius: 2
-            color: Theme.controlAccentMuted
-
-            Rectangle {
-                width: control.visualPosition * parent.width
-                height: parent.height
-                radius: parent.radius
-                color: Theme.controlAccent
-            }
-        }
-
-        handle: Rectangle {
-            x: control.leftPadding + control.visualPosition * (control.availableWidth - width)
-            y: control.topPadding + (control.availableHeight - height) / 2
-            width: 14
-            height: 14
-            radius: 7
-            color: Theme.textPrimary
-            border.width: 1
-            border.color: Theme.controlBorder
-        }
-    }
-
-    Component {
-        id: menuBarItemDelegate
-
-        MenuBarItem {
-            id: control
-
-            implicitHeight: 32
-            implicitWidth: Math.max(implicitBackgroundWidth + leftInset + rightInset,
-                                    implicitContentWidth + leftPadding + rightPadding)
-            leftPadding: Theme.spacingMd
-            rightPadding: Theme.spacingMd
-
-            palette.windowText: Theme.textPrimary
-            palette.buttonText: Theme.textPrimary
-            palette.text: Theme.textPrimary
-            palette.disabled.windowText: Theme.textDisabled
-            palette.disabled.buttonText: Theme.textDisabled
-            palette.disabled.text: Theme.textDisabled
-
-            background: Rectangle {
-                radius: Theme.radiusSm
-                color: control.highlighted || control.down ? Theme.surfaceContainerHighest : "transparent"
+        onPressed: mouse => {
+            if (mouse.button === Qt.LeftButton) {
+                root.startSystemResize(edges)
             }
         }
     }
@@ -326,19 +257,19 @@ Rectangle {
             implicitWidth: Math.max(160,
                                     implicitBackgroundWidth + leftInset + rightInset,
                                     implicitContentWidth + leftPadding + rightPadding)
-            leftPadding: Theme.spacingMd
-            rightPadding: Theme.spacingMd
+            leftPadding: Shell.Theme.spacingMd
+            rightPadding: Shell.Theme.spacingMd
 
-            palette.windowText: Theme.textPrimary
-            palette.buttonText: Theme.textPrimary
-            palette.text: Theme.textPrimary
-            palette.highlightedText: Theme.textPrimary
-            palette.disabled.windowText: Theme.textDisabled
-            palette.disabled.buttonText: Theme.textDisabled
-            palette.disabled.text: Theme.textDisabled
+            palette.windowText: Shell.Theme.textPrimary
+            palette.buttonText: Shell.Theme.textPrimary
+            palette.text: Shell.Theme.textPrimary
+            palette.highlightedText: Shell.Theme.textPrimary
+            palette.disabled.windowText: Shell.Theme.textDisabled
+            palette.disabled.buttonText: Shell.Theme.textDisabled
+            palette.disabled.text: Shell.Theme.textDisabled
 
             arrow: Canvas {
-                x: control.mirrored ? Theme.spacingSm : control.width - width - Theme.spacingSm
+                x: control.mirrored ? Shell.Theme.spacingSm : control.width - width - Shell.Theme.spacingSm
                 y: (control.height - height) / 2
                 width: 8
                 height: 8
@@ -351,7 +282,7 @@ Rectangle {
                     context.lineTo(width, height / 2)
                     context.lineTo(0, height)
                     context.closePath()
-                    context.fillStyle = Theme.textSecondary
+                    context.fillStyle = Shell.Theme.textSecondary
                     context.fill()
                 }
             }
@@ -362,8 +293,8 @@ Rectangle {
             }
 
             background: Rectangle {
-                radius: Theme.radiusSm
-                color: control.highlighted ? Theme.surfaceContainerHighest : "transparent"
+                radius: Shell.Theme.radiusSm
+                color: control.highlighted ? Shell.Theme.surfaceContainerHighest : "transparent"
             }
         }
     }
@@ -380,23 +311,327 @@ Rectangle {
             implicitWidth: Math.max(160,
                                     implicitBackgroundWidth + leftInset + rightInset,
                                     implicitContentWidth + leftPadding + rightPadding)
-            leftPadding: Theme.spacingMd
-            rightPadding: Theme.spacingMd
+            leftPadding: Shell.Theme.spacingMd
+            rightPadding: Shell.Theme.spacingMd
             text: modelData.label
 
-            palette.windowText: Theme.textPrimary
-            palette.buttonText: Theme.textPrimary
-            palette.text: Theme.textPrimary
-            palette.disabled.windowText: Theme.textDisabled
-            palette.disabled.buttonText: Theme.textDisabled
-            palette.disabled.text: Theme.textDisabled
+            palette.windowText: Shell.Theme.textPrimary
+            palette.buttonText: Shell.Theme.textPrimary
+            palette.text: Shell.Theme.textPrimary
+            palette.disabled.windowText: Shell.Theme.textDisabled
+            palette.disabled.buttonText: Shell.Theme.textDisabled
+            palette.disabled.text: Shell.Theme.textDisabled
 
             background: Rectangle {
-                radius: Theme.radiusSm
-                color: control.highlighted ? Theme.surfaceContainerHighest : "transparent"
+                radius: Shell.Theme.radiusSm
+                color: control.highlighted ? Shell.Theme.surfaceContainerHighest : "transparent"
             }
 
             onTriggered: bridge.openRecentAt(index)
+        }
+    }
+
+    header: Rectangle {
+        id: titleBar
+        visible: !root.fullscreenActive
+        implicitHeight: Shell.Theme.titleBarHeight
+        color: Shell.Theme.surfaceContainerHigh
+        border.width: 1
+        border.color: Shell.Theme.outline
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: Shell.Theme.spacingSm
+            anchors.rightMargin: 0
+            anchors.topMargin: 0
+            anchors.bottomMargin: 0
+            spacing: Shell.Theme.spacingSm
+
+            Label {
+                text: qsTr("ShaTV")
+                color: Shell.Theme.textPrimary
+                font.bold: true
+                leftPadding: Shell.Theme.spacingSm
+            }
+
+            HeaderActionButton {
+                id: fileButton
+                text: qsTr("File")
+                onClicked: root.openFileMenu(fileButton)
+            }
+
+            HeaderActionButton {
+                id: settingsButton
+                text: qsTr("Settings")
+                onClicked: root.openSettingsMenu(settingsButton)
+            }
+
+            HeaderActionButton {
+                text: qsTr("About")
+                onClicked: aboutDialog.open()
+            }
+
+            Item {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+
+                TapHandler {
+                    acceptedButtons: Qt.LeftButton
+                    onDoubleTapped: {
+                        if (root.visibility === Window.Maximized) {
+                            root.restoreWindow()
+                            return
+                        }
+                        root.maximizeWindow()
+                    }
+                }
+
+                DragHandler {
+                    target: null
+                    onActiveChanged: {
+                        if (active && !root.fullscreenActive) {
+                            root.startSystemMove()
+                        }
+                    }
+                }
+
+                Label {
+                    anchors.centerIn: parent
+                    text: bridge.currentChannelName.length > 0 ? bridge.currentChannelName : root.title
+                    color: Shell.Theme.textPrimary
+                    elide: Text.ElideRight
+                    horizontalAlignment: Text.AlignHCenter
+                }
+            }
+
+            Controls.WindowControlButton {
+                text: qsTr("Full Screen")
+                controlType: "fullscreen"
+                ToolTip.visible: hovered
+                ToolTip.text: qsTr("Full Screen")
+                onClicked: root.toggleFullscreen()
+            }
+
+            Controls.WindowControlButton {
+                text: qsTr("Minimize")
+                controlType: "minimize"
+                ToolTip.visible: hovered
+                ToolTip.text: qsTr("Minimize")
+                onClicked: root.showMinimized()
+            }
+
+            Controls.WindowControlButton {
+                text: root.visibility === Window.Maximized ? qsTr("Restore") : qsTr("Maximize")
+                controlType: root.visibility === Window.Maximized ? "restore" : "maximize"
+                ToolTip.visible: hovered
+                ToolTip.text: text
+                onClicked: {
+                    if (root.visibility === Window.Maximized) {
+                        root.restoreWindow()
+                        return
+                    }
+                    root.maximizeWindow()
+                }
+            }
+
+            Controls.WindowControlButton {
+                text: qsTr("Close")
+                controlType: "close"
+                ToolTip.visible: hovered
+                ToolTip.text: qsTr("Close")
+                onClicked: root.close()
+            }
+        }
+
+        Menu {
+            id: fileMenu
+            parent: titleBar
+            popupType: root.menuPopupType
+            delegate: menuItemDelegate
+
+            background: Rectangle {
+                color: Shell.Theme.surfaceContainer
+                radius: Shell.Theme.radiusMd
+                border.color: Shell.Theme.outline
+                border.width: 1
+            }
+
+            Action {
+                text: qsTr("Open File...")
+                onTriggered: fileDialog.open()
+            }
+
+            Action {
+                text: qsTr("Open Link...")
+                onTriggered: openUrlDialog.openWithValue("http://")
+            }
+
+            Menu {
+                title: qsTr("Open Recent")
+                enabled: bridge.recentItems.length > 0
+                popupType: root.menuPopupType
+                delegate: recentItemDelegate
+
+                background: Rectangle {
+                    color: Shell.Theme.surfaceContainer
+                    radius: Shell.Theme.radiusMd
+                    border.color: Shell.Theme.outline
+                    border.width: 1
+                }
+
+                Repeater {
+                    model: bridge.recentItems
+                    delegate: recentItemDelegate
+                }
+            }
+        }
+
+        Menu {
+            id: settingsMenu
+            parent: titleBar
+            popupType: root.menuPopupType
+            delegate: menuItemDelegate
+
+            background: Rectangle {
+                color: Shell.Theme.surfaceContainer
+                radius: Shell.Theme.radiusMd
+                border.color: Shell.Theme.outline
+                border.width: 1
+            }
+
+            Action {
+                text: qsTr("Network Settings...")
+                onTriggered: settingsDialog.openWithValues(bridge.configuredUserAgent, bridge.configuredEpgUrl)
+            }
+        }
+
+        ResizeHandle {
+            edges: Qt.TopEdge
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            height: 6
+        }
+
+        ResizeHandle {
+            edges: Qt.LeftEdge
+            anchors.left: parent.left
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            width: 6
+        }
+
+        ResizeHandle {
+            edges: Qt.RightEdge
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            width: 6
+        }
+
+        ResizeHandle {
+            edges: Qt.LeftEdge | Qt.TopEdge
+            anchors.left: parent.left
+            anchors.top: parent.top
+            width: 10
+            height: 10
+        }
+
+        ResizeHandle {
+            edges: Qt.RightEdge | Qt.TopEdge
+            anchors.right: parent.right
+            anchors.top: parent.top
+            width: 10
+            height: 10
+        }
+    }
+
+    Dialogs.AboutDialog {
+        id: aboutDialog
+        appVersion: bridge.appVersion
+        buildId: bridge.buildId
+    }
+
+    Dialogs.NetworkSettingsDialog {
+        id: settingsDialog
+        onSubmitted: (userAgent, epgUrl) => bridge.submitNetworkSettings(userAgent, epgUrl)
+    }
+
+    Dialogs.OpenUrlDialog {
+        id: openUrlDialog
+        onSubmitted: urlText => bridge.submitOpenUrl(urlText)
+    }
+
+    FileDialog {
+        id: fileDialog
+        title: qsTr("Open File")
+        options: FileDialog.DontUseNativeDialog
+        nameFilters: [
+            qsTr("Media Files (*.m3u *.m3u8 *.mp4 *.mkv *.ts *.mov *.webm *.mp3 *.flac)"),
+            qsTr("All Files (*)")
+        ]
+        onAccepted: bridge.submitOpenFile(selectedFile)
+    }
+
+    Dialog {
+        id: alertDialog
+        parent: Overlay.overlay
+        x: Math.round(Math.max(0, ((parent ? parent.width : 0) - width) / 2))
+        y: Math.round(Math.max(0, ((parent ? parent.height : 0) - height) / 2))
+        modal: true
+        focus: true
+        width: 420
+        padding: Shell.Theme.spacingMd
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        title: qsTr("ShaTV")
+
+        background: Rectangle {
+            radius: Shell.Theme.radiusMd
+            color: Shell.Theme.surfaceContainer
+            border.width: 1
+            border.color: Shell.Theme.outline
+        }
+
+        contentItem: Label {
+            text: bridge.alertMessage
+            color: Shell.Theme.textPrimary
+            wrapMode: Text.WordWrap
+        }
+
+        footer: Item {
+            implicitHeight: 56
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.margins: Shell.Theme.spacingMd
+
+                Item {
+                    Layout.fillWidth: true
+                }
+
+                Controls.ThemedToolButton {
+                    text: qsTr("Close")
+                    onClicked: {
+                        alertDialog.close()
+                        bridge.dismissAlert()
+                    }
+                }
+            }
+        }
+
+        onClosed: bridge.dismissAlert()
+    }
+
+    Connections {
+        target: bridge
+
+        function onAlertVisibleChanged() {
+            if (bridge.alertVisible) {
+                alertDialog.open()
+                return
+            }
+            alertDialog.close()
         }
     }
 
@@ -404,132 +639,25 @@ Rectangle {
         anchors.fill: parent
         spacing: 0
 
-        MenuBar {
-            visible: !bridge.fullscreenActive
-            leftPadding: Theme.spacingSm
-            rightPadding: Theme.spacingSm
-            topPadding: Theme.spacingXs
-            bottomPadding: Theme.spacingXs
-            spacing: Theme.spacingXs
-            delegate: menuBarItemDelegate
-
-            background: Rectangle {
-                color: Theme.surfaceContainerHigh
-            }
-
-            Menu {
-                title: qsTr("&File")
-                popupType: root.menuPopupType
-                delegate: menuItemDelegate
-                background: root.menuPopupBackground.createObject(root)
-
-                Action {
-                    text: qsTr("Open &File...")
-                    onTriggered: bridge.requestOpenFile()
-                }
-                Action {
-                    text: qsTr("Open &Link...")
-                    onTriggered: bridge.requestOpenUrl()
-                }
-
-                Menu {
-                    id: recentMenu
-                    title: qsTr("Open &Recent")
-                    enabled: bridge.recentItems.length > 0
-                    popupType: root.menuPopupType
-                    delegate: recentItemDelegate
-                    background: root.menuPopupBackground.createObject(root)
-
-                    Repeater {
-                        model: bridge.recentItems
-
-                        delegate: MenuItem {
-                            id: recentControl
-                            required property int index
-                            required property var modelData
-
-                            implicitHeight: 32
-                            implicitWidth: Math.max(160,
-                                                    implicitBackgroundWidth + leftInset + rightInset,
-                                                    implicitContentWidth + leftPadding + rightPadding)
-                            leftPadding: Theme.spacingMd
-                            rightPadding: Theme.spacingMd
-                            text: modelData.label
-
-                            palette.windowText: Theme.textPrimary
-                            palette.buttonText: Theme.textPrimary
-                            palette.text: Theme.textPrimary
-                            palette.disabled.windowText: Theme.textDisabled
-                            palette.disabled.buttonText: Theme.textDisabled
-                            palette.disabled.text: Theme.textDisabled
-
-                            background: Rectangle {
-                                radius: Theme.radiusSm
-                                color: recentControl.highlighted ? Theme.surfaceContainerHighest : "transparent"
-                            }
-
-                            onTriggered: bridge.openRecentAt(index)
-                        }
-                    }
-                }
-            }
-
-            Menu {
-                title: qsTr("&Settings")
-                popupType: root.menuPopupType
-                delegate: menuItemDelegate
-                background: root.menuPopupBackground.createObject(root)
-
-                Action {
-                    text: qsTr("&Network Settings...")
-                    onTriggered: bridge.requestNetworkSettings()
-                }
-            }
-
-            Menu {
-                title: qsTr("&View")
-                popupType: root.menuPopupType
-                delegate: menuItemDelegate
-                background: root.menuPopupBackground.createObject(root)
-
-                Action {
-                    text: qsTr("Toggle &Full Screen")
-                    onTriggered: bridge.toggleFullscreen()
-                }
-            }
-
-            Menu {
-                title: qsTr("&Help")
-                popupType: root.menuPopupType
-                delegate: menuItemDelegate
-                background: root.menuPopupBackground.createObject(root)
-
-                Action {
-                    text: qsTr("&About ShaTV...")
-                    onTriggered: bridge.requestAbout()
-                }
-            }
-        }
-
         SplitView {
             Layout.fillWidth: true
             Layout.fillHeight: true
             orientation: Qt.Horizontal
 
             Rectangle {
-                visible: !bridge.fullscreenActive
-                color: Theme.surfaceContainer
-                implicitWidth: visible ? Theme.sidebarPreferredWidth : 0
-                SplitView.preferredWidth: visible ? Theme.sidebarPreferredWidth : 0
-                SplitView.minimumWidth: visible ? Theme.sidebarMinWidth : 0
-                SplitView.maximumWidth: visible ? Theme.sidebarMaxWidth : 0
+                visible: !root.fullscreenActive
+                color: Shell.Theme.surfaceContainer
+                implicitWidth: visible ? Shell.Theme.sidebarPreferredWidth : 0
+                SplitView.preferredWidth: visible ? Shell.Theme.sidebarPreferredWidth : 0
+                SplitView.minimumWidth: visible ? Shell.Theme.sidebarMinWidth : 0
+                SplitView.maximumWidth: visible ? Shell.Theme.sidebarMaxWidth : 0
 
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: Theme.spacingMd
-                    spacing: Theme.spacingSm
+                    anchors.margins: Shell.Theme.spacingMd
+                    spacing: Shell.Theme.spacingSm
 
-                    ThemedTextField {
+                    Controls.ThemedTextField {
                         id: searchField
                         Layout.fillWidth: true
                         placeholderText: qsTr("Search channels")
@@ -537,7 +665,7 @@ Rectangle {
                         onTextChanged: bridge.setSearchText(text)
                     }
 
-                    ThemedComboBox {
+                    Controls.ThemedComboBox {
                         Layout.fillWidth: true
                         model: root.groupItems
                         currentIndex: root.selectedGroupIndex
@@ -550,9 +678,9 @@ Rectangle {
                         Layout.fillHeight: true
                         clip: true
                         model: bridge.channelModel
-                        spacing: Theme.spacingXs
+                        spacing: Shell.Theme.spacingXs
 
-                        delegate: ThemedItemDelegate {
+                        delegate: Controls.ThemedItemDelegate {
                             required property int index
                             required property string channelName
                             required property bool isCurrent
@@ -567,22 +695,22 @@ Rectangle {
             }
 
             Rectangle {
-                color: Theme.surface
+                color: Shell.Theme.surface
                 SplitView.fillWidth: true
                 SplitView.fillHeight: true
 
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: bridge.fullscreenActive ? 0 : Theme.spacingMd
-                    spacing: bridge.fullscreenActive ? 0 : Theme.spacingMd
+                    anchors.margins: root.fullscreenActive ? 0 : Shell.Theme.spacingMd
+                    spacing: root.fullscreenActive ? 0 : Shell.Theme.spacingMd
 
                     Rectangle {
                         id: videoSurface
                         color: "#000000"
-                        radius: bridge.fullscreenActive ? 0 : Theme.radiusMd
+                        radius: root.fullscreenActive ? 0 : Shell.Theme.radiusMd
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        Layout.minimumHeight: Theme.videoMinHeight
+                        Layout.minimumHeight: Shell.Theme.videoMinHeight
 
                         MpvVideoItem {
                             id: playerVideoItem
@@ -594,47 +722,47 @@ Rectangle {
                             anchors.centerIn: parent
                             visible: !playerVideoItem.ready
                             text: root.effectiveStatusText
-                            color: Theme.textPrimary
+                            color: Shell.Theme.textPrimary
                         }
 
                         Rectangle {
-                            visible: bridge.fullscreenActive
+                            visible: root.fullscreenActive
                             anchors.left: parent.left
                             anchors.right: parent.right
                             anchors.bottom: parent.bottom
-                            anchors.margins: Theme.spacingMd
-                            implicitHeight: fullscreenOverlayContent.implicitHeight + Theme.spacingMd * 2
-                            radius: Theme.radiusMd
+                            anchors.margins: Shell.Theme.spacingMd
+                            implicitHeight: fullscreenOverlayContent.implicitHeight + Shell.Theme.spacingMd * 2
+                            radius: Shell.Theme.radiusMd
                             color: "#A8101B31"
                             border.width: 1
-                            border.color: Theme.outline
+                            border.color: Shell.Theme.outline
 
                             ColumnLayout {
                                 id: fullscreenOverlayContent
                                 anchors.fill: parent
-                                anchors.margins: Theme.spacingMd
-                                spacing: Theme.spacingSm
+                                anchors.margins: Shell.Theme.spacingMd
+                                spacing: Shell.Theme.spacingSm
 
                                 RowLayout {
                                     Layout.fillWidth: true
-                                    spacing: Theme.spacingMd
+                                    spacing: Shell.Theme.spacingMd
 
-                                    ThemedToolButton {
+                                    Controls.ThemedToolButton {
                                         text: root.showPauseAction ? qsTr("Pause") : qsTr("Play")
                                         onClicked: bridge.requestPlayPause()
                                     }
 
-                                    ThemedToolButton {
+                                    Controls.ThemedToolButton {
                                         text: qsTr("Stop")
                                         onClicked: bridge.requestStop()
                                     }
 
-                                    ThemedToolButton {
+                                    Controls.ThemedToolButton {
                                         text: bridge.muted ? qsTr("Unmute") : qsTr("Mute")
                                         onClicked: bridge.toggleMute()
                                     }
 
-                                    ThemedSlider {
+                                    Controls.ThemedSlider {
                                         Layout.fillWidth: true
                                         from: 0
                                         to: 100
@@ -643,9 +771,9 @@ Rectangle {
                                         onMoved: bridge.setVolume(Math.round(value))
                                     }
 
-                                    ThemedToolButton {
+                                    Controls.ThemedToolButton {
                                         text: qsTr("Exit Full Screen")
-                                        onClicked: bridge.exitFullscreen()
+                                        onClicked: root.exitFullscreen()
                                     }
                                 }
 
@@ -654,7 +782,7 @@ Rectangle {
 
                                     Label {
                                         text: bridge.currentChannelName
-                                        color: Theme.textPrimary
+                                        color: Shell.Theme.textPrimary
                                         visible: bridge.currentChannelName.length > 0
                                         Layout.fillWidth: true
                                         elide: Text.ElideRight
@@ -662,14 +790,14 @@ Rectangle {
 
                                     Label {
                                         text: root.effectiveStatusText
-                                        color: Theme.textPrimary
+                                        color: Shell.Theme.textPrimary
                                         Layout.fillWidth: true
                                         elide: Text.ElideRight
                                     }
 
                                     Label {
                                         text: bridge.currentProgrammeText
-                                        color: Theme.textPrimary
+                                        color: Shell.Theme.textPrimary
                                         visible: bridge.currentProgrammeText.length > 0
                                         Layout.fillWidth: true
                                         elide: Text.ElideRight
@@ -677,7 +805,7 @@ Rectangle {
 
                                     Label {
                                         text: bridge.nextProgrammeText
-                                        color: Theme.textSecondary
+                                        color: Shell.Theme.textSecondary
                                         visible: bridge.nextProgrammeText.length > 0
                                         Layout.fillWidth: true
                                         elide: Text.ElideRight
@@ -688,33 +816,33 @@ Rectangle {
                     }
 
                     Rectangle {
-                        visible: !bridge.fullscreenActive
+                        visible: !root.fullscreenActive
                         Layout.fillWidth: true
-                        implicitHeight: Theme.controlPanelHeight
-                        radius: Theme.radiusMd
-                        color: Theme.surfaceBright
+                        implicitHeight: Shell.Theme.controlPanelHeight
+                        radius: Shell.Theme.radiusMd
+                        color: Shell.Theme.surfaceBright
 
                         RowLayout {
                             anchors.fill: parent
-                            anchors.margins: Theme.spacingMd
-                            spacing: Theme.spacingMd
+                            anchors.margins: Shell.Theme.spacingMd
+                            spacing: Shell.Theme.spacingMd
 
-                            ThemedToolButton {
+                            Controls.ThemedToolButton {
                                 text: root.showPauseAction ? qsTr("Pause") : qsTr("Play")
                                 onClicked: bridge.requestPlayPause()
                             }
 
-                            ThemedToolButton {
+                            Controls.ThemedToolButton {
                                 text: qsTr("Stop")
                                 onClicked: bridge.requestStop()
                             }
 
-                            ThemedToolButton {
+                            Controls.ThemedToolButton {
                                 text: bridge.muted ? qsTr("Unmute") : qsTr("Mute")
                                 onClicked: bridge.toggleMute()
                             }
 
-                            ThemedSlider {
+                            Controls.ThemedSlider {
                                 Layout.fillWidth: true
                                 from: 0
                                 to: 100
@@ -723,31 +851,31 @@ Rectangle {
                                 onMoved: bridge.setVolume(Math.round(value))
                             }
 
-                            ThemedToolButton {
+                            Controls.ThemedToolButton {
                                 text: qsTr("Full Screen")
-                                onClicked: bridge.toggleFullscreen()
+                                onClicked: root.toggleFullscreen()
                             }
                         }
                     }
 
                     Rectangle {
-                        visible: !bridge.fullscreenActive
+                        visible: !root.fullscreenActive
                         Layout.fillWidth: true
-                        implicitHeight: Theme.statusPanelHeight
-                        radius: Theme.radiusMd
-                        color: Theme.surfaceBright
+                        implicitHeight: Shell.Theme.statusPanelHeight
+                        radius: Shell.Theme.radiusMd
+                        color: Shell.Theme.surfaceBright
 
                         RowLayout {
                             anchors.fill: parent
-                            anchors.margins: Theme.spacingMd
-                            spacing: Theme.spacingMd
+                            anchors.margins: Shell.Theme.spacingMd
+                            spacing: Shell.Theme.spacingMd
 
                             ColumnLayout {
                                 Layout.fillWidth: true
 
                                 Label {
                                     text: bridge.currentChannelName
-                                    color: Theme.textPrimary
+                                    color: Shell.Theme.textPrimary
                                     visible: bridge.currentChannelName.length > 0
                                     Layout.fillWidth: true
                                     elide: Text.ElideRight
@@ -755,14 +883,14 @@ Rectangle {
 
                                 Label {
                                     text: root.effectiveStatusText
-                                    color: Theme.textPrimary
+                                    color: Shell.Theme.textPrimary
                                     Layout.fillWidth: true
                                     elide: Text.ElideRight
                                 }
 
                                 Label {
                                     text: bridge.currentProgrammeText
-                                    color: Theme.textPrimary
+                                    color: Shell.Theme.textPrimary
                                     visible: bridge.currentProgrammeText.length > 0
                                     Layout.fillWidth: true
                                     elide: Text.ElideRight
@@ -770,7 +898,7 @@ Rectangle {
 
                                 Label {
                                     text: bridge.nextProgrammeText
-                                    color: Theme.textSecondary
+                                    color: Shell.Theme.textSecondary
                                     visible: bridge.nextProgrammeText.length > 0
                                     Layout.fillWidth: true
                                     elide: Text.ElideRight
@@ -781,5 +909,45 @@ Rectangle {
                 }
             }
         }
+    }
+
+    ResizeHandle {
+        edges: Qt.LeftEdge
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        width: 6
+    }
+
+    ResizeHandle {
+        edges: Qt.RightEdge
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        width: 6
+    }
+
+    ResizeHandle {
+        edges: Qt.BottomEdge
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        height: 6
+    }
+
+    ResizeHandle {
+        edges: Qt.LeftEdge | Qt.BottomEdge
+        anchors.left: parent.left
+        anchors.bottom: parent.bottom
+        width: 10
+        height: 10
+    }
+
+    ResizeHandle {
+        edges: Qt.RightEdge | Qt.BottomEdge
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        width: 10
+        height: 10
     }
 }

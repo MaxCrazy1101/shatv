@@ -1,83 +1,104 @@
-#include "ui/windows/main_window_bridge.h"
+#include "ui/shell/app_shell_bridge.h"
 
 #include <algorithm>
 
 #include <QVariantMap>
 
+#include "app/build_info.h"
 #include "domain/playback_state.h"
 #include "ui/models/channel_filter_model.h"
 
-namespace shatv::ui::windows {
+namespace shatv::ui::shell {
 
-MainWindowBridge::MainWindowBridge(ui::models::ChannelFilterModel *channel_model, QObject *parent)
+AppShellBridge::AppShellBridge(ui::models::ChannelFilterModel *channel_model, QObject *parent)
     : QObject(parent), channel_model_(channel_model) {
     Q_ASSERT(channel_model_ != nullptr);
-    setObjectName(QStringLiteral("mainWindowBridge"));
+    setObjectName(QStringLiteral("appShellBridge"));
     current_group_filter_ = channel_model_->GroupFilter();
     search_text_ = channel_model_->SearchText();
 }
 
-QAbstractItemModel *MainWindowBridge::ChannelModel() const {
+QAbstractItemModel *AppShellBridge::ChannelModel() const {
     return channel_model_;
 }
 
-QStringList MainWindowBridge::AvailableGroups() const {
+QStringList AppShellBridge::AvailableGroups() const {
     return available_groups_;
 }
- 
-QString MainWindowBridge::CurrentGroupFilter() const {
+
+QString AppShellBridge::CurrentGroupFilter() const {
     return current_group_filter_;
 }
 
-QString MainWindowBridge::SearchText() const {
+QString AppShellBridge::SearchText() const {
     return search_text_;
 }
 
-QVariantList MainWindowBridge::RecentItems() const {
+QVariantList AppShellBridge::RecentItems() const {
     return recent_items_;
 }
 
-bool MainWindowBridge::FullscreenActive() const {
-    return fullscreen_active_;
-}
-
-QString MainWindowBridge::StatusMessage() const {
+QString AppShellBridge::StatusMessage() const {
     return status_message_;
 }
 
-QString MainWindowBridge::CurrentChannelName() const {
+QString AppShellBridge::CurrentChannelName() const {
     return current_channel_name_;
 }
 
-QString MainWindowBridge::CurrentProgrammeText() const {
+QString AppShellBridge::CurrentProgrammeText() const {
     return current_programme_text_;
 }
 
-QString MainWindowBridge::NextProgrammeText() const {
+QString AppShellBridge::NextProgrammeText() const {
     return next_programme_text_;
 }
 
-QString MainWindowBridge::PlaybackStateText() const {
+QString AppShellBridge::PlaybackStateText() const {
     return playback_state_text_;
 }
 
-QString MainWindowBridge::PlaybackStateToken() const {
+QString AppShellBridge::PlaybackStateToken() const {
     return playback_state_token_;
 }
 
-bool MainWindowBridge::Playing() const {
+bool AppShellBridge::Playing() const {
     return playing_;
 }
 
-bool MainWindowBridge::Muted() const {
+bool AppShellBridge::Muted() const {
     return muted_;
 }
 
-int MainWindowBridge::Volume() const {
+int AppShellBridge::Volume() const {
     return volume_;
 }
 
-void MainWindowBridge::SetAvailableGroups(QStringList groups) {
+QString AppShellBridge::ConfiguredUserAgent() const {
+    return configured_user_agent_;
+}
+
+QString AppShellBridge::ConfiguredEpgUrl() const {
+    return configured_epg_url_;
+}
+
+QString AppShellBridge::AppVersion() const {
+    return QString::fromUtf8(app::kProjectVersion);
+}
+
+QString AppShellBridge::BuildId() const {
+    return QString::fromUtf8(app::kBuildId);
+}
+
+QString AppShellBridge::AlertMessage() const {
+    return alert_message_;
+}
+
+bool AppShellBridge::AlertVisible() const {
+    return alert_visible_;
+}
+
+void AppShellBridge::SetAvailableGroups(QStringList groups) {
     if (available_groups_ == groups) {
         return;
     }
@@ -86,7 +107,7 @@ void MainWindowBridge::SetAvailableGroups(QStringList groups) {
     emit AvailableGroupsChanged();
 }
 
-void MainWindowBridge::SetCurrentGroupFilter(const QString &group) {
+void AppShellBridge::SetCurrentGroupFilter(const QString &group) {
     if (current_group_filter_ == group) {
         return;
     }
@@ -95,7 +116,7 @@ void MainWindowBridge::SetCurrentGroupFilter(const QString &group) {
     emit CurrentGroupFilterChanged();
 }
 
-void MainWindowBridge::SetSearchTextValue(const QString &search_text) {
+void AppShellBridge::SetSearchTextValue(const QString &search_text) {
     if (search_text_ == search_text) {
         return;
     }
@@ -104,7 +125,7 @@ void MainWindowBridge::SetSearchTextValue(const QString &search_text) {
     emit SearchTextChanged();
 }
 
-void MainWindowBridge::SetRecentItems(const std::vector<app::RecentOpenItem> &items) {
+void AppShellBridge::SetRecentItems(const std::vector<app::RecentOpenItem> &items) {
     QVariantList next_items;
     next_items.reserve(static_cast<qsizetype>(items.size()));
     for (const auto &item : items) {
@@ -123,16 +144,7 @@ void MainWindowBridge::SetRecentItems(const std::vector<app::RecentOpenItem> &it
     emit RecentItemsChanged();
 }
 
-void MainWindowBridge::SetFullscreenActive(bool active) {
-    if (fullscreen_active_ == active) {
-        return;
-    }
-
-    fullscreen_active_ = active;
-    emit FullscreenActiveChanged();
-}
-
-void MainWindowBridge::SetStatusMessage(const QString &message) {
+void AppShellBridge::SetStatusMessage(const QString &message) {
     if (status_message_ == message) {
         return;
     }
@@ -141,7 +153,7 @@ void MainWindowBridge::SetStatusMessage(const QString &message) {
     emit StatusMessageChanged();
 }
 
-void MainWindowBridge::SetProgrammeTexts(const QString &current_programme_text, const QString &next_programme_text) {
+void AppShellBridge::SetProgrammeTexts(const QString &current_programme_text, const QString &next_programme_text) {
     if (current_programme_text_ != current_programme_text) {
         current_programme_text_ = current_programme_text;
         emit CurrentProgrammeTextChanged();
@@ -152,7 +164,7 @@ void MainWindowBridge::SetProgrammeTexts(const QString &current_programme_text, 
     }
 }
 
-void MainWindowBridge::SetPlaybackSnapshot(const domain::PlayerSnapshot &snapshot) {
+void AppShellBridge::SetPlaybackSnapshot(const domain::PlayerSnapshot &snapshot) {
     const QString state_text = domain::PlaybackStateName(snapshot.state);
     const QString state_token = domain::PlaybackStateToken(snapshot.state);
     const bool playing = snapshot.state == domain::PlaybackState::kPlaying ||
@@ -186,7 +198,39 @@ void MainWindowBridge::SetPlaybackSnapshot(const domain::PlayerSnapshot &snapsho
     }
 }
 
-void MainWindowBridge::activateChannelRow(int row) {
+void AppShellBridge::SetConfiguredUserAgent(const QString &user_agent) {
+    if (configured_user_agent_ == user_agent) {
+        return;
+    }
+
+    configured_user_agent_ = user_agent;
+    emit ConfiguredUserAgentChanged();
+}
+
+void AppShellBridge::SetConfiguredEpgUrl(const QString &epg_url) {
+    if (configured_epg_url_ == epg_url) {
+        return;
+    }
+
+    configured_epg_url_ = epg_url;
+    emit ConfiguredEpgUrlChanged();
+}
+
+void AppShellBridge::SetAlertMessage(const QString &message) {
+    const bool visible = !message.isEmpty();
+
+    if (alert_message_ != message) {
+        alert_message_ = message;
+        emit AlertMessageChanged();
+    }
+
+    if (alert_visible_ != visible) {
+        alert_visible_ = visible;
+        emit AlertVisibleChanged();
+    }
+}
+
+void AppShellBridge::activateChannelRow(int row) {
     const QModelIndex model_index = channel_model_->index(row, 0);
     if (!model_index.isValid()) {
         return;
@@ -195,7 +239,7 @@ void MainWindowBridge::activateChannelRow(int row) {
     emit ActivateChannelRequested(model_index);
 }
 
-void MainWindowBridge::setSearchText(const QString &search_text) {
+void AppShellBridge::setSearchText(const QString &search_text) {
     if (search_text_ == search_text) {
         return;
     }
@@ -204,7 +248,7 @@ void MainWindowBridge::setSearchText(const QString &search_text) {
     channel_model_->SetSearchText(search_text);
 }
 
-void MainWindowBridge::setGroupFilter(const QString &group) {
+void AppShellBridge::setGroupFilter(const QString &group) {
     const QString normalized = group.trimmed();
     if (current_group_filter_ == normalized) {
         return;
@@ -214,19 +258,19 @@ void MainWindowBridge::setGroupFilter(const QString &group) {
     channel_model_->SetGroupFilter(normalized);
 }
 
-void MainWindowBridge::requestPlayPause() {
+void AppShellBridge::requestPlayPause() {
     emit PlayPauseRequested();
 }
 
-void MainWindowBridge::requestStop() {
+void AppShellBridge::requestStop() {
     emit StopRequested();
 }
 
-void MainWindowBridge::toggleMute() {
+void AppShellBridge::toggleMute() {
     emit MuteRequested(!muted_);
 }
 
-void MainWindowBridge::setVolume(int volume) {
+void AppShellBridge::setVolume(int volume) {
     const int clamped_volume = std::clamp(volume, 0, 100);
     if (volume_ == clamped_volume) {
         return;
@@ -235,23 +279,47 @@ void MainWindowBridge::setVolume(int volume) {
     emit VolumeRequested(clamped_volume);
 }
 
-void MainWindowBridge::requestOpenFile() {
-    emit OpenFileRequested();
+void AppShellBridge::submitOpenFile(const QUrl &file_url) {
+    if (!file_url.isValid()) {
+        return;
+    }
+
+    if (file_url.isLocalFile()) {
+        const QString local_path = file_url.toLocalFile().trimmed();
+        if (local_path.isEmpty()) {
+            return;
+        }
+
+        emit OpenFileRequested(local_path);
+        return;
+    }
+
+    const QString normalized_target = file_url.toString().trimmed();
+    if (normalized_target.isEmpty()) {
+        return;
+    }
+
+    emit OpenFileRequested(normalized_target);
 }
 
-void MainWindowBridge::requestOpenUrl() {
-    emit OpenUrlRequested();
+void AppShellBridge::submitOpenUrl(const QString &url_text) {
+    const QString normalized_url = url_text.trimmed();
+    if (normalized_url.isEmpty()) {
+        return;
+    }
+
+    emit OpenUrlRequested(normalized_url);
 }
 
-void MainWindowBridge::requestNetworkSettings() {
-    emit NetworkSettingsRequested();
+void AppShellBridge::submitNetworkSettings(const QString &user_agent, const QString &epg_url) {
+    emit NetworkSettingsRequested(user_agent.trimmed(), epg_url.trimmed());
 }
 
-void MainWindowBridge::requestAbout() {
-    emit AboutRequested();
+void AppShellBridge::dismissAlert() {
+    SetAlertMessage(QString());
 }
 
-void MainWindowBridge::openRecentAt(int index) {
+void AppShellBridge::openRecentAt(int index) {
     if (index < 0 || index >= recent_items_.size()) {
         return;
     }
@@ -261,12 +329,4 @@ void MainWindowBridge::openRecentAt(int index) {
                              item.value(QStringLiteral("target")).toString());
 }
 
-void MainWindowBridge::toggleFullscreen() {
-    emit ToggleFullscreenRequested();
-}
-
-void MainWindowBridge::exitFullscreen() {
-    emit ExitFullscreenRequested();
-}
-
-}  // namespace shatv::ui::windows
+}  // namespace shatv::ui::shell

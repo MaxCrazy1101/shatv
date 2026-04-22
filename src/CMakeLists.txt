@@ -20,10 +20,7 @@ add_library(shatv_app
     ui/video/mpv_video_item.cpp
     ui/models/channel_filter_model.cpp
     ui/models/channel_list_model.cpp
-    ui/windows/about_dialog_content.cpp
-    ui/windows/main_window_bridge.cpp
-    ui/windows/main_window.cpp
-    ui/windows/network_settings_dialog_content.cpp
+    ui/shell/app_shell_bridge.cpp
 )
 
 target_include_directories(shatv_app
@@ -35,12 +32,11 @@ target_include_directories(shatv_app
 target_link_libraries(shatv_app
     PUBLIC
         Qt6::Core
-        Qt6::Widgets
         Qt6::Network
         Qt6::Qml
         Qt6::Quick
         Qt6::QuickControls2
-        Qt6::QuickWidgets
+        Qt6::QuickDialogs2
         shatv_mpv
         toml11::toml11
         ZLIB::ZLIB
@@ -76,4 +72,13 @@ qt_add_resources(shatv_app shatv_app_main_window_qml
         ui/qml/MainWindow.qml
         ui/qml/Theme.qml
         ui/qml/qmldir
+        ui/qml/controls/ThemedToolButton.qml
+        ui/qml/controls/ThemedTextField.qml
+        ui/qml/controls/ThemedItemDelegate.qml
+        ui/qml/controls/ThemedComboBox.qml
+        ui/qml/controls/ThemedSlider.qml
+        ui/qml/controls/WindowControlButton.qml
+        ui/qml/dialogs/AboutDialog.qml
+        ui/qml/dialogs/NetworkSettingsDialog.qml
+        ui/qml/dialogs/OpenUrlDialog.qml
 )

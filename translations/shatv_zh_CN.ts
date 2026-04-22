@@ -224,6 +224,163 @@
       <source>Ready</source>
       <translation>就绪</translation>
     </message>
+    <message>
+      <source>File</source>
+      <translation>文件</translation>
+    </message>
+    <message>
+      <source>Settings</source>
+      <translation>设置</translation>
+    </message>
+    <message>
+      <source>About</source>
+      <translation>关于</translation>
+    </message>
+    <message>
+      <source>Open File...</source>
+      <translation>打开文件...</translation>
+    </message>
+    <message>
+      <source>Open Link...</source>
+      <translation>打开链接...</translation>
+    </message>
+    <message>
+      <source>Open Recent</source>
+      <translation>最近打开</translation>
+    </message>
+    <message>
+      <source>Network Settings...</source>
+      <translation>网络设置...</translation>
+    </message>
+    <message>
+      <source>Open File</source>
+      <translation>打开文件</translation>
+    </message>
+    <message>
+      <source>Media Files (*.m3u *.m3u8 *.mp4 *.mkv *.ts *.mov *.webm *.mp3 *.flac)</source>
+      <translation>媒体文件 (*.m3u *.m3u8 *.mp4 *.mkv *.ts *.mov *.webm *.mp3 *.flac)</translation>
+    </message>
+    <message>
+      <source>All Files (*)</source>
+      <translation>所有文件 (*)</translation>
+    </message>
+    <message>
+      <source>Minimize</source>
+      <translation>最小化</translation>
+    </message>
+    <message>
+      <source>Maximize</source>
+      <translation>最大化</translation>
+    </message>
+    <message>
+      <source>Restore</source>
+      <translation>还原</translation>
+    </message>
+    <message>
+      <source>Close</source>
+      <translation>关闭</translation>
+    </message>
+  </context>
+  <context>
+    <name>AboutDialog</name>
+    <message>
+      <source>About ShaTV</source>
+      <translation>关于 ShaTV</translation>
+    </message>
+    <message>
+      <source>ShaTV</source>
+      <translation>ShaTV</translation>
+    </message>
+    <message>
+      <source>A cross-platform IPTV player.</source>
+      <translation>一个跨平台 IPTV 播放器。</translation>
+    </message>
+    <message>
+      <source>Version</source>
+      <translation>版本</translation>
+    </message>
+    <message>
+      <source>Build</source>
+      <translation>构建</translation>
+    </message>
+    <message>
+      <source>Built with C++20, Qt 6, and libmpv.</source>
+      <translation>基于 C++20、Qt 6 和 libmpv 构建。</translation>
+    </message>
+    <message>
+      <source>Authors</source>
+      <translation>作者</translation>
+    </message>
+    <message>
+      <source>License</source>
+      <translation>许可证</translation>
+    </message>
+    <message>
+      <source>Not specified</source>
+      <translation>未指定</translation>
+    </message>
+    <message>
+      <source>Repository</source>
+      <translation>仓库</translation>
+    </message>
+    <message>
+      <source>Close</source>
+      <translation>关闭</translation>
+    </message>
+  </context>
+  <context>
+    <name>NetworkSettingsDialog</name>
+    <message>
+      <source>Network Settings</source>
+      <translation>网络设置</translation>
+    </message>
+    <message>
+      <source>Configure the HTTP User-Agent and an optional XMLTV EPG URL used for current/next programme lookup.</source>
+      <translation>配置 HTTP User-Agent 和可选 XMLTV EPG 地址，用于当前/下一节目的查询。</translation>
+    </message>
+    <message>
+      <source>User-Agent</source>
+      <translation>User-Agent</translation>
+    </message>
+    <message>
+      <source>Leave empty to use the default</source>
+      <translation>留空则使用默认值</translation>
+    </message>
+    <message>
+      <source>EPG URL</source>
+      <translation>EPG 地址</translation>
+    </message>
+    <message>
+      <source>Save</source>
+      <translation>保存</translation>
+    </message>
+    <message>
+      <source>Cancel</source>
+      <translation>取消</translation>
+    </message>
+  </context>
+  <context>
+    <name>OpenUrlDialog</name>
+    <message>
+      <source>Open Link</source>
+      <translation>打开链接</translation>
+    </message>
+    <message>
+      <source>URL</source>
+      <translation>地址</translation>
+    </message>
+    <message>
+      <source>Open</source>
+      <translation>打开</translation>
+    </message>
+    <message>
+      <source>Cancel</source>
+      <translation>取消</translation>
+    </message>
+    <message>
+      <source>URL cannot be empty.</source>
+      <translation>地址不能为空。</translation>
+    </message>
   </context>
   <context>
     <name>shatv::ui::windows::AboutDialogContent</name>
@@ -427,6 +584,10 @@ State: %1</source>
     <message>
       <source>Network settings saved</source>
       <translation>网络设置已保存</translation>
+    </message>
+    <message>
+      <source>Failed to save network settings to %1</source>
+      <translation>保存网络设置到 %1 失败。</translation>
     </message>
     <message>
       <source>Failed to save recent history</source>

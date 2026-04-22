@@ -7,11 +7,14 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QMessageBox>
+#include <QGuiApplication>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QQmlApplicationEngine>
+#include <QQmlContext>
 #include <QTimer>
+#include <QWindow>
 
 #include "app/epg_service.h"
 #include "app/m3u_playlist_parser.h"
@@ -21,8 +24,10 @@
 #include "domain/playback_state.h"
 #include "player/fake_player_backend.h"
 #include "player/mpv_player_backend.h"
+#include "ui/models/channel_filter_model.h"
 #include "ui/models/channel_list_model.h"
-#include "ui/windows/main_window.h"
+#include "ui/shell/app_shell_bridge.h"
+#include "ui/video/mpv_video_item.h"
 
 namespace shatv::app {
 
@@ -66,15 +71,12 @@ QString FormatProgrammeText(const std::optional<XmltvProgramme> &programme) {
 
     const QDateTime local_start = programme->start_at.toLocalTime();
     const QDateTime local_stop = programme->stop_at.toLocalTime();
-    return QString("%1-%2 %3")
-        .arg(local_start.toString("HH:mm"),
-             local_stop.toString("HH:mm"),
-             programme->title);
+    return QString("%1-%2 %3").arg(local_start.toString("HH:mm"), local_stop.toString("HH:mm"), programme->title);
 }
 
 }  // namespace
 
-Application::Application(QApplication *qt_app, LaunchOptions options)
+Application::Application(QGuiApplication *qt_app, LaunchOptions options)
     : qt_app_(qt_app), options_(std::move(options)), settings_(AppSettings::DefaultConfigPath()) {
     Q_ASSERT(qt_app_ != nullptr);
 
@@ -85,49 +87,99 @@ Application::Application(QApplication *qt_app, LaunchOptions options)
     } else {
         backend_ = std::make_unique<player::MpvPlayerBackend>();
     }
+
     controller_ = std::make_unique<application::PlayerController>(backend_.get());
     channel_model_ = std::make_unique<ui::models::ChannelListModel>();
-    main_window_ = std::make_unique<ui::windows::MainWindow>(controller_.get(), channel_model_.get());
+    channel_filter_model_ = std::make_unique<ui::models::ChannelFilterModel>();
+    channel_filter_model_->setSourceModel(channel_model_.get());
+    shell_bridge_ = std::make_unique<ui::shell::AppShellBridge>(channel_filter_model_.get());
+    qml_engine_ = std::make_unique<QQmlApplicationEngine>();
     network_manager_ = std::make_unique<QNetworkAccessManager>();
+
+    status_message_timer_.setSingleShot(true);
+    QObject::connect(&status_message_timer_, &QTimer::timeout, qt_app_, [this]() {
+        status_message_.clear();
+        shell_bridge_->SetStatusMessage(QString());
+    });
 
     if (!settings_.Load()) {
         std::cerr << "ShaTV config load failed path=" << settings_.ConfigPath().toStdString() << std::endl;
     }
-    main_window_->SetConfiguredUserAgent(settings_.UserAgent());
-    main_window_->SetConfiguredEpgUrl(settings_.EpgUrl());
-    main_window_->SetOsdAutoHideSeconds(settings_.OsdAutoHideSeconds());
-    RefreshRecentItems();
 
     controller_->SetVolume(settings_.Volume());
     controller_->SetMuted(settings_.Muted());
 
-    if (auto *mpv_backend = dynamic_cast<player::MpvPlayerBackend *>(backend_.get())) {
-        mpv_backend->SetNetworkUserAgent(settings_.UserAgent());
-        main_window_->AttachMpvBackend(mpv_backend);
+    qml_engine_->rootContext()->setContextProperty(QStringLiteral("appShellBridge"), shell_bridge_.get());
+    ui::video::RegisterQmlVideoTypes();
+    qml_engine_->load(QUrl(QStringLiteral("qrc:/qt/qml/MainWindow.qml")));
+    if (qml_engine_->rootObjects().isEmpty()) {
+        qFatal("ShaTV failed to load MainWindow.qml");
     }
 
-    QObject::connect(main_window_.get(), &ui::windows::MainWindow::OpenFileSelected, qt_app_,
+    qml_root_object_ = qml_engine_->rootObjects().constFirst();
+    root_window_ = qobject_cast<QWindow *>(qml_root_object_.data());
+    Q_ASSERT(root_window_ != nullptr);
+
+    video_item_ =
+        qobject_cast<ui::video::MpvVideoItem *>(qml_root_object_->findChild<QObject *>(QStringLiteral("playerVideoItem")));
+    Q_ASSERT(video_item_ != nullptr);
+
+    if (auto *mpv_backend = dynamic_cast<player::MpvPlayerBackend *>(backend_.get())) {
+        mpv_backend->SetNetworkUserAgent(settings_.UserAgent());
+        video_item_->SetBackend(mpv_backend);
+    }
+
+    QObject::connect(shell_bridge_.get(), &ui::shell::AppShellBridge::ActivateChannelRequested, qt_app_,
+                     [this](const QModelIndex &index) {
+                         const QModelIndex source_index = channel_filter_model_->mapToSource(index);
+                         const domain::Channel channel = channel_model_->ChannelAt(source_index);
+                         if (channel.id.isEmpty()) {
+                             return;
+                         }
+                         controller_->PlayChannel(channel);
+                     });
+    QObject::connect(shell_bridge_.get(), &ui::shell::AppShellBridge::PlayPauseRequested, qt_app_, [this]() {
+        const domain::PlaybackState state = controller_->CurrentSnapshot().state;
+        if (state == domain::PlaybackState::kPlaying || state == domain::PlaybackState::kLoading ||
+            state == domain::PlaybackState::kBuffering || state == domain::PlaybackState::kRetrying) {
+            controller_->Pause();
+            return;
+        }
+        controller_->Resume();
+    });
+    QObject::connect(shell_bridge_.get(), &ui::shell::AppShellBridge::StopRequested, controller_.get(),
+                     &application::PlayerController::Stop);
+    QObject::connect(shell_bridge_.get(), &ui::shell::AppShellBridge::MuteRequested, controller_.get(),
+                     &application::PlayerController::SetMuted);
+    QObject::connect(shell_bridge_.get(), &ui::shell::AppShellBridge::VolumeRequested, controller_.get(),
+                     &application::PlayerController::SetVolume);
+    QObject::connect(shell_bridge_.get(), &ui::shell::AppShellBridge::OpenFileRequested, qt_app_,
                      [this](const QString &path) { OpenFile(path); });
-    QObject::connect(main_window_.get(), &ui::windows::MainWindow::OpenUrlSelected, qt_app_,
+    QObject::connect(shell_bridge_.get(), &ui::shell::AppShellBridge::OpenUrlRequested, qt_app_,
                      [this](const QString &url_text) { OpenUrl(url_text); });
-    QObject::connect(main_window_.get(), &ui::windows::MainWindow::RecentOpenSelected, qt_app_,
-                     [this](const QString &kind, const QString &target) { OpenRecentItem(kind, target); });
-    QObject::connect(main_window_.get(), &ui::windows::MainWindow::NetworkSettingsChanged, qt_app_,
+    QObject::connect(shell_bridge_.get(), &ui::shell::AppShellBridge::NetworkSettingsRequested, qt_app_,
                      [this](const QString &user_agent, const QString &epg_url) {
                          UpdateNetworkSettings(user_agent, epg_url);
                      });
+    QObject::connect(shell_bridge_.get(), &ui::shell::AppShellBridge::RecentOpenRequested, qt_app_,
+                     [this](const QString &kind, const QString &target) { OpenRecentItem(kind, target); });
 
     QObject::connect(controller_.get(), &application::PlayerController::PlaybackSnapshotChanged, qt_app_,
                      [this](const domain::PlayerSnapshot &snapshot) {
+                         shell_bridge_->SetPlaybackSnapshot(snapshot);
+                         if (!snapshot.channel_id.isEmpty()) {
+                             channel_model_->SetCurrentChannelId(snapshot.channel_id);
+                         }
+                         if (!snapshot.message.isEmpty()) {
+                             ShowStatusMessage(snapshot.message, 3000);
+                         }
                          if (snapshot.volume != settings_.Volume()) {
                              settings_.SetVolume(snapshot.volume);
                          }
                          if (snapshot.muted != settings_.Muted()) {
                              settings_.SetMuted(snapshot.muted);
                          }
-                         if (!snapshot.channel_id.isEmpty()) {
-                             UpdateDisplayedEpg();
-                         }
+                         UpdateDisplayedEpg();
                      });
     QObject::connect(controller_.get(), &application::PlayerController::CurrentChannelChanged, qt_app_,
                      [this](const QString &) { UpdateDisplayedEpg(); });
@@ -139,21 +191,37 @@ Application::Application(QApplication *qt_app, LaunchOptions options)
     startup_channel_ = BuildStartupChannel(options_, qEnvironmentVariable("SHATV_SMOKE_MEDIA"), QDir::currentPath());
     initial_channels_ = BuildInitialChannels();
     current_channels_ = initial_channels_;
-    main_window_->SetChannels(initial_channels_);
+    channel_model_->SetChannels(initial_channels_);
+    RefreshShellFilters();
+    RefreshRecentItems();
+    shell_bridge_->SetStatusMessage(QString());
+    shell_bridge_->SetProgrammeTexts(QString(), QString());
+    shell_bridge_->SetPlaybackSnapshot(controller_->CurrentSnapshot());
+    shell_bridge_->SetConfiguredUserAgent(settings_.UserAgent());
+    shell_bridge_->SetConfiguredEpgUrl(settings_.EpgUrl());
 }
 
 Application::~Application() {
+    status_message_timer_.stop();
+    if (video_item_ != nullptr) {
+        video_item_->SetBackend(nullptr);
+    }
+
     if (!settings_.Save()) {
         std::cerr << "ShaTV config save failed on exit" << std::endl;
     }
+
+    qml_engine_.reset();
     controller_.reset();
     backend_.reset();
-    main_window_.reset();
+    shell_bridge_.reset();
+    channel_filter_model_.reset();
     channel_model_.reset();
 }
 
 int Application::Run() {
-    main_window_->show();
+    Q_ASSERT(root_window_ != nullptr);
+    root_window_->show();
 
     if (options_.smoke_test) {
         std::cout << "ShaTV Qt6 bootstrap" << std::endl;
@@ -185,8 +253,7 @@ std::vector<domain::Channel> Application::BuildInitialChannels() const {
 
 void Application::OpenChannel(const domain::Channel &channel) {
     if (!channel.url.isValid() || channel.url.toString().isEmpty()) {
-        QMessageBox::warning(main_window_.get(), QCoreApplication::translate("Application", "ShaTV"),
-                             QCoreApplication::translate("Application", "Open request failed: invalid media target."));
+        ShowAlert(QCoreApplication::translate("Application", "Open request failed: invalid media target."));
         return;
     }
 
@@ -202,9 +269,10 @@ void Application::OpenChannels(std::vector<domain::Channel> channels, const QStr
 
     current_channels_ = channels;
     playlist_epg_url_ = playlist_epg_url;
-    main_window_->SetChannels(std::move(channels));
+    channel_model_->SetChannels(std::move(channels));
+    RefreshShellFilters();
     ReloadEpg();
-    main_window_->StartInitialPlayback();
+    StartInitialPlayback();
 }
 
 void Application::OpenFile(const QString &path) {
@@ -246,9 +314,7 @@ void Application::OpenUrl(const QString &url_text) {
 
     const domain::Channel channel = BuildOpenUrlChannel(url_text, QDir::currentPath());
     if (!IsRemotePlaybackUrl(channel.url)) {
-        QMessageBox::warning(
-            main_window_.get(), QCoreApplication::translate("Application", "ShaTV"),
-            QCoreApplication::translate("Application", "Open Link expects an http:// or https:// URL."));
+        ShowAlert(QCoreApplication::translate("Application", "Open Link expects an http:// or https:// URL."));
         return;
     }
     if (LooksLikeRemoteM3uUrl(channel.url)) {
@@ -257,11 +323,8 @@ void Application::OpenUrl(const QString &url_text) {
         return;
     }
     if (LooksLikeRemoteMediaDirectoryUrl(channel.url)) {
-        QMessageBox::warning(
-            main_window_.get(), QCoreApplication::translate("Application", "ShaTV"),
-            QCoreApplication::translate(
-                "Application",
-                "Open Link needs a full media URL, for example http://127.0.0.1:8080/index.m3u8"));
+        ShowAlert(QCoreApplication::translate(
+            "Application", "Open Link needs a full media URL, for example http://127.0.0.1:8080/index.m3u8"));
         return;
     }
 
@@ -276,7 +339,7 @@ void Application::DownloadPlaylist(const QUrl &url) {
     }
 
     QNetworkReply *reply = network_manager_->get(request);
-    QObject::connect(reply, &QNetworkReply::finished, main_window_.get(), [this, reply, url]() {
+    QObject::connect(reply, &QNetworkReply::finished, qt_app_, [this, reply, url]() {
         const std::unique_ptr<QNetworkReply, void (*)(QNetworkReply *)> cleanup(reply, [](QNetworkReply *r) {
             if (r != nullptr) {
                 r->deleteLater();
@@ -305,7 +368,7 @@ void Application::DownloadPlaylist(const QUrl &url) {
 }
 
 void Application::ShowPlaylistImportError(const QString &message) {
-    QMessageBox::warning(main_window_.get(), QCoreApplication::translate("Application", "ShaTV"), message);
+    ShowAlert(message);
 }
 
 void Application::UpdateNetworkSettings(const QString &user_agent, const QString &epg_url) {
@@ -317,20 +380,22 @@ void Application::UpdateNetworkSettings(const QString &user_agent, const QString
     if (!settings_.Save()) {
         settings_.SetUserAgent(previous_user_agent);
         settings_.SetEpgUrl(previous_epg_url);
-        QMessageBox::warning(
-            main_window_.get(), QCoreApplication::translate("Application", "ShaTV"),
-            QCoreApplication::translate("Application", "Failed to save network settings to %1")
-                .arg(QDir::toNativeSeparators(settings_.ConfigPath())));
+        ShowAlert(QCoreApplication::translate("Application", "Failed to save network settings to %1")
+                      .arg(QDir::toNativeSeparators(settings_.ConfigPath())));
         return;
     }
 
-    main_window_->SetConfiguredUserAgent(settings_.UserAgent());
-    main_window_->SetConfiguredEpgUrl(settings_.EpgUrl());
     if (auto *mpv_backend = dynamic_cast<player::MpvPlayerBackend *>(backend_.get())) {
         mpv_backend->SetNetworkUserAgent(settings_.UserAgent());
     }
+    shell_bridge_->SetConfiguredUserAgent(settings_.UserAgent());
+    shell_bridge_->SetConfiguredEpgUrl(settings_.EpgUrl());
     ReloadEpg();
-    main_window_->ShowStatusMessage(QCoreApplication::translate("Application", "Network settings saved"), 3000);
+    ShowStatusMessage(QCoreApplication::translate("Application", "Network settings saved"), 3000);
+}
+
+void Application::ShowAlert(const QString &message) {
+    shell_bridge_->SetAlertMessage(message);
 }
 
 void Application::ReloadEpg() {
@@ -348,8 +413,8 @@ void Application::ReloadEpg() {
     if (epg_url.isLocalFile()) {
         QFile input(epg_url.toLocalFile());
         if (!input.open(QIODevice::ReadOnly)) {
-            std::cerr << "ShaTV EPG load failed source=" << source_url.toStdString()
-                      << " reason=read-local-file" << std::endl;
+            std::cerr << "ShaTV EPG load failed source=" << source_url.toStdString() << " reason=read-local-file"
+                      << std::endl;
             return;
         }
 
@@ -384,7 +449,7 @@ void Application::ReloadEpg() {
     }
 
     QNetworkReply *reply = network_manager_->get(request);
-    QObject::connect(reply, &QNetworkReply::finished, main_window_.get(), [this, reply, source_url, generation]() {
+    QObject::connect(reply, &QNetworkReply::finished, qt_app_, [this, reply, source_url, generation]() {
         const std::unique_ptr<QNetworkReply, void (*)(QNetworkReply *)> cleanup(reply, [](QNetworkReply *r) {
             if (r != nullptr) {
                 r->deleteLater();
@@ -440,11 +505,11 @@ void Application::UpdateDisplayedEpg() {
     }
 
     const ChannelEpgNowNext now_next = epg_service_.LookupNowNext(*channel, QDateTime::currentDateTime());
-    main_window_->SetProgrammeTexts(FormatProgrammeText(now_next.current), FormatProgrammeText(now_next.next));
+    shell_bridge_->SetProgrammeTexts(FormatProgrammeText(now_next.current), FormatProgrammeText(now_next.next));
 }
 
 void Application::ClearDisplayedEpg() {
-    main_window_->SetProgrammeTexts(QString(), QString());
+    shell_bridge_->SetProgrammeTexts(QString(), QString());
 }
 
 std::optional<domain::Channel> Application::FindChannelById(const QString &channel_id) const {
@@ -466,13 +531,30 @@ void Application::RememberRecentItem(const RecentOpenItem &item) {
     RefreshRecentItems();
     if (!settings_.Save()) {
         std::cerr << "ShaTV recent history save failed path=" << settings_.ConfigPath().toStdString() << std::endl;
-        main_window_->ShowStatusMessage(QCoreApplication::translate("Application", "Failed to save recent history"),
-                                        3000);
+        ShowStatusMessage(QCoreApplication::translate("Application", "Failed to save recent history"), 3000);
     }
 }
 
 void Application::RefreshRecentItems() {
-    main_window_->SetRecentItems(settings_.RecentItems());
+    shell_bridge_->SetRecentItems(settings_.RecentItems());
+}
+
+void Application::RefreshShellFilters() {
+    shell_bridge_->SetAvailableGroups(channel_filter_model_->AvailableGroups());
+    shell_bridge_->SetCurrentGroupFilter(channel_filter_model_->GroupFilter());
+    shell_bridge_->SetSearchTextValue(channel_filter_model_->SearchText());
+}
+
+void Application::ShowStatusMessage(const QString &message, int timeout_ms) {
+    status_message_ = message;
+    shell_bridge_->SetStatusMessage(status_message_);
+    status_message_timer_.stop();
+
+    if (timeout_ms <= 0 || message.isEmpty()) {
+        return;
+    }
+
+    status_message_timer_.start(timeout_ms);
 }
 
 void Application::OpenRecentItem(const QString &kind, const QString &target) {
@@ -485,29 +567,43 @@ void Application::OpenRecentItem(const QString &kind, const QString &target) {
     }
 }
 
+void Application::StartInitialPlayback() {
+    if (channel_filter_model_->rowCount() <= 0) {
+        return;
+    }
+
+    const QModelIndex source_index = channel_filter_model_->mapToSource(channel_filter_model_->index(0, 0));
+    const domain::Channel channel = channel_model_->ChannelAt(source_index);
+    if (channel.id.isEmpty()) {
+        return;
+    }
+
+    controller_->PlayChannel(channel);
+}
+
 void Application::SetupSmokeScenario() {
-    QObject::connect(main_window_.get(), &ui::windows::MainWindow::UiSnapshotApplied, qt_app_,
+    QObject::connect(controller_.get(), &application::PlayerController::PlaybackSnapshotChanged, qt_app_,
                      [this](const domain::PlayerSnapshot &snapshot) {
                          if (smoke_completed_ || snapshot.state != domain::PlaybackState::kPlaying) {
                              return;
                          }
 
                          smoke_completed_ = true;
-                         const QString state_name = domain::PlaybackStateToken(main_window_->LastAppliedSnapshot().state);
+                         const QString state_name = domain::PlaybackStateToken(controller_->CurrentSnapshot().state);
 
-                         std::cout << "ShaTV Stage2 smoke ok channels=" << main_window_->ChannelCount()
-                                   << " current=" << main_window_->CurrentChannelIdForSmoke().toStdString()
+                         std::cout << "ShaTV Stage2 smoke ok channels=" << channel_model_->rowCount()
+                                   << " current=" << controller_->CurrentSnapshot().channel_id.toStdString()
                                    << " state=" << state_name.toStdString() << std::endl;
 
                          QTimer::singleShot(0, qt_app_, &QCoreApplication::quit);
                      });
 
     // 通过定时触发模拟一次真实的首频道点击，验证 UI -> Controller -> Backend -> UI 主链。
-    QTimer::singleShot(0, main_window_.get(), &ui::windows::MainWindow::StartSmokeScenario);
+    QTimer::singleShot(0, qt_app_, [this]() { StartInitialPlayback(); });
 }
 
 void Application::SetupMpvSmokeScenario() {
-    QObject::connect(main_window_.get(), &ui::windows::MainWindow::UiSnapshotApplied, qt_app_,
+    QObject::connect(controller_.get(), &application::PlayerController::PlaybackSnapshotChanged, qt_app_,
                      [this](const domain::PlayerSnapshot &snapshot) {
                          if (smoke_completed_) {
                              return;
@@ -527,7 +623,7 @@ void Application::SetupMpvSmokeScenario() {
                          }
                      });
 
-    QTimer::singleShot(0, main_window_.get(), &ui::windows::MainWindow::StartSmokeScenario);
+    QTimer::singleShot(0, qt_app_, [this]() { StartInitialPlayback(); });
     QTimer::singleShot(1500, qt_app_, [this]() {
         if (smoke_completed_) {
             return;

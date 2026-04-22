@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QMetaObject>
 #include <QSortFilterProxyModel>
 #include <QString>
 #include <QStringList>
@@ -11,6 +12,7 @@ class ChannelFilterModel final : public QSortFilterProxyModel {
 
    public:
     explicit ChannelFilterModel(QObject *parent = nullptr);
+    void setSourceModel(QAbstractItemModel *source_model) override;
 
     QStringList AvailableGroups() const;
     void SetGroupFilter(const QString &group);
@@ -23,9 +25,11 @@ class ChannelFilterModel final : public QSortFilterProxyModel {
 
    private:
     bool MatchesSearch(int source_row, const QModelIndex &source_parent) const;
+    void ClearInvalidGroupFilter();
 
     QString group_filter_;
     QString search_text_;
+    QMetaObject::Connection source_model_reset_connection_;
 };
 
 }  // namespace shatv::ui::models

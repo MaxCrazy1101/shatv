@@ -8,6 +8,25 @@ namespace shatv::ui::models {
 
 ChannelFilterModel::ChannelFilterModel(QObject *parent) : QSortFilterProxyModel(parent) {}
 
+void ChannelFilterModel::setSourceModel(QAbstractItemModel *source_model) {
+    if (source_model_reset_connection_) {
+        QObject::disconnect(source_model_reset_connection_);
+        source_model_reset_connection_ = {};
+    }
+
+    QSortFilterProxyModel::setSourceModel(source_model);
+    ClearInvalidGroupFilter();
+
+    if (source_model == nullptr) {
+        return;
+    }
+
+    source_model_reset_connection_ = QObject::connect(source_model, &QAbstractItemModel::modelReset, this, [this]() {
+        // 播放列表整体替换后，旧分组条件可能已经不存在，必须主动清掉避免把新列表过滤成空。
+        ClearInvalidGroupFilter();
+    });
+}
+
 QStringList ChannelFilterModel::AvailableGroups() const {
     if (sourceModel() == nullptr) {
         return {};
@@ -55,6 +74,18 @@ QString ChannelFilterModel::GroupFilter() const {
 
 QString ChannelFilterModel::SearchText() const {
     return search_text_;
+}
+
+void ChannelFilterModel::ClearInvalidGroupFilter() {
+    if (group_filter_.isEmpty()) {
+        return;
+    }
+
+    if (AvailableGroups().contains(group_filter_)) {
+        return;
+    }
+
+    SetGroupFilter(QString());
 }
 
 bool ChannelFilterModel::filterAcceptsRow(int source_row, const QModelIndex &source_parent) const {
