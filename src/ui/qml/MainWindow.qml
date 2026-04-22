@@ -50,7 +50,7 @@ Rectangle {
         ? mainWindowBridge
         : bridgeFallback
     readonly property var groupItems: [qsTr("All groups"), ...bridge.availableGroups]
-    readonly property int menuPopupType: Qt.platform.pluginName !== "wayland" ? Popup.Window : Popup.Item
+    readonly property int menuPopupType: Popup.Item
     readonly property string effectiveStatusText: bridge.statusMessage.length > 0
         ? bridge.statusMessage
         : (bridge.playbackStateText.length > 0 ? bridge.playbackStateText : qsTr("Ready"))
@@ -297,6 +297,8 @@ Rectangle {
             id: control
 
             implicitHeight: 32
+            implicitWidth: Math.max(implicitBackgroundWidth + leftInset + rightInset,
+                                    implicitContentWidth + leftPadding + rightPadding)
             leftPadding: Theme.spacingMd
             rightPadding: Theme.spacingMd
 
@@ -321,6 +323,9 @@ Rectangle {
             id: control
 
             implicitHeight: 32
+            implicitWidth: Math.max(160,
+                                    implicitBackgroundWidth + leftInset + rightInset,
+                                    implicitContentWidth + leftPadding + rightPadding)
             leftPadding: Theme.spacingMd
             rightPadding: Theme.spacingMd
 
@@ -372,6 +377,9 @@ Rectangle {
             required property var modelData
 
             implicitHeight: 32
+            implicitWidth: Math.max(160,
+                                    implicitBackgroundWidth + leftInset + rightInset,
+                                    implicitContentWidth + leftPadding + rightPadding)
             leftPadding: Theme.spacingMd
             rightPadding: Theme.spacingMd
             text: modelData.label
@@ -441,6 +449,9 @@ Rectangle {
                             required property var modelData
 
                             implicitHeight: 32
+                            implicitWidth: Math.max(160,
+                                                    implicitBackgroundWidth + leftInset + rightInset,
+                                                    implicitContentWidth + leftPadding + rightPadding)
                             leftPadding: Theme.spacingMd
                             rightPadding: Theme.spacingMd
                             text: modelData.label
