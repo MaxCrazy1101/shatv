@@ -49,9 +49,11 @@ class MainWindow final : public QMainWindow {
     void StartSmokeScenario();
     void AttachMpvBackend(player::MpvPlayerBackend *backend);
     void SetConfiguredUserAgent(const QString &user_agent);
+    void SetConfiguredEpgUrl(const QString &epg_url);
     void SetOsdAutoHideSeconds(int seconds);
     void SetRecentItems(std::vector<app::RecentOpenItem> items);
     void ShowStatusMessage(const QString &message, int timeout_ms = 3000);
+    void SetProgrammeTexts(const QString &current_programme_text, const QString &next_programme_text);
 
     int ChannelCount() const;
     bool IsFullscreenModeActive() const;
@@ -62,7 +64,7 @@ class MainWindow final : public QMainWindow {
     void OpenFileSelected(const QString &path);
     void OpenUrlSelected(const QString &url_text);
     void RecentOpenSelected(const QString &kind, const QString &target);
-    void UserAgentChanged(const QString &user_agent);
+    void NetworkSettingsChanged(const QString &user_agent, const QString &epg_url);
     void UiSnapshotApplied(const shatv::domain::PlayerSnapshot &snapshot);
 
    private slots:
@@ -93,6 +95,7 @@ class MainWindow final : public QMainWindow {
     std::vector<app::RecentOpenItem> recent_items_;
     domain::PlayerSnapshot last_snapshot_;
     QString configured_user_agent_;
+    QString configured_epg_url_;
     QString status_message_;
     QTimer status_message_timer_;
     bool fullscreen_active_ = false;

@@ -7,8 +7,11 @@ configure_file(
 add_library(shatv_app
     app/application.cpp
     app/app_settings.cpp
+    app/epg_service.cpp
     app/launch_options.cpp
     app/m3u_playlist_parser.cpp
+    app/xmltv_epg_payload.cpp
+    app/xmltv_epg_parser.cpp
     application/player_controller.cpp
     player/fake_player_backend.cpp
     player/mpv_event_adapter.cpp
@@ -20,6 +23,7 @@ add_library(shatv_app
     ui/windows/about_dialog_content.cpp
     ui/windows/main_window_bridge.cpp
     ui/windows/main_window.cpp
+    ui/windows/network_settings_dialog_content.cpp
 )
 
 target_include_directories(shatv_app
@@ -39,6 +43,7 @@ target_link_libraries(shatv_app
         Qt6::QuickWidgets
         shatv_mpv
         toml11::toml11
+        ZLIB::ZLIB
 )
 
 add_executable(shatv

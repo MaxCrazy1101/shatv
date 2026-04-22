@@ -62,6 +62,8 @@ domain::Channel BuildOpenUrlChannel(const QString &input, const QString &current
         .name = ChannelNameFromUrl(media_url),
         .url = media_url,
         .group = QCoreApplication::translate("LaunchOptions", "Open URL"),
+        .tvg_id = {},
+        .tvg_name = {},
     };
 }
 
@@ -72,6 +74,8 @@ domain::Channel BuildOpenMediaChannel(const QString &input, const QString &curre
         .name = ChannelNameFromUrl(media_url),
         .url = media_url,
         .group = QCoreApplication::translate("LaunchOptions", "Open Media"),
+        .tvg_id = {},
+        .tvg_name = {},
     };
 }
 
@@ -106,6 +110,8 @@ std::optional<domain::Channel> BuildStartupChannel(const LaunchOptions &options,
             .name = QFileInfo(absolute_path).fileName(),
             .url = QUrl::fromLocalFile(absolute_path),
             .group = QCoreApplication::translate("LaunchOptions", "Smoke"),
+            .tvg_id = {},
+            .tvg_name = {},
         };
     }
 

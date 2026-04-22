@@ -127,6 +127,10 @@ const QString &AppSettings::ConfigPath() const {
     return config_path_;
 }
 
+const QString &AppSettings::EpgUrl() const {
+    return epg_url_;
+}
+
 const QString &AppSettings::UserAgent() const {
     return user_agent_;
 }
@@ -145,6 +149,10 @@ bool AppSettings::Muted() const {
 
 const std::vector<RecentOpenItem> &AppSettings::RecentItems() const {
     return recent_items_;
+}
+
+void AppSettings::SetEpgUrl(const QString &epg_url) {
+    epg_url_ = epg_url.trimmed();
 }
 
 void AppSettings::SetUserAgent(const QString &user_agent) {
@@ -189,6 +197,7 @@ void AppSettings::RememberRecentItem(RecentOpenItem item) {
 
 bool AppSettings::Load() {
     if (!QFileInfo::exists(config_path_)) {
+        epg_url_.clear();
         user_agent_.clear();
         osd_auto_hide_seconds_ = kDefaultOsdAutoHideSeconds;
         volume_ = kDefaultVolume;
@@ -199,6 +208,8 @@ bool AppSettings::Load() {
 
     try {
         const toml::value config = toml::parse(ToStdString(config_path_));
+        epg_url_ = QString::fromStdString(
+            toml::find_or<std::string>(config, "epg", "url", std::string()));
         user_agent_ = QString::fromStdString(
             toml::find_or<std::string>(config, "network", "user_agent", std::string()));
         osd_auto_hide_seconds_ = NormalizeOsdAutoHideSeconds(config, config_path_);
@@ -255,6 +266,7 @@ bool AppSettings::Save() const {
         }
 
         // 配置层只维护一个极小 TOML 结构，避免把平台特定设置后端耦合进来。
+        config["epg"]["url"] = toml::value(ToStdString(epg_url_));
         config["network"]["user_agent"] = toml::value(ToStdString(user_agent_));
         config["ui"]["osd"]["auto_hide_seconds"] = toml::value(osd_auto_hide_seconds_);
         config["playback"]["volume"] = toml::value(volume_);

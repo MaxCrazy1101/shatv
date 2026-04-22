@@ -54,11 +54,17 @@ bool LooksLikeM3uPlaylistText(const QString &text) {
 }
 
 std::vector<domain::Channel> ParseM3uPlaylistText(const QString &text, const QString &id_prefix) {
-    std::vector<domain::Channel> channels;
+    return ParsePlaylistImportText(text, id_prefix).channels;
+}
+
+PlaylistImportResult ParsePlaylistImportText(const QString &text, const QString &id_prefix) {
+    PlaylistImportResult result;
     const QStringList lines = text.split('\n');
 
     QString pending_name;
     QString pending_group;
+    QString pending_tvg_id;
+    QString pending_tvg_name;
     bool has_pending_item = false;
 
     for (const QString &raw_line : lines) {
@@ -67,11 +73,19 @@ std::vector<domain::Channel> ParseM3uPlaylistText(const QString &text, const QSt
             continue;
         }
 
+        // #EXTM3U 头里可能带 x-tvg-url，这属于播放列表级元数据，不复制到单个频道上。
+        if (line.startsWith("#EXTM3U")) {
+            result.epg_url = ExtractAttribute(line, "x-tvg-url");
+            continue;
+        }
+
         if (line.startsWith("#EXTINF:")) {
             const int comma_index = line.indexOf(',');
             pending_name = comma_index >= 0 ? line.mid(comma_index + 1).trimmed() : QString();
+            pending_tvg_id = ExtractAttribute(line, "tvg-id");
+            pending_tvg_name = ExtractAttribute(line, "tvg-name");
             if (pending_name.isEmpty()) {
-                pending_name = ExtractAttribute(line, "tvg-name");
+                pending_name = pending_tvg_name;
             }
             pending_group = ExtractAttribute(line, "group-title");
             has_pending_item = true;
@@ -91,26 +105,32 @@ std::vector<domain::Channel> ParseM3uPlaylistText(const QString &text, const QSt
             has_pending_item = false;
             pending_name.clear();
             pending_group.clear();
+            pending_tvg_id.clear();
+            pending_tvg_name.clear();
             continue;
         }
 
-        // 解析器只产出 UI 立即可用的最小频道数据，不引入额外模型字段。
+        // 第一阶段先产出可直接播放的频道数据，并顺手保留 EPG 绑定键供后续 XMLTV 匹配层使用。
         const QString channel_name = pending_name.isEmpty() ? ChannelNameFromUrl(url) : pending_name;
-        const QString channel_id = QString("%1-%2-%3").arg(id_prefix).arg(channels.size()).arg(channel_name);
+        const QString channel_id = QString("%1-%2-%3").arg(id_prefix).arg(result.channels.size()).arg(channel_name);
 
-        channels.push_back(domain::Channel{
+        result.channels.push_back(domain::Channel{
             .id = channel_id,
             .name = channel_name,
             .url = url,
             .group = pending_group,
+            .tvg_id = pending_tvg_id,
+            .tvg_name = pending_tvg_name,
         });
 
         has_pending_item = false;
         pending_name.clear();
         pending_group.clear();
+        pending_tvg_id.clear();
+        pending_tvg_name.clear();
     }
 
-    return channels;
+    return result;
 }
 
 }  // namespace shatv::app

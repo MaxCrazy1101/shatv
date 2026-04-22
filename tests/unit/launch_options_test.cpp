@@ -32,8 +32,10 @@ class LaunchOptionsTest : public QObject {
     void remote_playback_url_detection();
     void remote_root_url_detection_for_open_link_validation();
     void load_missing_settings_defaults_to_empty_user_agent();
+    void load_missing_settings_defaults_to_empty_epg_url();
     void load_missing_settings_defaults_to_osd_auto_hide_three_seconds();
     void save_and_load_user_agent_round_trip();
+    void save_and_load_epg_url_round_trip();
     void save_and_load_osd_auto_hide_seconds_round_trip();
     void save_and_load_recent_items_with_dedup_and_limit();
     void load_recent_items_deduplicates_existing_config_entries();
@@ -127,6 +129,17 @@ void LaunchOptionsTest::load_missing_settings_defaults_to_empty_user_agent() {
     QCOMPARE(settings.UserAgent(), QString());
 }
 
+void LaunchOptionsTest::load_missing_settings_defaults_to_empty_epg_url() {
+    QTemporaryDir temp_dir;
+    QVERIFY(temp_dir.isValid());
+
+    const QString config_path = temp_dir.filePath("settings/config.toml");
+    AppSettings settings(config_path);
+
+    QVERIFY(settings.Load());
+    QCOMPARE(settings.EpgUrl(), QString());
+}
+
 void LaunchOptionsTest::load_missing_settings_defaults_to_osd_auto_hide_three_seconds() {
     QTemporaryDir temp_dir;
     QVERIFY(temp_dir.isValid());
@@ -151,6 +164,21 @@ void LaunchOptionsTest::save_and_load_user_agent_round_trip() {
     AppSettings reloaded(config_path);
     QVERIFY(reloaded.Load());
     QCOMPARE(reloaded.UserAgent(), QString("ShaTV QA Agent/1.0"));
+}
+
+void LaunchOptionsTest::save_and_load_epg_url_round_trip() {
+    QTemporaryDir temp_dir;
+    QVERIFY(temp_dir.isValid());
+
+    const QString config_path = temp_dir.filePath("settings/config.toml");
+
+    AppSettings settings(config_path);
+    settings.SetEpgUrl("https://epg.example.com/guide.xml.gz");
+    QVERIFY(settings.Save());
+
+    AppSettings reloaded(config_path);
+    QVERIFY(reloaded.Load());
+    QCOMPARE(reloaded.EpgUrl(), QString("https://epg.example.com/guide.xml.gz"));
 }
 
 void LaunchOptionsTest::save_and_load_osd_auto_hide_seconds_round_trip() {

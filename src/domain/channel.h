@@ -11,6 +11,8 @@ struct Channel {
     QString name;
     QUrl url;
     QString group;
+    QString tvg_id;
+    QString tvg_name;
 };
 
 }  // namespace shatv::domain

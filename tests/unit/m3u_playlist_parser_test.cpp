@@ -6,12 +6,14 @@ namespace {
 
 using shatv::app::LooksLikeM3uPlaylistText;
 using shatv::app::ParseM3uPlaylistText;
+using shatv::app::ParsePlaylistImportText;
 
 class M3uPlaylistParserTest : public QObject {
     Q_OBJECT
 
    private slots:
     void parses_extinf_entries_into_channels();
+    void parses_playlist_level_epg_url_and_channel_epg_keys();
     void ignores_invalid_entries_and_hls_manifests();
     void local_playlist_detection_prefers_m3u_over_single_media();
     void remote_playlist_detection_uses_m3u_rules();
@@ -37,6 +39,21 @@ void M3uPlaylistParserTest::parses_extinf_entries_into_channels() {
     QCOMPARE(channels.at(1).name, QString("东方卫视"));
     QCOMPARE(channels.at(1).group, QString("卫视"));
     QCOMPARE(channels.at(1).url, QUrl("https://example.com/dfws.m3u8"));
+}
+
+void M3uPlaylistParserTest::parses_playlist_level_epg_url_and_channel_epg_keys() {
+    const QString text =
+        "#EXTM3U x-tvg-url=\"https://epg.example.com/tv.xml.gz\"\n"
+        "#EXTINF:-1 tvg-id=\"cctv1\" tvg-name=\"CCTV1\" group-title=\"央视\",CCTV1综合\n"
+        "https://example.com/cctv1.m3u8\n";
+
+    const auto result = ParsePlaylistImportText(text, "playlist");
+
+    QCOMPARE(result.epg_url, QString("https://epg.example.com/tv.xml.gz"));
+    QCOMPARE(result.channels.size(), 1);
+    QCOMPARE(result.channels.at(0).tvg_id, QString("cctv1"));
+    QCOMPARE(result.channels.at(0).tvg_name, QString("CCTV1"));
+    QCOMPARE(result.channels.at(0).name, QString("CCTV1综合"));
 }
 
 void M3uPlaylistParserTest::ignores_invalid_entries_and_hls_manifests() {

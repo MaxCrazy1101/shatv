@@ -53,6 +53,8 @@ else()
     option(SHATV_FETCH_TOML11 "Fetch toml11 during configure" OFF)
 endif()
 
+find_package(ZLIB REQUIRED)
+
 qt_policy(SET QTP0001 NEW)
 qt_policy(SET QTP0004 NEW)
 

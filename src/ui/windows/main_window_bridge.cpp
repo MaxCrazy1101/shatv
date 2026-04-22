@@ -49,6 +49,14 @@ QString MainWindowBridge::CurrentChannelName() const {
     return current_channel_name_;
 }
 
+QString MainWindowBridge::CurrentProgrammeText() const {
+    return current_programme_text_;
+}
+
+QString MainWindowBridge::NextProgrammeText() const {
+    return next_programme_text_;
+}
+
 QString MainWindowBridge::PlaybackStateText() const {
     return playback_state_text_;
 }
@@ -131,6 +139,17 @@ void MainWindowBridge::SetStatusMessage(const QString &message) {
 
     status_message_ = message;
     emit StatusMessageChanged();
+}
+
+void MainWindowBridge::SetProgrammeTexts(const QString &current_programme_text, const QString &next_programme_text) {
+    if (current_programme_text_ != current_programme_text) {
+        current_programme_text_ = current_programme_text;
+        emit CurrentProgrammeTextChanged();
+    }
+    if (next_programme_text_ != next_programme_text) {
+        next_programme_text_ = next_programme_text;
+        emit NextProgrammeTextChanged();
+    }
 }
 
 void MainWindowBridge::SetPlaybackSnapshot(const domain::PlayerSnapshot &snapshot) {

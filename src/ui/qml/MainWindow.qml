@@ -22,6 +22,8 @@ Rectangle {
         property bool fullscreenActive: false
         property string statusMessage: ""
         property string currentChannelName: ""
+        property string currentProgrammeText: ""
+        property string nextProgrammeText: ""
         property string playbackStateText: ""
         property string playbackStateToken: "idle"
         property bool playing: false
@@ -193,14 +195,18 @@ Rectangle {
             }
         }
 
-        contentItem: Text {
+        contentItem: TextInput {
             leftPadding: 0
             rightPadding: 0
             text: control.displayText
             font: control.font
             color: Theme.textPrimary
             verticalAlignment: Text.AlignVCenter
-            elide: Text.ElideRight
+            readOnly: true
+            selectByMouse: false
+            cursorVisible: false
+            selectionColor: "transparent"
+            selectedTextColor: color
         }
 
         indicator: Canvas {
@@ -649,6 +655,22 @@ Rectangle {
                                         Layout.fillWidth: true
                                         elide: Text.ElideRight
                                     }
+
+                                    Label {
+                                        text: bridge.currentProgrammeText
+                                        color: Theme.textPrimary
+                                        visible: bridge.currentProgrammeText.length > 0
+                                        Layout.fillWidth: true
+                                        elide: Text.ElideRight
+                                    }
+
+                                    Label {
+                                        text: bridge.nextProgrammeText
+                                        color: Theme.textSecondary
+                                        visible: bridge.nextProgrammeText.length > 0
+                                        Layout.fillWidth: true
+                                        elide: Text.ElideRight
+                                    }
                                 }
                             }
                         }
@@ -723,6 +745,22 @@ Rectangle {
                                 Label {
                                     text: root.effectiveStatusText
                                     color: Theme.textPrimary
+                                    Layout.fillWidth: true
+                                    elide: Text.ElideRight
+                                }
+
+                                Label {
+                                    text: bridge.currentProgrammeText
+                                    color: Theme.textPrimary
+                                    visible: bridge.currentProgrammeText.length > 0
+                                    Layout.fillWidth: true
+                                    elide: Text.ElideRight
+                                }
+
+                                Label {
+                                    text: bridge.nextProgrammeText
+                                    color: Theme.textSecondary
+                                    visible: bridge.nextProgrammeText.length > 0
                                     Layout.fillWidth: true
                                     elide: Text.ElideRight
                                 }

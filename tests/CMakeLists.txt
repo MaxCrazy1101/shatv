@@ -37,3 +37,49 @@ add_test(
     NAME m3u_playlist_parser_test
     COMMAND $<TARGET_FILE:m3u_playlist_parser_test>
 )
+
+add_executable(xmltv_epg_parser_test
+    unit/xmltv_epg_parser_test.cpp
+)
+
+target_link_libraries(xmltv_epg_parser_test
+    PRIVATE
+        shatv_app
+        Qt6::Test
+)
+
+add_test(
+    NAME xmltv_epg_parser_test
+    COMMAND $<TARGET_FILE:xmltv_epg_parser_test>
+)
+
+add_executable(epg_service_test
+    unit/epg_service_test.cpp
+)
+
+target_link_libraries(epg_service_test
+    PRIVATE
+        shatv_app
+        Qt6::Test
+)
+
+add_test(
+    NAME epg_service_test
+    COMMAND $<TARGET_FILE:epg_service_test>
+)
+
+add_executable(xmltv_epg_payload_test
+    unit/xmltv_epg_payload_test.cpp
+)
+
+target_link_libraries(xmltv_epg_payload_test
+    PRIVATE
+        shatv_app
+        Qt6::Test
+        ZLIB::ZLIB
+)
+
+add_test(
+    NAME xmltv_epg_payload_test
+    COMMAND $<TARGET_FILE:xmltv_epg_payload_test>
+)

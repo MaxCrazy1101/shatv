@@ -14,6 +14,7 @@
 #include "ui/video/mpv_video_item.h"
 #include "ui/windows/about_dialog_content.h"
 #include "ui/windows/main_window_bridge.h"
+#include "ui/windows/network_settings_dialog_content.h"
 
 namespace shatv::ui::windows {
 
@@ -84,6 +85,10 @@ void MainWindow::SetConfiguredUserAgent(const QString &user_agent) {
     configured_user_agent_ = user_agent;
 }
 
+void MainWindow::SetConfiguredEpgUrl(const QString &epg_url) {
+    configured_epg_url_ = epg_url;
+}
+
 void MainWindow::SetOsdAutoHideSeconds(int seconds) {
     Q_UNUSED(seconds);
     // 第一刀迁移先去掉 QWidget OSD 视口，自动隐藏策略后续在纯 QML overlay 中恢复。
@@ -104,6 +109,10 @@ void MainWindow::ShowStatusMessage(const QString &message, int timeout_ms) {
     }
 
     status_message_timer_.start(timeout_ms);
+}
+
+void MainWindow::SetProgrammeTexts(const QString &current_programme_text, const QString &next_programme_text) {
+    bridge_->SetProgrammeTexts(current_programme_text, next_programme_text);
 }
 
 int MainWindow::ChannelCount() const {
@@ -182,15 +191,12 @@ void MainWindow::OnOpenUrlRequested() {
 }
 
 void MainWindow::OnNetworkSettingsRequested() {
-    bool accepted = false;
-    const QString user_agent = QInputDialog::getText(this, tr("Network Settings"), tr("User-Agent:"),
-                                                     QLineEdit::Normal,
-                                                     configured_user_agent_, &accepted);
-    if (!accepted) {
+    NetworkSettingsDialog dialog(configured_user_agent_, configured_epg_url_, this);
+    if (dialog.exec() != QDialog::Accepted) {
         return;
     }
 
-    emit UserAgentChanged(user_agent.trimmed());
+    emit NetworkSettingsChanged(dialog.UserAgent(), dialog.EpgUrl());
 }
 
 void MainWindow::ToggleFullscreen() {
@@ -256,6 +262,7 @@ void MainWindow::BuildUi() {
     bridge_->SetRecentItems(recent_items_);
     bridge_->SetFullscreenActive(fullscreen_active_);
     bridge_->SetStatusMessage(status_message_);
+    bridge_->SetProgrammeTexts(QString(), QString());
     bridge_->SetPlaybackSnapshot(last_snapshot_);
 }
 

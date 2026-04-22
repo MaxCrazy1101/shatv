@@ -27,6 +27,8 @@ class MainWindowBridge final : public QObject {
     Q_PROPERTY(bool fullscreenActive READ FullscreenActive NOTIFY FullscreenActiveChanged)
     Q_PROPERTY(QString statusMessage READ StatusMessage NOTIFY StatusMessageChanged)
     Q_PROPERTY(QString currentChannelName READ CurrentChannelName NOTIFY CurrentChannelNameChanged)
+    Q_PROPERTY(QString currentProgrammeText READ CurrentProgrammeText NOTIFY CurrentProgrammeTextChanged)
+    Q_PROPERTY(QString nextProgrammeText READ NextProgrammeText NOTIFY NextProgrammeTextChanged)
     Q_PROPERTY(QString playbackStateText READ PlaybackStateText NOTIFY PlaybackStateTextChanged)
     Q_PROPERTY(QString playbackStateToken READ PlaybackStateToken NOTIFY PlaybackStateTokenChanged)
     Q_PROPERTY(bool playing READ Playing NOTIFY PlayingChanged)
@@ -44,6 +46,8 @@ class MainWindowBridge final : public QObject {
     bool FullscreenActive() const;
     QString StatusMessage() const;
     QString CurrentChannelName() const;
+    QString CurrentProgrammeText() const;
+    QString NextProgrammeText() const;
     QString PlaybackStateText() const;
     QString PlaybackStateToken() const;
     bool Playing() const;
@@ -56,6 +60,7 @@ class MainWindowBridge final : public QObject {
     void SetRecentItems(const std::vector<app::RecentOpenItem> &items);
     void SetFullscreenActive(bool active);
     void SetStatusMessage(const QString &message);
+    void SetProgrammeTexts(const QString &current_programme_text, const QString &next_programme_text);
     void SetPlaybackSnapshot(const domain::PlayerSnapshot &snapshot);
 
     Q_INVOKABLE void activateChannelRow(int row);
@@ -81,6 +86,8 @@ class MainWindowBridge final : public QObject {
     void FullscreenActiveChanged();
     void StatusMessageChanged();
     void CurrentChannelNameChanged();
+    void CurrentProgrammeTextChanged();
+    void NextProgrammeTextChanged();
     void PlaybackStateTextChanged();
     void PlaybackStateTokenChanged();
     void PlayingChanged();
@@ -109,6 +116,8 @@ class MainWindowBridge final : public QObject {
     bool fullscreen_active_ = false;
     QString status_message_;
     QString current_channel_name_;
+    QString current_programme_text_;
+    QString next_programme_text_;
     QString playback_state_text_;
     QString playback_state_token_;
     bool playing_ = false;

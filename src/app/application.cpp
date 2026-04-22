@@ -3,6 +3,7 @@
 #include <iostream>
 
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -12,7 +13,9 @@
 #include <QNetworkRequest>
 #include <QTimer>
 
+#include "app/epg_service.h"
 #include "app/m3u_playlist_parser.h"
+#include "app/xmltv_epg_payload.h"
 #include "application/player_controller.h"
 #include "domain/player_snapshot.h"
 #include "domain/playback_state.h"
@@ -31,6 +34,8 @@ domain::Channel BuildSmokeTestChannel() {
         .name = "Smoke Test",
         .url = QUrl("https://example.com/smoke-test.m3u8"),
         .group = "Smoke",
+        .tvg_id = {},
+        .tvg_name = {},
     };
 }
 
@@ -52,6 +57,19 @@ RecentOpenItem BuildRecentUrlItem(const QString &url_text, const QString &curren
         .target = channel.url.toString(),
         .label = channel.name,
     };
+}
+
+QString FormatProgrammeText(const std::optional<XmltvProgramme> &programme) {
+    if (!programme.has_value()) {
+        return {};
+    }
+
+    const QDateTime local_start = programme->start_at.toLocalTime();
+    const QDateTime local_stop = programme->stop_at.toLocalTime();
+    return QString("%1-%2 %3")
+        .arg(local_start.toString("HH:mm"),
+             local_stop.toString("HH:mm"),
+             programme->title);
 }
 
 }  // namespace
@@ -76,6 +94,7 @@ Application::Application(QApplication *qt_app, LaunchOptions options)
         std::cerr << "ShaTV config load failed path=" << settings_.ConfigPath().toStdString() << std::endl;
     }
     main_window_->SetConfiguredUserAgent(settings_.UserAgent());
+    main_window_->SetConfiguredEpgUrl(settings_.EpgUrl());
     main_window_->SetOsdAutoHideSeconds(settings_.OsdAutoHideSeconds());
     RefreshRecentItems();
 
@@ -93,8 +112,10 @@ Application::Application(QApplication *qt_app, LaunchOptions options)
                      [this](const QString &url_text) { OpenUrl(url_text); });
     QObject::connect(main_window_.get(), &ui::windows::MainWindow::RecentOpenSelected, qt_app_,
                      [this](const QString &kind, const QString &target) { OpenRecentItem(kind, target); });
-    QObject::connect(main_window_.get(), &ui::windows::MainWindow::UserAgentChanged, qt_app_,
-                     [this](const QString &user_agent) { UpdateNetworkUserAgent(user_agent); });
+    QObject::connect(main_window_.get(), &ui::windows::MainWindow::NetworkSettingsChanged, qt_app_,
+                     [this](const QString &user_agent, const QString &epg_url) {
+                         UpdateNetworkSettings(user_agent, epg_url);
+                     });
 
     QObject::connect(controller_.get(), &application::PlayerController::PlaybackSnapshotChanged, qt_app_,
                      [this](const domain::PlayerSnapshot &snapshot) {
@@ -104,10 +125,20 @@ Application::Application(QApplication *qt_app, LaunchOptions options)
                          if (snapshot.muted != settings_.Muted()) {
                              settings_.SetMuted(snapshot.muted);
                          }
+                         if (!snapshot.channel_id.isEmpty()) {
+                             UpdateDisplayedEpg();
+                         }
                      });
+    QObject::connect(controller_.get(), &application::PlayerController::CurrentChannelChanged, qt_app_,
+                     [this](const QString &) { UpdateDisplayedEpg(); });
+
+    epg_refresh_timer_.setInterval(60 * 1000);
+    QObject::connect(&epg_refresh_timer_, &QTimer::timeout, qt_app_, [this]() { UpdateDisplayedEpg(); });
+    epg_refresh_timer_.start();
 
     startup_channel_ = BuildStartupChannel(options_, qEnvironmentVariable("SHATV_SMOKE_MEDIA"), QDir::currentPath());
     initial_channels_ = BuildInitialChannels();
+    current_channels_ = initial_channels_;
     main_window_->SetChannels(initial_channels_);
 }
 
@@ -160,17 +191,19 @@ void Application::OpenChannel(const domain::Channel &channel) {
     }
 
     // 菜单入口统一替换成单项列表，避免当前阶段再引入复杂播放列表管理。
-    main_window_->SetChannels({channel});
-    main_window_->StartInitialPlayback();
+    OpenChannels({channel});
 }
 
-void Application::OpenChannels(std::vector<domain::Channel> channels) {
+void Application::OpenChannels(std::vector<domain::Channel> channels, const QString &playlist_epg_url) {
     if (channels.empty()) {
         ShowPlaylistImportError(QCoreApplication::translate("Application", "Playlist contains no playable channels"));
         return;
     }
 
+    current_channels_ = channels;
+    playlist_epg_url_ = playlist_epg_url;
     main_window_->SetChannels(std::move(channels));
+    ReloadEpg();
     main_window_->StartInitialPlayback();
 }
 
@@ -196,14 +229,14 @@ void Application::OpenPlaylistFile(const QString &path) {
     }
 
     const QString text = QString::fromUtf8(input.readAll());
-    const auto channels = ParseM3uPlaylistText(text, QFileInfo(path).baseName());
-    if (channels.empty()) {
+    const PlaylistImportResult playlist = ParsePlaylistImportText(text, QFileInfo(path).baseName());
+    if (playlist.channels.empty()) {
         ShowPlaylistImportError(QCoreApplication::translate("Application", "Playlist contains no playable channels"));
         return;
     }
 
     RememberRecentItem(BuildRecentFileItem(path, QDir::currentPath()));
-    OpenChannels(channels);
+    OpenChannels(playlist.channels, playlist.epg_url);
 }
 
 void Application::OpenUrl(const QString &url_text) {
@@ -261,13 +294,13 @@ void Application::DownloadPlaylist(const QUrl &url) {
             return;
         }
 
-        const auto channels = ParseM3uPlaylistText(text, QFileInfo(url.path()).baseName());
-        if (channels.empty()) {
+        const PlaylistImportResult playlist = ParsePlaylistImportText(text, QFileInfo(url.path()).baseName());
+        if (playlist.channels.empty()) {
             ShowPlaylistImportError(QCoreApplication::translate("Application", "Playlist contains no playable channels"));
             return;
         }
 
-        OpenChannels(channels);
+        OpenChannels(playlist.channels, playlist.epg_url);
     });
 }
 
@@ -275,21 +308,153 @@ void Application::ShowPlaylistImportError(const QString &message) {
     QMessageBox::warning(main_window_.get(), QCoreApplication::translate("Application", "ShaTV"), message);
 }
 
-void Application::UpdateNetworkUserAgent(const QString &user_agent) {
+void Application::UpdateNetworkSettings(const QString &user_agent, const QString &epg_url) {
+    const QString previous_user_agent = settings_.UserAgent();
+    const QString previous_epg_url = settings_.EpgUrl();
+
     settings_.SetUserAgent(user_agent);
+    settings_.SetEpgUrl(epg_url);
     if (!settings_.Save()) {
+        settings_.SetUserAgent(previous_user_agent);
+        settings_.SetEpgUrl(previous_epg_url);
         QMessageBox::warning(
             main_window_.get(), QCoreApplication::translate("Application", "ShaTV"),
-            QCoreApplication::translate("Application", "Failed to save User-Agent to %1")
+            QCoreApplication::translate("Application", "Failed to save network settings to %1")
                 .arg(QDir::toNativeSeparators(settings_.ConfigPath())));
         return;
     }
 
     main_window_->SetConfiguredUserAgent(settings_.UserAgent());
+    main_window_->SetConfiguredEpgUrl(settings_.EpgUrl());
     if (auto *mpv_backend = dynamic_cast<player::MpvPlayerBackend *>(backend_.get())) {
         mpv_backend->SetNetworkUserAgent(settings_.UserAgent());
     }
+    ReloadEpg();
     main_window_->ShowStatusMessage(QCoreApplication::translate("Application", "Network settings saved"), 3000);
+}
+
+void Application::ReloadEpg() {
+    ++epg_load_generation_;
+    epg_service_ = EpgService{};
+    ClearDisplayedEpg();
+
+    const QString source_url = EpgService::ResolveSourceUrl(settings_.EpgUrl(), playlist_epg_url_);
+    if (source_url.isEmpty() || current_channels_.empty()) {
+        return;
+    }
+
+    const int generation = epg_load_generation_;
+    const QUrl epg_url = QUrl::fromUserInput(source_url, QDir::currentPath(), QUrl::AssumeLocalFile);
+    if (epg_url.isLocalFile()) {
+        QFile input(epg_url.toLocalFile());
+        if (!input.open(QIODevice::ReadOnly)) {
+            std::cerr << "ShaTV EPG load failed source=" << source_url.toStdString()
+                      << " reason=read-local-file" << std::endl;
+            return;
+        }
+
+        QString decode_error;
+        const std::optional<QString> xml = DecodeXmltvPayload(input.readAll(), source_url, &decode_error);
+        if (!xml.has_value()) {
+            std::cerr << "ShaTV EPG load failed source=" << source_url.toStdString()
+                      << " reason=" << decode_error.toStdString() << std::endl;
+            return;
+        }
+
+        EpgService loaded_service;
+        QString parse_error;
+        if (!loaded_service.LoadXmltv(*xml, &parse_error)) {
+            std::cerr << "ShaTV EPG parse failed source=" << source_url.toStdString()
+                      << " reason=" << parse_error.toStdString() << std::endl;
+            return;
+        }
+
+        if (generation != epg_load_generation_) {
+            return;
+        }
+
+        epg_service_ = std::move(loaded_service);
+        UpdateDisplayedEpg();
+        return;
+    }
+
+    QNetworkRequest request(epg_url);
+    if (!settings_.UserAgent().isEmpty()) {
+        request.setHeader(QNetworkRequest::UserAgentHeader, settings_.UserAgent());
+    }
+
+    QNetworkReply *reply = network_manager_->get(request);
+    QObject::connect(reply, &QNetworkReply::finished, main_window_.get(), [this, reply, source_url, generation]() {
+        const std::unique_ptr<QNetworkReply, void (*)(QNetworkReply *)> cleanup(reply, [](QNetworkReply *r) {
+            if (r != nullptr) {
+                r->deleteLater();
+            }
+        });
+
+        if (generation != epg_load_generation_) {
+            return;
+        }
+
+        if (reply->error() != QNetworkReply::NoError) {
+            std::cerr << "ShaTV EPG download failed source=" << source_url.toStdString()
+                      << " reason=" << reply->errorString().toStdString() << std::endl;
+            return;
+        }
+
+        QString decode_error;
+        const std::optional<QString> xml = DecodeXmltvPayload(reply->readAll(), source_url, &decode_error);
+        if (!xml.has_value()) {
+            std::cerr << "ShaTV EPG load failed source=" << source_url.toStdString()
+                      << " reason=" << decode_error.toStdString() << std::endl;
+            return;
+        }
+
+        EpgService loaded_service;
+        QString parse_error;
+        if (!loaded_service.LoadXmltv(*xml, &parse_error)) {
+            std::cerr << "ShaTV EPG parse failed source=" << source_url.toStdString()
+                      << " reason=" << parse_error.toStdString() << std::endl;
+            return;
+        }
+
+        if (generation != epg_load_generation_) {
+            return;
+        }
+
+        epg_service_ = std::move(loaded_service);
+        UpdateDisplayedEpg();
+    });
+}
+
+void Application::UpdateDisplayedEpg() {
+    const QString current_channel_id = controller_->CurrentSnapshot().channel_id;
+    if (current_channel_id.isEmpty()) {
+        ClearDisplayedEpg();
+        return;
+    }
+
+    const std::optional<domain::Channel> channel = FindChannelById(current_channel_id);
+    if (!channel.has_value()) {
+        ClearDisplayedEpg();
+        return;
+    }
+
+    const ChannelEpgNowNext now_next = epg_service_.LookupNowNext(*channel, QDateTime::currentDateTime());
+    main_window_->SetProgrammeTexts(FormatProgrammeText(now_next.current), FormatProgrammeText(now_next.next));
+}
+
+void Application::ClearDisplayedEpg() {
+    main_window_->SetProgrammeTexts(QString(), QString());
+}
+
+std::optional<domain::Channel> Application::FindChannelById(const QString &channel_id) const {
+    for (const domain::Channel &channel : current_channels_) {
+        if (channel.id == channel_id) {
+            return channel;
+        }
+    }
+
+    return std::nullopt;
 }
 
 void Application::RememberRecentItem(const RecentOpenItem &item) {
