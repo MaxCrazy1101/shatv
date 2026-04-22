@@ -2,12 +2,17 @@
 
 #include <QApplication>
 #include <QLocale>
+#include <QQuickStyle>
 #include <QTranslator>
 
 #include "app/application.h"
 #include "app/launch_options.h"
 
 int main(int argc, char *argv[]) {
+#ifdef Q_OS_WIN
+    // Windows 默认 Quick Controls style 不适合当前这种深色自定义外观，钉到 Fusion 保持和 Linux 一致。
+    QQuickStyle::setStyle(QStringLiteral("Fusion"));
+#endif
     QApplication app(argc, argv);
     // Qt 初始化后会覆盖 LC_NUMERIC，这里统一钉回 C 供 libmpv 使用。
     std::setlocale(LC_NUMERIC, "C");

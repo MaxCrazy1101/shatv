@@ -1,4 +1,4 @@
-#include "ui/qml_spike/mpv_video_item.h"
+#include "ui/video/mpv_video_item.h"
 
 #include <QMetaObject>
 #include <QOpenGLContext>
@@ -9,7 +9,7 @@
 
 #include "player/mpv_player_backend.h"
 
-namespace shatv::ui::qml_spike {
+namespace shatv::ui::video {
 
 class MpvVideoRenderer final : public QQuickFramebufferObject::Renderer {
    public:
@@ -105,7 +105,7 @@ void MpvVideoItem::MakeCurrent() {
 }
 
 void MpvVideoItem::DoneCurrent() {
-    // Spike 阶段保持与 MakeCurrent 对称的空实现，避免额外引入 surface 管理。
+    // 这里保持与 MakeCurrent 对称的空实现，避免额外引入 surface 管理。
 }
 
 void MpvVideoItem::RequestUpdate() {
@@ -131,10 +131,9 @@ void RegisterQmlVideoTypes() {
         return;
     }
 
-    // 主线和 spike 共用同一个视频项注册入口，避免 QWidget/QML 两套视频承载继续分叉。
     qmlRegisterModule("ShaTV.Video", 1, 0);
     qmlRegisterType<MpvVideoItem>("ShaTV.Video", 1, 0, "MpvVideoItem");
     registered = true;
 }
 
-}  // namespace shatv::ui::qml_spike
+}  // namespace shatv::ui::video

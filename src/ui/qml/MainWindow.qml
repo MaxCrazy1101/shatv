@@ -79,6 +79,210 @@ Rectangle {
         border.width: 1
     }
 
+    component ThemedToolButton: ToolButton {
+        id: control
+
+        implicitHeight: 34
+        leftPadding: Theme.spacingMd
+        rightPadding: Theme.spacingMd
+        topPadding: Theme.spacingSm
+        bottomPadding: Theme.spacingSm
+        hoverEnabled: true
+
+        contentItem: Text {
+            text: control.text
+            font: control.font
+            color: Theme.textPrimary
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
+        }
+
+        background: Rectangle {
+            radius: Theme.radiusSm
+            color: control.down
+                ? Theme.controlSurfacePressed
+                : (control.hovered ? Theme.controlSurfaceHover : Theme.controlSurface)
+            border.width: 1
+            border.color: control.visualFocus ? Theme.controlBorderStrong : Theme.controlBorder
+            opacity: control.enabled ? 1.0 : 0.6
+        }
+    }
+
+    component ThemedTextField: TextField {
+        id: control
+
+        implicitHeight: 38
+        color: Theme.textPrimary
+        placeholderTextColor: Theme.textSecondary
+        selectedTextColor: Theme.surface
+        selectionColor: Theme.controlAccent
+        leftPadding: Theme.spacingMd
+        rightPadding: Theme.spacingMd
+        topPadding: Theme.spacingSm
+        bottomPadding: Theme.spacingSm
+
+        background: Rectangle {
+            radius: Theme.radiusSm
+            color: control.enabled ? Theme.controlSurface : Theme.controlSurfaceDisabled
+            border.width: 1
+            border.color: control.activeFocus ? Theme.controlBorderStrong : Theme.controlBorder
+        }
+    }
+
+    component ThemedItemDelegate: ItemDelegate {
+        id: control
+
+        leftPadding: Theme.spacingMd
+        rightPadding: Theme.spacingMd
+        topPadding: Theme.spacingSm
+        bottomPadding: Theme.spacingSm
+        hoverEnabled: true
+
+        contentItem: Text {
+            text: control.text
+            font: control.font
+            color: Theme.textPrimary
+            elide: Text.ElideRight
+            verticalAlignment: Text.AlignVCenter
+        }
+
+        background: Rectangle {
+            radius: Theme.radiusSm
+            color: control.highlighted
+                ? Theme.listItemCurrent
+                : (control.hovered ? Theme.listItemHover : "transparent")
+            border.width: control.visualFocus ? 1 : 0
+            border.color: Theme.controlBorderStrong
+        }
+    }
+
+    component ThemedComboBox: ComboBox {
+        id: control
+
+        implicitHeight: 38
+        leftPadding: Theme.spacingMd
+        rightPadding: Theme.spacingMd + indicator.width + Theme.spacingSm
+        topPadding: Theme.spacingSm
+        bottomPadding: Theme.spacingSm
+        hoverEnabled: true
+
+        delegate: ItemDelegate {
+            id: optionDelegate
+            required property var modelData
+
+            width: control.width
+            text: modelData
+            highlighted: control.highlightedIndex === index
+            hoverEnabled: true
+
+            contentItem: Text {
+                text: optionDelegate.text
+                font: optionDelegate.font
+                color: Theme.textPrimary
+                elide: Text.ElideRight
+                verticalAlignment: Text.AlignVCenter
+            }
+
+            background: Rectangle {
+                radius: Theme.radiusSm
+                color: optionDelegate.highlighted
+                    ? Theme.listItemCurrent
+                    : (optionDelegate.hovered ? Theme.listItemHover : "transparent")
+            }
+        }
+
+        contentItem: Text {
+            leftPadding: 0
+            rightPadding: 0
+            text: control.displayText
+            font: control.font
+            color: Theme.textPrimary
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
+        }
+
+        indicator: Canvas {
+            x: control.width - width - Theme.spacingMd
+            y: (control.height - height) / 2
+            width: 10
+            height: 6
+
+            onPaint: {
+                const context = getContext("2d")
+                context.reset()
+                context.moveTo(0, 0)
+                context.lineTo(width, 0)
+                context.lineTo(width / 2, height)
+                context.closePath()
+                context.fillStyle = Theme.textSecondary
+                context.fill()
+            }
+        }
+
+        background: Rectangle {
+            radius: Theme.radiusSm
+            color: control.pressed
+                ? Theme.controlSurfacePressed
+                : (control.hovered ? Theme.controlSurfaceHover : Theme.controlSurface)
+            border.width: 1
+            border.color: control.visualFocus ? Theme.controlBorderStrong : Theme.controlBorder
+        }
+
+        popup: Popup {
+            y: control.height + Theme.spacingXs
+            width: control.width
+            padding: Theme.spacingXs
+
+            background: Rectangle {
+                color: Theme.surfaceContainer
+                radius: Theme.radiusMd
+                border.width: 1
+                border.color: Theme.outline
+            }
+
+            contentItem: ListView {
+                clip: true
+                implicitHeight: contentHeight
+                model: control.delegateModel
+                currentIndex: control.highlightedIndex
+            }
+        }
+    }
+
+    component ThemedSlider: Slider {
+        id: control
+
+        implicitHeight: 24
+
+        background: Rectangle {
+            x: control.leftPadding
+            y: control.topPadding + (control.availableHeight - height) / 2
+            width: control.availableWidth
+            height: 4
+            radius: 2
+            color: Theme.controlAccentMuted
+
+            Rectangle {
+                width: control.visualPosition * parent.width
+                height: parent.height
+                radius: parent.radius
+                color: Theme.controlAccent
+            }
+        }
+
+        handle: Rectangle {
+            x: control.leftPadding + control.visualPosition * (control.availableWidth - width)
+            y: control.topPadding + (control.availableHeight - height) / 2
+            width: 14
+            height: 14
+            radius: 7
+            color: Theme.textPrimary
+            border.width: 1
+            border.color: Theme.controlBorder
+        }
+    }
+
     Component {
         id: menuBarItemDelegate
 
@@ -90,7 +294,11 @@ Rectangle {
             rightPadding: Theme.spacingMd
 
             palette.windowText: Theme.textPrimary
+            palette.buttonText: Theme.textPrimary
+            palette.text: Theme.textPrimary
             palette.disabled.windowText: Theme.textDisabled
+            palette.disabled.buttonText: Theme.textDisabled
+            palette.disabled.text: Theme.textDisabled
 
             background: Rectangle {
                 radius: Theme.radiusSm
@@ -110,7 +318,12 @@ Rectangle {
             rightPadding: Theme.spacingMd
 
             palette.windowText: Theme.textPrimary
+            palette.buttonText: Theme.textPrimary
+            palette.text: Theme.textPrimary
+            palette.highlightedText: Theme.textPrimary
             palette.disabled.windowText: Theme.textDisabled
+            palette.disabled.buttonText: Theme.textDisabled
+            palette.disabled.text: Theme.textDisabled
 
             arrow: Canvas {
                 x: control.mirrored ? Theme.spacingSm : control.width - width - Theme.spacingSm
@@ -157,7 +370,11 @@ Rectangle {
             text: modelData.label
 
             palette.windowText: Theme.textPrimary
+            palette.buttonText: Theme.textPrimary
+            palette.text: Theme.textPrimary
             palette.disabled.windowText: Theme.textDisabled
+            palette.disabled.buttonText: Theme.textDisabled
+            palette.disabled.text: Theme.textDisabled
 
             background: Rectangle {
                 radius: Theme.radiusSm
@@ -222,7 +439,11 @@ Rectangle {
                             text: modelData.label
 
                             palette.windowText: Theme.textPrimary
+                            palette.buttonText: Theme.textPrimary
+                            palette.text: Theme.textPrimary
                             palette.disabled.windowText: Theme.textDisabled
+                            palette.disabled.buttonText: Theme.textDisabled
+                            palette.disabled.text: Theme.textDisabled
 
                             background: Rectangle {
                                 radius: Theme.radiusSm
@@ -290,7 +511,7 @@ Rectangle {
                     anchors.margins: Theme.spacingMd
                     spacing: Theme.spacingSm
 
-                    TextField {
+                    ThemedTextField {
                         id: searchField
                         Layout.fillWidth: true
                         placeholderText: qsTr("Search channels")
@@ -298,7 +519,7 @@ Rectangle {
                         onTextChanged: bridge.setSearchText(text)
                     }
 
-                    ComboBox {
+                    ThemedComboBox {
                         Layout.fillWidth: true
                         model: root.groupItems
                         currentIndex: root.selectedGroupIndex
@@ -313,7 +534,7 @@ Rectangle {
                         model: bridge.channelModel
                         spacing: Theme.spacingXs
 
-                        delegate: ItemDelegate {
+                        delegate: ThemedItemDelegate {
                             required property int index
                             required property string channelName
                             required property bool isCurrent
@@ -380,22 +601,22 @@ Rectangle {
                                     Layout.fillWidth: true
                                     spacing: Theme.spacingMd
 
-                                    ToolButton {
+                                    ThemedToolButton {
                                         text: root.showPauseAction ? qsTr("Pause") : qsTr("Play")
                                         onClicked: bridge.requestPlayPause()
                                     }
 
-                                    ToolButton {
+                                    ThemedToolButton {
                                         text: qsTr("Stop")
                                         onClicked: bridge.requestStop()
                                     }
 
-                                    ToolButton {
+                                    ThemedToolButton {
                                         text: bridge.muted ? qsTr("Unmute") : qsTr("Mute")
                                         onClicked: bridge.toggleMute()
                                     }
 
-                                    Slider {
+                                    ThemedSlider {
                                         Layout.fillWidth: true
                                         from: 0
                                         to: 100
@@ -404,7 +625,7 @@ Rectangle {
                                         onMoved: bridge.setVolume(Math.round(value))
                                     }
 
-                                    ToolButton {
+                                    ThemedToolButton {
                                         text: qsTr("Exit Full Screen")
                                         onClicked: bridge.exitFullscreen()
                                     }
@@ -444,22 +665,22 @@ Rectangle {
                             anchors.margins: Theme.spacingMd
                             spacing: Theme.spacingMd
 
-                            ToolButton {
+                            ThemedToolButton {
                                 text: root.showPauseAction ? qsTr("Pause") : qsTr("Play")
                                 onClicked: bridge.requestPlayPause()
                             }
 
-                            ToolButton {
+                            ThemedToolButton {
                                 text: qsTr("Stop")
                                 onClicked: bridge.requestStop()
                             }
 
-                            ToolButton {
+                            ThemedToolButton {
                                 text: bridge.muted ? qsTr("Unmute") : qsTr("Mute")
                                 onClicked: bridge.toggleMute()
                             }
 
-                            Slider {
+                            ThemedSlider {
                                 Layout.fillWidth: true
                                 from: 0
                                 to: 100
@@ -468,7 +689,7 @@ Rectangle {
                                 onMoved: bridge.setVolume(Math.round(value))
                             }
 
-                            ToolButton {
+                            ThemedToolButton {
                                 text: qsTr("Full Screen")
                                 onClicked: bridge.toggleFullscreen()
                             }

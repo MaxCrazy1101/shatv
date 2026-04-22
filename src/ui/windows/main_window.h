@@ -28,7 +28,7 @@ class ChannelFilterModel;
 class ChannelListModel;
 }
 
-namespace shatv::ui::qml_spike {
+namespace shatv::ui::video {
 class MpvVideoItem;
 }
 
@@ -88,7 +88,7 @@ class MainWindow final : public QMainWindow {
     ui::models::ChannelFilterModel *channel_filter_model_ = nullptr;
     QQuickWidget *qml_view_ = nullptr;
     QPointer<QObject> qml_root_object_;
-    QPointer<ui::qml_spike::MpvVideoItem> video_item_;
+    QPointer<ui::video::MpvVideoItem> video_item_;
     MainWindowBridge *bridge_ = nullptr;
     std::vector<app::RecentOpenItem> recent_items_;
     domain::PlayerSnapshot last_snapshot_;

@@ -11,7 +11,7 @@
 #include "player/mpv_player_backend.h"
 #include "ui/models/channel_filter_model.h"
 #include "ui/models/channel_list_model.h"
-#include "ui/qml_spike/mpv_video_item.h"
+#include "ui/video/mpv_video_item.h"
 #include "ui/windows/about_dialog_content.h"
 #include "ui/windows/main_window_bridge.h"
 
@@ -239,7 +239,7 @@ void MainWindow::BuildUi() {
     qml_view_->setObjectName(QStringLiteral("mainWindowQmlView"));
     qml_view_->setResizeMode(QQuickWidget::SizeRootObjectToView);
     qml_view_->rootContext()->setContextProperty(QStringLiteral("mainWindowBridge"), bridge_);
-    ui::qml_spike::RegisterQmlVideoTypes();
+    ui::video::RegisterQmlVideoTypes();
     setCentralWidget(qml_view_);
 
     qml_view_->setSource(QUrl(QStringLiteral("qrc:/qt/qml/MainWindow.qml")));
@@ -247,7 +247,7 @@ void MainWindow::BuildUi() {
     Q_ASSERT(qml_root_object_ != nullptr);
 
     video_item_ =
-        qobject_cast<ui::qml_spike::MpvVideoItem *>(qml_root_object_->findChild<QObject *>(QStringLiteral("playerVideoItem")));
+        qobject_cast<ui::video::MpvVideoItem *>(qml_root_object_->findChild<QObject *>(QStringLiteral("playerVideoItem")));
     Q_ASSERT(video_item_ != nullptr);
 
     bridge_->SetAvailableGroups(channel_filter_model_->AvailableGroups());

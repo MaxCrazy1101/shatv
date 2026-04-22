@@ -18,6 +18,19 @@ QtObject {
 
     // Outline
     readonly property color outline: "#33415c"
+    readonly property color focusRing: "#5a88ff"
+
+    // Control surfaces
+    readonly property color controlSurface: "#263047"
+    readonly property color controlSurfaceHover: "#2e3953"
+    readonly property color controlSurfacePressed: "#38486a"
+    readonly property color controlSurfaceDisabled: "#232b3d"
+    readonly property color controlBorder: "#41506d"
+    readonly property color controlBorderStrong: "#5a88ff"
+    readonly property color controlAccent: "#5a88ff"
+    readonly property color controlAccentMuted: "#34486f"
+    readonly property color listItemCurrent: "#334766"
+    readonly property color listItemHover: "#29364d"
 
     // Spacing
     readonly property int spacingXs: 4

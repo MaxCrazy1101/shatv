@@ -14,7 +14,7 @@ add_library(shatv_app
     player/mpv_event_adapter.cpp
     player/mpv_player_backend.cpp
     player/player_backend.cpp
-    ui/qml_spike/mpv_video_item.cpp
+    ui/video/mpv_video_item.cpp
     ui/models/channel_filter_model.cpp
     ui/models/channel_list_model.cpp
     ui/windows/about_dialog_content.cpp
@@ -48,33 +48,6 @@ add_executable(shatv
 target_link_libraries(shatv
     PRIVATE
         shatv_app
-)
-
-add_executable(shatv_qml_spike
-    app/qml_spike_main.cpp
-    ui/qml_spike/spike_playback_bridge.cpp
-)
-
-target_include_directories(shatv_qml_spike
-    PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}
-)
-
-target_link_libraries(shatv_qml_spike
-    PRIVATE
-        Qt6::Core
-        Qt6::Gui
-        Qt6::Qml
-        Qt6::Quick
-        Qt6::QuickControls2
-        shatv_app
-)
-
-qt_add_qml_module(shatv_qml_spike
-    URI ShaTV.Spike
-    VERSION 1.0
-    QML_FILES
-        ui/qml_spike/qml/SpikeWindow.qml
 )
 
 if(TARGET Qt6::lrelease)

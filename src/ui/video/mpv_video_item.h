@@ -9,7 +9,7 @@ namespace shatv::player {
 class MpvPlayerBackend;
 }
 
-namespace shatv::ui::qml_spike {
+namespace shatv::ui::video {
 
 class MpvVideoRenderer;
 
@@ -46,4 +46,4 @@ class MpvVideoItem : public QQuickFramebufferObject, public shatv::player::MpvRe
 
 void RegisterQmlVideoTypes();
 
-}  // namespace shatv::ui::qml_spike
+}  // namespace shatv::ui::video
