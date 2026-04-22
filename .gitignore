@@ -15,6 +15,9 @@ local-media/
 testdata/media/
 testdata/hls/
 
-.codex
-.claude
+.codex/
+.claude/
+.trellis/
+.agents/
+AGENTS.md
 docs/superpowers/
