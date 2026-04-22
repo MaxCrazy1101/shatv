@@ -75,10 +75,8 @@ ApplicationWindow {
     property int savedNormalWidth: width
     property int savedNormalHeight: height
     readonly property var groupItems: [qsTr("All groups"), ...bridge.availableGroups]
-    // Windows 下 Popup.Window 会把菜单兼容性打坏，frameless 标题栏改用 overlay 内 Popup.Item。
-    readonly property int menuPopupType: (Qt.platform.pluginName === "windows" || Qt.platform.pluginName === "wayland")
-        ? Popup.Item
-        : Popup.Window
+    // 标题栏菜单不需要独立窗口，统一走 Popup.Item 才能稳定复用 overlay 事件拦截。
+    readonly property int shellPopupType: Popup.Item
     readonly property string effectiveStatusText: bridge.statusMessage.length > 0
         ? bridge.statusMessage
         : (bridge.playbackStateText.length > 0 ? bridge.playbackStateText : qsTr("Ready"))
@@ -234,17 +232,27 @@ ApplicationWindow {
     function openFileMenu(button) {
         const overlay = Overlay.overlay
         const point = button.mapToItem(overlay, 0, button.height + Shell.Theme.spacingXs)
-        fileMenu.x = point.x
-        fileMenu.y = titleBar.height - Shell.Theme.spacingXs
-        fileMenu.open()
+        settingsMenuPopup.close()
+        fileMenuPopup.x = point.x
+        fileMenuPopup.y = point.y
+        if (fileMenuPopup.visible) {
+            fileMenuPopup.close()
+            return
+        }
+        fileMenuPopup.open()
     }
 
     function openSettingsMenu(button) {
         const overlay = Overlay.overlay
         const point = button.mapToItem(overlay, 0, button.height + Shell.Theme.spacingXs)
-        settingsMenu.x = point.x
-        settingsMenu.y = titleBar.height - Shell.Theme.spacingXs
-        settingsMenu.open()
+        fileMenuPopup.close()
+        settingsMenuPopup.x = point.x
+        settingsMenuPopup.y = point.y
+        if (settingsMenuPopup.visible) {
+            settingsMenuPopup.close()
+            return
+        }
+        settingsMenuPopup.open()
     }
 
     function resizeCursor(edges) {
@@ -307,88 +315,9 @@ ApplicationWindow {
         }
     }
 
-    Component {
-        id: menuItemDelegate
-
-        MenuItem {
-            id: control
-
-            implicitHeight: 32
-            implicitWidth: Math.max(160,
-                                    implicitBackgroundWidth + leftInset + rightInset,
-                                    implicitContentWidth + leftPadding + rightPadding)
-            leftPadding: Shell.Theme.spacingMd
-            rightPadding: Shell.Theme.spacingMd
-
-            palette.windowText: Shell.Theme.textPrimary
-            palette.buttonText: Shell.Theme.textPrimary
-            palette.text: Shell.Theme.textPrimary
-            palette.highlightedText: Shell.Theme.textPrimary
-            palette.disabled.windowText: Shell.Theme.textDisabled
-            palette.disabled.buttonText: Shell.Theme.textDisabled
-            palette.disabled.text: Shell.Theme.textDisabled
-
-            arrow: Canvas {
-                x: control.mirrored ? Shell.Theme.spacingSm : control.width - width - Shell.Theme.spacingSm
-                y: (control.height - height) / 2
-                width: 8
-                height: 8
-                visible: control.subMenu
-
-                onPaint: {
-                    const context = getContext("2d")
-                    context.reset()
-                    context.moveTo(0, 0)
-                    context.lineTo(width, height / 2)
-                    context.lineTo(0, height)
-                    context.closePath()
-                    context.fillStyle = Shell.Theme.textSecondary
-                    context.fill()
-                }
-            }
-
-            indicator: Item {
-                implicitWidth: 0
-                implicitHeight: 0
-            }
-
-            background: Rectangle {
-                radius: Shell.Theme.radiusSm
-                color: control.highlighted ? Shell.Theme.surfaceContainerHighest : "transparent"
-            }
-        }
-    }
-
-    Component {
-        id: recentItemDelegate
-
-        MenuItem {
-            id: control
-            required property int index
-            required property var modelData
-
-            implicitHeight: 32
-            implicitWidth: Math.max(160,
-                                    implicitBackgroundWidth + leftInset + rightInset,
-                                    implicitContentWidth + leftPadding + rightPadding)
-            leftPadding: Shell.Theme.spacingMd
-            rightPadding: Shell.Theme.spacingMd
-            text: modelData.label
-
-            palette.windowText: Shell.Theme.textPrimary
-            palette.buttonText: Shell.Theme.textPrimary
-            palette.text: Shell.Theme.textPrimary
-            palette.disabled.windowText: Shell.Theme.textDisabled
-            palette.disabled.buttonText: Shell.Theme.textDisabled
-            palette.disabled.text: Shell.Theme.textDisabled
-
-            background: Rectangle {
-                radius: Shell.Theme.radiusSm
-                color: control.highlighted ? Shell.Theme.surfaceContainerHighest : "transparent"
-            }
-
-            onTriggered: bridge.openRecentAt(index)
-        }
+    component PopupActionItem: Controls.ThemedItemDelegate {
+        implicitHeight: 32
+        width: parent ? parent.width : implicitWidth
     }
 
     header: Rectangle {
@@ -504,11 +433,16 @@ ApplicationWindow {
             }
         }
 
-        Menu {
-            id: fileMenu
+        Popup {
+            id: fileMenuPopup
             parent: Overlay.overlay
-            popupType: root.menuPopupType
-            delegate: menuItemDelegate
+            popupType: root.shellPopupType
+            width: 260
+            padding: Shell.Theme.spacingXs
+            modal: true
+            dim: false
+            focus: true
+            closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside | Popup.CloseOnPressOutsideParent
 
             background: Rectangle {
                 color: Shell.Theme.surfaceContainer
@@ -517,50 +451,69 @@ ApplicationWindow {
                 border.width: 1
             }
 
-            Action {
-                text: qsTr("Open File...")
-                onTriggered: fileDialog.open()
-            }
+            contentItem: Column {
+                spacing: Shell.Theme.spacingXs
 
-            Action {
-                text: qsTr("Open Link...")
-                onTriggered: openUrlDialog.openWithValue("http://")
-            }
-
-            Menu {
-                id: recentMenu
-                title: qsTr("Open Recent")
-                enabled: bridge.recentItems.length > 0
-                popupType: root.menuPopupType
-                delegate: recentItemDelegate
-
-                background: Rectangle {
-                    color: Shell.Theme.surfaceContainer
-                    radius: Shell.Theme.radiusMd
-                    border.color: Shell.Theme.outline
-                    border.width: 1
+                PopupActionItem {
+                    text: qsTr("Open File...")
+                    onClicked: {
+                        fileMenuPopup.close()
+                        fileDialog.open()
+                    }
                 }
 
-                Instantiator {
-                    model: bridge.recentItems
-                    delegate: recentItemDelegate
-
-                    onObjectAdded: function(index, object) {
-                        recentMenu.insertItem(index, object)
+                PopupActionItem {
+                    text: qsTr("Open Link...")
+                    onClicked: {
+                        fileMenuPopup.close()
+                        openUrlDialog.openWithValue("http://")
                     }
+                }
 
-                    onObjectRemoved: function(index, object) {
-                        recentMenu.removeItem(object)
+                Rectangle {
+                    width: parent.width
+                    height: 1
+                    color: Shell.Theme.outline
+                    opacity: 0.8
+                }
+
+                Label {
+                    width: parent.width
+                    leftPadding: Shell.Theme.spacingMd
+                    rightPadding: Shell.Theme.spacingMd
+                    topPadding: Shell.Theme.spacingXs
+                    bottomPadding: Shell.Theme.spacingXs
+                    text: qsTr("Open Recent")
+                    color: bridge.recentItems.length > 0 ? Shell.Theme.textSecondary : Shell.Theme.textDisabled
+                }
+
+                Repeater {
+                    model: bridge.recentItems
+
+                    delegate: PopupActionItem {
+                        required property int index
+                        required property var modelData
+
+                        text: modelData.label
+                        onClicked: {
+                            fileMenuPopup.close()
+                            bridge.openRecentAt(index)
+                        }
                     }
                 }
             }
         }
 
-        Menu {
-            id: settingsMenu
+        Popup {
+            id: settingsMenuPopup
             parent: Overlay.overlay
-            popupType: root.menuPopupType
-            delegate: menuItemDelegate
+            popupType: root.shellPopupType
+            width: 260
+            padding: Shell.Theme.spacingXs
+            modal: true
+            dim: false
+            focus: true
+            closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside | Popup.CloseOnPressOutsideParent
 
             background: Rectangle {
                 color: Shell.Theme.surfaceContainer
@@ -569,9 +522,14 @@ ApplicationWindow {
                 border.width: 1
             }
 
-            Action {
-                text: qsTr("Network Settings...")
-                onTriggered: settingsDialog.openWithValues(bridge.configuredUserAgent, bridge.configuredEpgUrl)
+            contentItem: Column {
+                PopupActionItem {
+                    text: qsTr("Network Settings")
+                    onClicked: {
+                        settingsMenuPopup.close()
+                        settingsDialog.openWithValues(bridge.configuredUserAgent, bridge.configuredEpgUrl)
+                    }
+                }
             }
         }
 

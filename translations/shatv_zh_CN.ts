@@ -249,8 +249,8 @@
       <translation>最近打开</translation>
     </message>
     <message>
-      <source>Network Settings...</source>
-      <translation>网络设置...</translation>
+      <source>Network Settings</source>
+      <translation>网络设置</translation>
     </message>
     <message>
       <source>Open File</source>
