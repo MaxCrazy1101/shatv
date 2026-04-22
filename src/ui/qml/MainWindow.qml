@@ -68,8 +68,17 @@ ApplicationWindow {
     property int lastNonFullscreenVisibility: Window.Windowed
     property int fullscreenRestoreVisibility: Window.Windowed
     property bool fullscreenTransitionActive: false
+    property bool normalGeometryRestorePending: false
+    property bool hasSavedNormalGeometry: false
+    property int savedNormalX: x
+    property int savedNormalY: y
+    property int savedNormalWidth: width
+    property int savedNormalHeight: height
     readonly property var groupItems: [qsTr("All groups"), ...bridge.availableGroups]
-    readonly property int menuPopupType: Qt.platform.pluginName !== "wayland" ? Popup.Window : Popup.Item
+    // Windows 下 Popup.Window 会把菜单兼容性打坏，frameless 标题栏改用 overlay 内 Popup.Item。
+    readonly property int menuPopupType: (Qt.platform.pluginName === "windows" || Qt.platform.pluginName === "wayland")
+        ? Popup.Item
+        : Popup.Window
     readonly property string effectiveStatusText: bridge.statusMessage.length > 0
         ? bridge.statusMessage
         : (bridge.playbackStateText.length > 0 ? bridge.playbackStateText : qsTr("Ready"))
@@ -93,19 +102,61 @@ ApplicationWindow {
         bridge.setGroupFilter(bridge.availableGroups[index - 1])
     }
 
-    function maximizeWindow() {
+    function saveNormalGeometry() {
+        if (root.visibility !== Window.Windowed || root.fullscreenActive || root.normalGeometryRestorePending) {
+            return
+        }
+
+        root.savedNormalX = root.x
+        root.savedNormalY = root.y
+        root.savedNormalWidth = root.width
+        root.savedNormalHeight = root.height
+        root.hasSavedNormalGeometry = true
+    }
+
+    function restoreSavedNormalGeometry() {
+        if (!root.hasSavedNormalGeometry) {
+            return
+        }
+
+        root.x = root.savedNormalX
+        root.y = root.savedNormalY
+        root.width = root.savedNormalWidth
+        root.height = root.savedNormalHeight
+    }
+
+    function maximizeWindow(preserveSavedGeometry = false) {
+        if (!preserveSavedGeometry && root.visibility === Window.Windowed) {
+            root.saveNormalGeometry()
+        }
         root.lastNonFullscreenVisibility = Window.Maximized
         root.showMaximized()
     }
 
     function restoreWindow() {
         root.lastNonFullscreenVisibility = Window.Windowed
+        root.normalGeometryRestorePending = root.hasSavedNormalGeometry
         root.showNormal()
+
+        if (!root.normalGeometryRestorePending) {
+            return
+        }
+
+        // 全屏/最大化切回普通窗口时，Qt 不一定还能保住原始普通尺寸，这里显式恢复。
+        Qt.callLater(function() {
+            root.restoreSavedNormalGeometry()
+            root.normalGeometryRestorePending = false
+            root.saveNormalGeometry()
+        })
     }
 
     function enterFullscreen() {
         if (root.fullscreenActive) {
             return
+        }
+
+        if (root.visibility === Window.Windowed) {
+            root.saveNormalGeometry()
         }
 
         root.fullscreenRestoreVisibility = root.visibility === Window.Maximized
@@ -137,7 +188,7 @@ ApplicationWindow {
 
         Qt.callLater(function() {
             if (targetVisibility === Window.Maximized) {
-                root.maximizeWindow()
+                root.maximizeWindow(true)
             } else {
                 root.restoreWindow()
             }
@@ -162,6 +213,13 @@ ApplicationWindow {
         root.lastNonFullscreenVisibility = newVisibility
     }
 
+    onXChanged: root.saveNormalGeometry()
+    onYChanged: root.saveNormalGeometry()
+    onWidthChanged: root.saveNormalGeometry()
+    onHeightChanged: root.saveNormalGeometry()
+
+    Component.onCompleted: root.saveNormalGeometry()
+
     Shortcut {
         sequence: "F11"
         onActivated: root.toggleFullscreen()
@@ -174,14 +232,16 @@ ApplicationWindow {
     }
 
     function openFileMenu(button) {
-        const point = button.mapToItem(titleBar, 0, button.height + Shell.Theme.spacingXs)
+        const overlay = Overlay.overlay
+        const point = button.mapToItem(overlay, 0, button.height + Shell.Theme.spacingXs)
         fileMenu.x = point.x
         fileMenu.y = titleBar.height - Shell.Theme.spacingXs
         fileMenu.open()
     }
 
     function openSettingsMenu(button) {
-        const point = button.mapToItem(titleBar, 0, button.height + Shell.Theme.spacingXs)
+        const overlay = Overlay.overlay
+        const point = button.mapToItem(overlay, 0, button.height + Shell.Theme.spacingXs)
         settingsMenu.x = point.x
         settingsMenu.y = titleBar.height - Shell.Theme.spacingXs
         settingsMenu.open()
@@ -446,7 +506,7 @@ ApplicationWindow {
 
         Menu {
             id: fileMenu
-            parent: titleBar
+            parent: Overlay.overlay
             popupType: root.menuPopupType
             delegate: menuItemDelegate
 
@@ -468,6 +528,7 @@ ApplicationWindow {
             }
 
             Menu {
+                id: recentMenu
                 title: qsTr("Open Recent")
                 enabled: bridge.recentItems.length > 0
                 popupType: root.menuPopupType
@@ -480,16 +541,24 @@ ApplicationWindow {
                     border.width: 1
                 }
 
-                Repeater {
+                Instantiator {
                     model: bridge.recentItems
                     delegate: recentItemDelegate
+
+                    onObjectAdded: function(index, object) {
+                        recentMenu.insertItem(index, object)
+                    }
+
+                    onObjectRemoved: function(index, object) {
+                        recentMenu.removeItem(object)
+                    }
                 }
             }
         }
 
         Menu {
             id: settingsMenu
-            parent: titleBar
+            parent: Overlay.overlay
             popupType: root.menuPopupType
             delegate: menuItemDelegate
 
