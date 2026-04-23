@@ -75,10 +75,14 @@ qt_add_resources(shatv_app shatv_app_main_window_qml
         ui/qml/controls/ThemedToolButton.qml
         ui/qml/controls/ThemedTextField.qml
         ui/qml/controls/ThemedItemDelegate.qml
+        ui/qml/controls/MaterialSymbolIcon.qml
         ui/qml/controls/ThemedComboBox.qml
         ui/qml/controls/ThemedSlider.qml
         ui/qml/controls/WindowControlButton.qml
+        ui/qml/fonts/MaterialSymbolsOutlined-Regular.ttf
+        ui/qml/fonts/MaterialSymbolsOutlined_Filled-Regular.ttf
         ui/qml/dialogs/AboutDialog.qml
         ui/qml/dialogs/NetworkSettingsDialog.qml
+        ui/qml/dialogs/SettingsWindow.qml
         ui/qml/dialogs/OpenUrlDialog.qml
 )

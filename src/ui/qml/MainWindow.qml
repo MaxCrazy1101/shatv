@@ -20,7 +20,7 @@ ApplicationWindow {
     minimumHeight: 600
     title: qsTr("ShaTV")
     color: Shell.Theme.surfaceDim
-    flags: Qt.Window | Qt.FramelessWindowHint
+    flags: Qt.Window | Qt.FramelessWindowHint | (root.alwaysOnTop ? Qt.WindowStaysOnTopHint : 0)
 
     QtObject {
         id: bridgeFallback
@@ -70,15 +70,12 @@ ApplicationWindow {
     property bool fullscreenTransitionActive: false
     property bool normalGeometryRestorePending: false
     property bool hasSavedNormalGeometry: false
-    property bool menuActionPending: false
+    property bool alwaysOnTop: false
     property int savedNormalX: x
     property int savedNormalY: y
     property int savedNormalWidth: width
     property int savedNormalHeight: height
     readonly property var groupItems: [qsTr("All groups"), ...bridge.availableGroups]
-    // 标题栏菜单不需要独立窗口，统一走 Popup.Item 才能稳定复用 overlay 事件拦截。
-    readonly property int shellPopupType: Popup.Item
-    readonly property bool menuInteractionActive: menuActionPending || fileMenuPopup.visible || settingsMenuPopup.visible
     readonly property string effectiveStatusText: bridge.statusMessage.length > 0
         ? bridge.statusMessage
         : (bridge.playbackStateText.length > 0 ? bridge.playbackStateText : qsTr("Ready"))
@@ -231,51 +228,67 @@ ApplicationWindow {
         onActivated: root.exitFullscreen()
     }
 
-    function openFileMenu(button) {
+    Timer {
+        id: recentMenuCloseTimer
+        interval: 160
+        repeat: false
+        onTriggered: root.closeRecentMenuIfIdle()
+    }
+
+    function positionRecentMenu(button) {
         const overlay = Overlay.overlay
         const point = button.mapToItem(overlay, 0, button.height + Shell.Theme.spacingXs)
-        settingsMenuPopup.close()
-        root.menuActionPending = false
-        fileMenuPopup.x = point.x
-        fileMenuPopup.y = point.y
-        if (fileMenuPopup.visible) {
-            fileMenuPopup.close()
+        recentMenuPopup.x = point.x
+        recentMenuPopup.y = point.y
+    }
+
+    function openRecentMenu(button) {
+        if (bridge.recentItems.length === 0) {
             return
         }
-        fileMenuPopup.open()
+
+        recentMenuCloseTimer.stop()
+        root.positionRecentMenu(button)
+        if (!recentMenuPopup.visible) {
+            recentMenuPopup.open()
+        }
     }
 
-    function openSettingsMenu(button) {
-        const overlay = Overlay.overlay
-        const point = button.mapToItem(overlay, 0, button.height + Shell.Theme.spacingXs)
-        fileMenuPopup.close()
-        root.menuActionPending = false
-        settingsMenuPopup.x = point.x
-        settingsMenuPopup.y = point.y
-        if (settingsMenuPopup.visible) {
-            settingsMenuPopup.close()
+    function scheduleRecentMenuClose() {
+        if (!recentMenuPopup.visible) {
             return
         }
-        settingsMenuPopup.open()
+
+        recentMenuCloseTimer.restart()
     }
 
-    function dismissShellMenus() {
-        fileMenuPopup.close()
-        settingsMenuPopup.close()
-        root.menuActionPending = false
+    function closeRecentMenuIfIdle() {
+        if (recentButton.hovered || recentMenuHoverHandler.hovered) {
+            return
+        }
+
+        recentMenuPopup.close()
     }
 
-    function runMenuAction(action) {
-        root.menuActionPending = true
-        fileMenuPopup.close()
-        settingsMenuPopup.close()
+    function toggleAlwaysOnTop() {
+        const targetVisibility = root.visibility
+        root.alwaysOnTop = !root.alwaysOnTop
 
-        // 先让本轮鼠标事件完全结束，再执行菜单动作，避免 release 落到底层控件。
+        if (!root.visible) {
+            return
+        }
+
+        // 某些平台在运行时切换 WindowStaysOnTopHint 后，需要显式重新应用当前窗口状态。
         Qt.callLater(function() {
-            action()
-            Qt.callLater(function() {
-                root.menuActionPending = false
-            })
+            if (targetVisibility === Window.FullScreen) {
+                root.showFullScreen()
+            } else if (targetVisibility === Window.Maximized) {
+                root.showMaximized()
+            } else {
+                root.showNormal()
+            }
+            root.raise()
+            root.requestActivate()
         })
     }
 
@@ -322,6 +335,81 @@ ApplicationWindow {
         }
     }
 
+    component HeaderIconButton: ToolButton {
+        id: control
+        required property string iconType
+        property string toolTipText: control.text
+        readonly property string symbolName: {
+            if (control.iconType === "file") {
+                return "file_open"
+            }
+            if (control.iconType === "link") {
+                return "link"
+            }
+            if (control.iconType === "recent") {
+                return "history"
+            }
+            if (control.iconType === "pin") {
+                return "keep"
+            }
+            if (control.iconType === "settings") {
+                return "settings"
+            }
+            return "settings"
+        }
+        readonly property bool symbolFilled: control.iconType === "pin" && control.checked
+
+        implicitWidth: Shell.Theme.titleBarHeight - Shell.Theme.spacingSm
+        implicitHeight: Shell.Theme.titleBarHeight - Shell.Theme.spacingSm
+        leftPadding: Shell.Theme.spacingSm
+        rightPadding: Shell.Theme.spacingSm
+        topPadding: Shell.Theme.spacingSm
+        bottomPadding: Shell.Theme.spacingSm
+        hoverEnabled: true
+
+        contentItem: Controls.MaterialSymbolIcon {
+            anchors.centerIn: parent
+            symbolName: control.symbolName
+            filled: control.symbolFilled
+            iconSize: 20
+        }
+
+        background: Rectangle {
+            radius: Shell.Theme.radiusSm
+            color: control.down
+                ? Shell.Theme.surfaceContainerHighest
+                : (control.checked
+                    ? Shell.Theme.controlSurfacePressed
+                    : (control.hovered ? Shell.Theme.controlSurfaceHover : "transparent"))
+            border.width: (control.visualFocus || control.checked) ? 1 : 0
+            border.color: control.checked ? Shell.Theme.controlBorderStrong : Shell.Theme.focusRing
+        }
+    }
+
+    component PlaybackIconButton: Controls.ThemedToolButton {
+        id: control
+        required property string symbolName
+        property bool symbolFilled: false
+        property string toolTipText: control.text
+
+        implicitWidth: 38
+        implicitHeight: 38
+        leftPadding: Shell.Theme.spacingSm
+        rightPadding: Shell.Theme.spacingSm
+        topPadding: Shell.Theme.spacingSm
+        bottomPadding: Shell.Theme.spacingSm
+
+        ToolTip.visible: hovered
+        ToolTip.text: control.toolTipText
+
+        contentItem: Controls.MaterialSymbolIcon {
+            anchors.centerIn: parent
+            symbolName: control.symbolName
+            filled: control.symbolFilled
+            iconSize: 22
+        }
+    }
+
     component ResizeHandle: MouseArea {
         required property int edges
 
@@ -337,11 +425,6 @@ ApplicationWindow {
                 root.startSystemResize(edges)
             }
         }
-    }
-
-    component PopupActionItem: Controls.ThemedItemDelegate {
-        implicitHeight: 32
-        width: parent ? parent.width : implicitWidth
     }
 
     header: Rectangle {
@@ -367,21 +450,65 @@ ApplicationWindow {
                 leftPadding: Shell.Theme.spacingSm
             }
 
-            HeaderActionButton {
-                id: fileButton
-                text: qsTr("File")
-                onClicked: root.openFileMenu(fileButton)
+            HeaderIconButton {
+                text: qsTr("Open File")
+                toolTipText: qsTr("Open File...")
+                iconType: "file"
+                ToolTip.visible: hovered
+                ToolTip.text: toolTipText
+                onClicked: fileDialog.open()
             }
 
-            HeaderActionButton {
-                id: settingsButton
+            HeaderIconButton {
+                text: qsTr("Open Link")
+                toolTipText: qsTr("Open Link...")
+                iconType: "link"
+                ToolTip.visible: hovered
+                ToolTip.text: toolTipText
+                onClicked: openUrlDialog.openWithValue("http://")
+            }
+
+            HeaderIconButton {
+                id: recentButton
+                text: qsTr("Open Recent")
+                iconType: "recent"
+                enabled: bridge.recentItems.length > 0
+                ToolTip.visible: hovered && !recentMenuPopup.visible
+                ToolTip.text: toolTipText
+                onHoveredChanged: {
+                    if (hovered) {
+                        root.openRecentMenu(recentButton)
+                        return
+                    }
+
+                    root.scheduleRecentMenuClose()
+                }
+                onClicked: {
+                    if (recentMenuPopup.visible) {
+                        recentMenuPopup.close()
+                        return
+                    }
+
+                    root.openRecentMenu(recentButton)
+                }
+            }
+
+            HeaderIconButton {
                 text: qsTr("Settings")
-                onClicked: root.openSettingsMenu(settingsButton)
+                iconType: "settings"
+                ToolTip.visible: hovered
+                ToolTip.text: toolTipText
+                onClicked: settingsWindow.openWithValues(bridge.configuredUserAgent, bridge.configuredEpgUrl)
             }
 
-            HeaderActionButton {
-                text: qsTr("About")
-                onClicked: aboutDialog.open()
+            Connections {
+                target: bridge
+
+                function onRecentItemsChanged() {
+                    if (bridge.recentItems.length === 0) {
+                        recentMenuPopup.close()
+                    }
+                }
             }
 
             Item {
@@ -416,6 +543,16 @@ ApplicationWindow {
                     elide: Text.ElideRight
                     horizontalAlignment: Text.AlignHCenter
                 }
+            }
+
+            HeaderIconButton {
+                text: qsTr("Always on Top")
+                iconType: "pin"
+                checkable: true
+                checked: root.alwaysOnTop
+                ToolTip.visible: hovered
+                ToolTip.text: toolTipText
+                onClicked: root.toggleAlwaysOnTop()
             }
 
             Controls.WindowControlButton {
@@ -457,40 +594,17 @@ ApplicationWindow {
             }
         }
 
-        MouseArea {
-            parent: Overlay.overlay
-            anchors.fill: parent
-            visible: root.menuInteractionActive
-            enabled: visible
-            acceptedButtons: Qt.AllButtons
-            hoverEnabled: visible
-
-            onPressed: mouse => {
-                mouse.accepted = true
-                if (!root.menuActionPending) {
-                    root.dismissShellMenus()
-                }
-            }
-
-            onReleased: mouse => {
-                mouse.accepted = true
-            }
-
-            onClicked: mouse => {
-                mouse.accepted = true
-            }
-        }
-
         Popup {
-            id: fileMenuPopup
+            id: recentMenuPopup
             parent: Overlay.overlay
-            popupType: root.shellPopupType
-            width: 260
+            popupType: Popup.Item
+            width: 280
             padding: Shell.Theme.spacingXs
-            modal: true
+            modal: false
             dim: false
             focus: true
             closePolicy: Popup.CloseOnEscape
+            onClosed: recentMenuCloseTimer.stop()
 
             background: Rectangle {
                 color: Shell.Theme.surfaceContainer
@@ -502,29 +616,16 @@ ApplicationWindow {
             contentItem: Column {
                 spacing: Shell.Theme.spacingXs
 
-                PopupActionItem {
-                    text: qsTr("Open File...")
-                    onClicked: {
-                        root.runMenuAction(function() {
-                            fileDialog.open()
-                        })
-                    }
-                }
+                HoverHandler {
+                    id: recentMenuHoverHandler
+                    onHoveredChanged: {
+                        if (hovered) {
+                            recentMenuCloseTimer.stop()
+                            return
+                        }
 
-                PopupActionItem {
-                    text: qsTr("Open Link...")
-                    onClicked: {
-                        root.runMenuAction(function() {
-                            openUrlDialog.openWithValue("http://")
-                        })
+                        root.scheduleRecentMenuClose()
                     }
-                }
-
-                Rectangle {
-                    width: parent.width
-                    height: 1
-                    color: Shell.Theme.outline
-                    opacity: 0.8
                 }
 
                 Label {
@@ -534,52 +635,22 @@ ApplicationWindow {
                     topPadding: Shell.Theme.spacingXs
                     bottomPadding: Shell.Theme.spacingXs
                     text: qsTr("Open Recent")
-                    color: bridge.recentItems.length > 0 ? Shell.Theme.textSecondary : Shell.Theme.textDisabled
+                    color: Shell.Theme.textSecondary
                 }
 
                 Repeater {
                     model: bridge.recentItems
 
-                    delegate: PopupActionItem {
+                    delegate: Controls.ThemedItemDelegate {
                         required property int index
                         required property var modelData
 
+                        width: parent ? parent.width : implicitWidth
                         text: modelData.label
                         onClicked: {
-                            root.runMenuAction(function() {
-                                bridge.openRecentAt(index)
-                            })
+                            recentMenuPopup.close()
+                            bridge.openRecentAt(index)
                         }
-                    }
-                }
-            }
-        }
-
-        Popup {
-            id: settingsMenuPopup
-            parent: Overlay.overlay
-            popupType: root.shellPopupType
-            width: 260
-            padding: Shell.Theme.spacingXs
-            modal: true
-            dim: false
-            focus: true
-            closePolicy: Popup.CloseOnEscape
-
-            background: Rectangle {
-                color: Shell.Theme.surfaceContainer
-                radius: Shell.Theme.radiusMd
-                border.color: Shell.Theme.outline
-                border.width: 1
-            }
-
-            contentItem: Column {
-                PopupActionItem {
-                    text: qsTr("Network Settings")
-                    onClicked: {
-                        root.runMenuAction(function() {
-                            settingsDialog.openWithValues(bridge.configuredUserAgent, bridge.configuredEpgUrl)
-                        })
                     }
                 }
             }
@@ -626,14 +697,11 @@ ApplicationWindow {
         }
     }
 
-    Dialogs.AboutDialog {
-        id: aboutDialog
+    Dialogs.SettingsWindow {
+        id: settingsWindow
+        transientParent: root
         appVersion: bridge.appVersion
         buildId: bridge.buildId
-    }
-
-    Dialogs.NetworkSettingsDialog {
-        id: settingsDialog
         onSubmitted: (userAgent, epgUrl) => bridge.submitNetworkSettings(userAgent, epgUrl)
     }
 
@@ -826,18 +894,21 @@ ApplicationWindow {
                                     Layout.fillWidth: true
                                     spacing: Shell.Theme.spacingMd
 
-                                    Controls.ThemedToolButton {
+                                    PlaybackIconButton {
                                         text: root.showPauseAction ? qsTr("Pause") : qsTr("Play")
+                                        symbolName: root.showPauseAction ? "pause" : "play_arrow"
                                         onClicked: bridge.requestPlayPause()
                                     }
 
-                                    Controls.ThemedToolButton {
+                                    PlaybackIconButton {
                                         text: qsTr("Stop")
+                                        symbolName: "stop"
                                         onClicked: bridge.requestStop()
                                     }
 
-                                    Controls.ThemedToolButton {
+                                    PlaybackIconButton {
                                         text: bridge.muted ? qsTr("Unmute") : qsTr("Mute")
+                                        symbolName: bridge.muted ? "volume_off" : "volume_up"
                                         onClicked: bridge.toggleMute()
                                     }
 
@@ -850,8 +921,9 @@ ApplicationWindow {
                                         onMoved: bridge.setVolume(Math.round(value))
                                     }
 
-                                    Controls.ThemedToolButton {
+                                    PlaybackIconButton {
                                         text: qsTr("Exit Full Screen")
+                                        symbolName: "fullscreen_exit"
                                         onClicked: root.exitFullscreen()
                                     }
                                 }
@@ -906,18 +978,21 @@ ApplicationWindow {
                             anchors.margins: Shell.Theme.spacingMd
                             spacing: Shell.Theme.spacingMd
 
-                            Controls.ThemedToolButton {
+                            PlaybackIconButton {
                                 text: root.showPauseAction ? qsTr("Pause") : qsTr("Play")
+                                symbolName: root.showPauseAction ? "pause" : "play_arrow"
                                 onClicked: bridge.requestPlayPause()
                             }
 
-                            Controls.ThemedToolButton {
+                            PlaybackIconButton {
                                 text: qsTr("Stop")
+                                symbolName: "stop"
                                 onClicked: bridge.requestStop()
                             }
 
-                            Controls.ThemedToolButton {
+                            PlaybackIconButton {
                                 text: bridge.muted ? qsTr("Unmute") : qsTr("Mute")
+                                symbolName: bridge.muted ? "volume_off" : "volume_up"
                                 onClicked: bridge.toggleMute()
                             }
 
@@ -930,8 +1005,9 @@ ApplicationWindow {
                                 onMoved: bridge.setVolume(Math.round(value))
                             }
 
-                            Controls.ThemedToolButton {
+                            PlaybackIconButton {
                                 text: qsTr("Full Screen")
+                                symbolName: "fullscreen"
                                 onClicked: root.toggleFullscreen()
                             }
                         }

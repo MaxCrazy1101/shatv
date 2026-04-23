@@ -280,6 +280,10 @@
       <source>Close</source>
       <translation>关闭</translation>
     </message>
+    <message>
+      <source>Always on Top</source>
+      <translation>窗口置顶</translation>
+    </message>
   </context>
   <context>
     <name>AboutDialog</name>
@@ -357,6 +361,81 @@
     <message>
       <source>Cancel</source>
       <translation>取消</translation>
+    </message>
+  </context>
+  <context>
+    <name>SettingsWindow</name>
+    <message>
+      <source>Settings</source>
+      <translation>设置</translation>
+    </message>
+    <message>
+      <source>General</source>
+      <translation>常规</translation>
+    </message>
+    <message>
+      <source>About</source>
+      <translation>关于</translation>
+    </message>
+    <message>
+      <source>Configure the HTTP User-Agent and an optional XMLTV EPG URL used for current/next programme lookup.</source>
+      <translation>配置 HTTP User-Agent 和可选 XMLTV EPG 地址，用于当前/下一节目的查询。</translation>
+    </message>
+    <message>
+      <source>User-Agent</source>
+      <translation>User-Agent</translation>
+    </message>
+    <message>
+      <source>Leave empty to use the default</source>
+      <translation>留空则使用默认值</translation>
+    </message>
+    <message>
+      <source>EPG URL</source>
+      <translation>EPG 地址</translation>
+    </message>
+    <message>
+      <source>ShaTV</source>
+      <translation>ShaTV</translation>
+    </message>
+    <message>
+      <source>A cross-platform IPTV player.</source>
+      <translation>一个跨平台 IPTV 播放器。</translation>
+    </message>
+    <message>
+      <source>Version</source>
+      <translation>版本</translation>
+    </message>
+    <message>
+      <source>Build</source>
+      <translation>构建</translation>
+    </message>
+    <message>
+      <source>Built with C++20, Qt 6, and libmpv.</source>
+      <translation>基于 C++20、Qt 6 和 libmpv 构建。</translation>
+    </message>
+    <message>
+      <source>Authors</source>
+      <translation>作者</translation>
+    </message>
+    <message>
+      <source>License</source>
+      <translation>许可证</translation>
+    </message>
+    <message>
+      <source>Not specified</source>
+      <translation>未指定</translation>
+    </message>
+    <message>
+      <source>Repository</source>
+      <translation>仓库</translation>
+    </message>
+    <message>
+      <source>Close</source>
+      <translation>关闭</translation>
+    </message>
+    <message>
+      <source>Save</source>
+      <translation>保存</translation>
     </message>
   </context>
   <context>
