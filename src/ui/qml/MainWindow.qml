@@ -70,6 +70,7 @@ ApplicationWindow {
     property bool fullscreenTransitionActive: false
     property bool normalGeometryRestorePending: false
     property bool hasSavedNormalGeometry: false
+    property bool menuActionPending: false
     property int savedNormalX: x
     property int savedNormalY: y
     property int savedNormalWidth: width
@@ -77,6 +78,7 @@ ApplicationWindow {
     readonly property var groupItems: [qsTr("All groups"), ...bridge.availableGroups]
     // 标题栏菜单不需要独立窗口，统一走 Popup.Item 才能稳定复用 overlay 事件拦截。
     readonly property int shellPopupType: Popup.Item
+    readonly property bool menuInteractionActive: menuActionPending || fileMenuPopup.visible || settingsMenuPopup.visible
     readonly property string effectiveStatusText: bridge.statusMessage.length > 0
         ? bridge.statusMessage
         : (bridge.playbackStateText.length > 0 ? bridge.playbackStateText : qsTr("Ready"))
@@ -233,6 +235,7 @@ ApplicationWindow {
         const overlay = Overlay.overlay
         const point = button.mapToItem(overlay, 0, button.height + Shell.Theme.spacingXs)
         settingsMenuPopup.close()
+        root.menuActionPending = false
         fileMenuPopup.x = point.x
         fileMenuPopup.y = point.y
         if (fileMenuPopup.visible) {
@@ -246,6 +249,7 @@ ApplicationWindow {
         const overlay = Overlay.overlay
         const point = button.mapToItem(overlay, 0, button.height + Shell.Theme.spacingXs)
         fileMenuPopup.close()
+        root.menuActionPending = false
         settingsMenuPopup.x = point.x
         settingsMenuPopup.y = point.y
         if (settingsMenuPopup.visible) {
@@ -253,6 +257,26 @@ ApplicationWindow {
             return
         }
         settingsMenuPopup.open()
+    }
+
+    function dismissShellMenus() {
+        fileMenuPopup.close()
+        settingsMenuPopup.close()
+        root.menuActionPending = false
+    }
+
+    function runMenuAction(action) {
+        root.menuActionPending = true
+        fileMenuPopup.close()
+        settingsMenuPopup.close()
+
+        // 先让本轮鼠标事件完全结束，再执行菜单动作，避免 release 落到底层控件。
+        Qt.callLater(function() {
+            action()
+            Qt.callLater(function() {
+                root.menuActionPending = false
+            })
+        })
     }
 
     function resizeCursor(edges) {
@@ -433,6 +457,30 @@ ApplicationWindow {
             }
         }
 
+        MouseArea {
+            parent: Overlay.overlay
+            anchors.fill: parent
+            visible: root.menuInteractionActive
+            enabled: visible
+            acceptedButtons: Qt.AllButtons
+            hoverEnabled: visible
+
+            onPressed: mouse => {
+                mouse.accepted = true
+                if (!root.menuActionPending) {
+                    root.dismissShellMenus()
+                }
+            }
+
+            onReleased: mouse => {
+                mouse.accepted = true
+            }
+
+            onClicked: mouse => {
+                mouse.accepted = true
+            }
+        }
+
         Popup {
             id: fileMenuPopup
             parent: Overlay.overlay
@@ -442,7 +490,7 @@ ApplicationWindow {
             modal: true
             dim: false
             focus: true
-            closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside | Popup.CloseOnPressOutsideParent
+            closePolicy: Popup.CloseOnEscape
 
             background: Rectangle {
                 color: Shell.Theme.surfaceContainer
@@ -457,16 +505,18 @@ ApplicationWindow {
                 PopupActionItem {
                     text: qsTr("Open File...")
                     onClicked: {
-                        fileMenuPopup.close()
-                        fileDialog.open()
+                        root.runMenuAction(function() {
+                            fileDialog.open()
+                        })
                     }
                 }
 
                 PopupActionItem {
                     text: qsTr("Open Link...")
                     onClicked: {
-                        fileMenuPopup.close()
-                        openUrlDialog.openWithValue("http://")
+                        root.runMenuAction(function() {
+                            openUrlDialog.openWithValue("http://")
+                        })
                     }
                 }
 
@@ -496,8 +546,9 @@ ApplicationWindow {
 
                         text: modelData.label
                         onClicked: {
-                            fileMenuPopup.close()
-                            bridge.openRecentAt(index)
+                            root.runMenuAction(function() {
+                                bridge.openRecentAt(index)
+                            })
                         }
                     }
                 }
@@ -513,7 +564,7 @@ ApplicationWindow {
             modal: true
             dim: false
             focus: true
-            closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside | Popup.CloseOnPressOutsideParent
+            closePolicy: Popup.CloseOnEscape
 
             background: Rectangle {
                 color: Shell.Theme.surfaceContainer
@@ -526,8 +577,9 @@ ApplicationWindow {
                 PopupActionItem {
                     text: qsTr("Network Settings")
                     onClicked: {
-                        settingsMenuPopup.close()
-                        settingsDialog.openWithValues(bridge.configuredUserAgent, bridge.configuredEpgUrl)
+                        root.runMenuAction(function() {
+                            settingsDialog.openWithValues(bridge.configuredUserAgent, bridge.configuredEpgUrl)
+                        })
                     }
                 }
             }
