@@ -11,7 +11,8 @@ namespace shatv::app {
 
 struct LaunchOptions {
     bool smoke_test = false;
-    bool mpv_smoke = false;
+    bool ffmpeg_audio_smoke = false;
+    bool ffmpeg_smoke = false;
     QString open_url_argument;
     QString open_media_argument;
 };
@@ -21,7 +22,6 @@ domain::Channel BuildOpenUrlChannel(const QString &input, const QString &current
 domain::Channel BuildOpenMediaChannel(const QString &input, const QString &current_directory);
 bool IsRemotePlaybackUrl(const QUrl &url);
 bool LooksLikeRemoteMediaDirectoryUrl(const QUrl &url);
-std::optional<domain::Channel> BuildStartupChannel(const LaunchOptions &options, const QString &smoke_media,
-                                                   const QString &current_directory);
+std::optional<domain::Channel> BuildStartupChannel(const LaunchOptions &options, const QString &current_directory);
 
 }  // namespace shatv::app

@@ -2,7 +2,7 @@
 
 #include <QObject>
 
-#include "domain/channel.h"
+#include "domain/media_source.h"
 #include "domain/player_snapshot.h"
 
 namespace shatv::player {
@@ -14,7 +14,7 @@ class PlayerBackend : public QObject {
     explicit PlayerBackend(QObject *parent = nullptr) : QObject(parent) {}
     ~PlayerBackend() override = default;
 
-    virtual void Load(const domain::Channel &channel) = 0;
+    virtual void Load(const domain::MediaSourceDescriptor &source) = 0;
     virtual void Play() = 0;
     virtual void Pause() = 0;
     virtual void Stop() = 0;

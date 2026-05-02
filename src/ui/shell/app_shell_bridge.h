@@ -116,7 +116,7 @@ class AppShellBridge final : public QObject {
     void OpenFileRequested(const QString &path);
     void OpenUrlRequested(const QString &url_text);
     void NetworkSettingsRequested(const QString &user_agent, const QString &epg_url);
-    void RecentOpenRequested(const QString &kind, const QString &target);
+    void RecentOpenRequested(const QString &request_kind, const QString &target);
 
    private:
     ui::models::ChannelFilterModel *channel_model_ = nullptr;

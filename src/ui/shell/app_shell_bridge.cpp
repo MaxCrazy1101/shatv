@@ -130,7 +130,7 @@ void AppShellBridge::SetRecentItems(const std::vector<app::RecentOpenItem> &item
     next_items.reserve(static_cast<qsizetype>(items.size()));
     for (const auto &item : items) {
         QVariantMap map;
-        map.insert(QStringLiteral("kind"), item.kind);
+        map.insert(QStringLiteral("requestKind"), app::OpenRequestKindToken(item.request_kind));
         map.insert(QStringLiteral("target"), item.target);
         map.insert(QStringLiteral("label"), item.label);
         next_items.push_back(map);
@@ -325,7 +325,7 @@ void AppShellBridge::openRecentAt(int index) {
     }
 
     const QVariantMap item = recent_items_.at(index).toMap();
-    emit RecentOpenRequested(item.value(QStringLiteral("kind")).toString(),
+    emit RecentOpenRequested(item.value(QStringLiteral("requestKind")).toString(),
                              item.value(QStringLiteral("target")).toString());
 }
 

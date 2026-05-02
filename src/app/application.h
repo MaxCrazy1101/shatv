@@ -12,7 +12,8 @@
 #include "app/app_settings.h"
 #include "app/epg_service.h"
 #include "app/launch_options.h"
-#include "domain/channel.h"
+#include "app/open_request.h"
+#include "domain/media_source.h"
 
 class QNetworkAccessManager;
 class QObject;
@@ -24,7 +25,6 @@ class PlayerController;
 }
 
 namespace shatv::player {
-class FakePlayerBackend;
 class PlayerBackend;
 }
 
@@ -38,10 +38,12 @@ class AppShellBridge;
 }
 
 namespace shatv::ui::video {
-class MpvVideoItem;
+class VideoPresenterItem;
 }
 
 namespace shatv::app {
+
+class SourceOpenService;
 
 class Application final {
    public:
@@ -50,34 +52,32 @@ class Application final {
     int Run();
 
    private:
-    std::vector<domain::Channel> BuildInitialChannels() const;
-    void OpenChannel(const domain::Channel &channel);
-    void OpenChannels(std::vector<domain::Channel> channels, const QString &playlist_epg_url = QString());
-    void OpenFile(const QString &path);
-    void OpenPlaylistFile(const QString &path);
-    void OpenUrl(const QString &url_text);
-    void DownloadPlaylist(const QUrl &url);
-    void ShowPlaylistImportError(const QString &message);
+    std::vector<domain::ResolvedChannel> BuildInitialChannels() const;
+    void ResolveOpenRequest(OpenRequest request);
+    void HandleOpenResolution(OpenResolution resolution);
+    void OpenChannels(std::vector<domain::ResolvedChannel> channels, const QString &playlist_epg_url = QString());
     void UpdateNetworkSettings(const QString &user_agent, const QString &epg_url);
     void ShowAlert(const QString &message);
     void ReloadEpg();
     void UpdateDisplayedEpg();
     void ClearDisplayedEpg();
     std::optional<domain::Channel> FindChannelById(const QString &channel_id) const;
+    const domain::ResolvedChannel *FindResolvedChannelBySourceRow(int row) const;
     void RememberRecentItem(const RecentOpenItem &item);
     void RefreshRecentItems();
     void RefreshShellFilters();
     void ShowStatusMessage(const QString &message, int timeout_ms = 3000);
-    void OpenRecentItem(const QString &kind, const QString &target);
+    void OpenRecentItem(const QString &request_kind, const QString &target);
     void StartInitialPlayback();
-    void SetupSmokeScenario();
-    void SetupMpvSmokeScenario();
+    void SetupFfmpegAudioSmokeScenario();
+    void SetupFfmpegSmokeScenario();
 
     QGuiApplication *qt_app_ = nullptr;
     LaunchOptions options_;
     AppSettings settings_;
     bool smoke_completed_ = false;
     std::unique_ptr<QNetworkAccessManager> network_manager_;
+    std::unique_ptr<SourceOpenService> source_open_service_;
     std::unique_ptr<player::PlayerBackend> backend_;
     std::unique_ptr<application::PlayerController> controller_;
     std::unique_ptr<ui::models::ChannelListModel> channel_model_;
@@ -86,11 +86,10 @@ class Application final {
     std::unique_ptr<QQmlApplicationEngine> qml_engine_;
     QPointer<QObject> qml_root_object_;
     QPointer<QWindow> root_window_;
-    QPointer<ui::video::MpvVideoItem> video_item_;
+    QPointer<ui::video::VideoPresenterItem> ffmpeg_video_item_;
     EpgService epg_service_;
-    std::vector<domain::Channel> initial_channels_;
-    std::vector<domain::Channel> current_channels_;
-    std::optional<domain::Channel> startup_channel_;
+    std::vector<domain::ResolvedChannel> initial_channels_;
+    std::vector<domain::ResolvedChannel> current_channels_;
     QString playlist_epg_url_;
     QString status_message_;
     QTimer epg_refresh_timer_;

@@ -1,6 +1,10 @@
 #include "app/application.h"
 
 #include <iostream>
+#include <memory>
+#include <optional>
+#include <utility>
+#include <variant>
 
 #include <QCoreApplication>
 #include <QDateTime>
@@ -17,51 +21,28 @@
 #include <QWindow>
 
 #include "app/epg_service.h"
-#include "app/m3u_playlist_parser.h"
+#include "app/source_open_service.h"
 #include "app/xmltv_epg_payload.h"
 #include "application/player_controller.h"
 #include "domain/player_snapshot.h"
 #include "domain/playback_state.h"
-#include "player/fake_player_backend.h"
-#include "player/mpv_player_backend.h"
+#include "player/ffmpeg_player_backend.h"
 #include "ui/models/channel_filter_model.h"
 #include "ui/models/channel_list_model.h"
 #include "ui/shell/app_shell_bridge.h"
-#include "ui/video/mpv_video_item.h"
+#include "ui/video/video_presenter_item.h"
 
 namespace shatv::app {
 
 namespace {
 
-domain::Channel BuildSmokeTestChannel() {
-    return {
-        .id = "smoke-test",
-        .name = "Smoke Test",
-        .url = QUrl("https://example.com/smoke-test.m3u8"),
-        .group = "Smoke",
-        .tvg_id = {},
-        .tvg_name = {},
-    };
-}
-
-RecentOpenItem BuildRecentFileItem(const QString &path, const QString &current_directory) {
-    const domain::Channel channel = BuildOpenMediaChannel(path, current_directory);
-    const QString target =
-        channel.url.isLocalFile() ? QFileInfo(channel.url.toLocalFile()).absoluteFilePath() : channel.url.toString();
-    return {
-        .kind = "file",
-        .target = target,
-        .label = channel.name,
-    };
-}
-
-RecentOpenItem BuildRecentUrlItem(const QString &url_text, const QString &current_directory) {
-    const domain::Channel channel = BuildOpenUrlChannel(url_text, current_directory);
-    return {
-        .kind = "url",
-        .target = channel.url.toString(),
-        .label = channel.name,
-    };
+std::vector<domain::Channel> ExtractChannels(const std::vector<domain::ResolvedChannel> &resolved_channels) {
+    std::vector<domain::Channel> channels;
+    channels.reserve(resolved_channels.size());
+    for (const domain::ResolvedChannel &resolved_channel : resolved_channels) {
+        channels.push_back(resolved_channel.channel);
+    }
+    return channels;
 }
 
 QString FormatProgrammeText(const std::optional<XmltvProgramme> &programme) {
@@ -74,6 +55,30 @@ QString FormatProgrammeText(const std::optional<XmltvProgramme> &programme) {
     return QString("%1-%2 %3").arg(local_start.toString("HH:mm"), local_stop.toString("HH:mm"), programme->title);
 }
 
+QString FfmpegAudioSmokeMediaPath() {
+    return qEnvironmentVariable("SHATV_FFMPEG_AUDIO_SMOKE_MEDIA");
+}
+
+QString FfmpegSmokeMediaPath() {
+    const QString env_path = qEnvironmentVariable("SHATV_FFMPEG_SMOKE_MEDIA");
+    if (!env_path.isEmpty()) {
+        return env_path;
+    }
+
+    const QString local_fixture = QDir(QDir::currentPath()).filePath("testdata/fixtures/ffmpeg_smoke_video.mp4");
+    if (QFile::exists(local_fixture)) {
+        return local_fixture;
+    }
+
+    const QString app_relative_fixture =
+        QDir(QCoreApplication::applicationDirPath()).filePath("../../testdata/fixtures/ffmpeg_smoke_video.mp4");
+    if (QFile::exists(app_relative_fixture)) {
+        return QFileInfo(app_relative_fixture).absoluteFilePath();
+    }
+
+    return {};
+}
+
 }  // namespace
 
 Application::Application(QGuiApplication *qt_app, LaunchOptions options)
@@ -81,12 +86,10 @@ Application::Application(QGuiApplication *qt_app, LaunchOptions options)
     Q_ASSERT(qt_app_ != nullptr);
 
     qRegisterMetaType<domain::PlayerSnapshot>("shatv::domain::PlayerSnapshot");
+    qRegisterMetaType<domain::MediaSourceDescriptor>("shatv::domain::MediaSourceDescriptor");
+    qRegisterMetaType<domain::ResolvedChannel>("shatv::domain::ResolvedChannel");
 
-    if (options_.smoke_test) {
-        backend_ = std::make_unique<player::FakePlayerBackend>();
-    } else {
-        backend_ = std::make_unique<player::MpvPlayerBackend>();
-    }
+    backend_ = std::make_unique<player::FfmpegPlayerBackend>();
 
     controller_ = std::make_unique<application::PlayerController>(backend_.get());
     channel_model_ = std::make_unique<ui::models::ChannelListModel>();
@@ -95,6 +98,7 @@ Application::Application(QGuiApplication *qt_app, LaunchOptions options)
     shell_bridge_ = std::make_unique<ui::shell::AppShellBridge>(channel_filter_model_.get());
     qml_engine_ = std::make_unique<QQmlApplicationEngine>();
     network_manager_ = std::make_unique<QNetworkAccessManager>();
+    source_open_service_ = std::make_unique<SourceOpenService>(network_manager_.get());
 
     status_message_timer_.setSingleShot(true);
     QObject::connect(&status_message_timer_, &QTimer::timeout, qt_app_, [this]() {
@@ -120,23 +124,24 @@ Application::Application(QGuiApplication *qt_app, LaunchOptions options)
     root_window_ = qobject_cast<QWindow *>(qml_root_object_.data());
     Q_ASSERT(root_window_ != nullptr);
 
-    video_item_ =
-        qobject_cast<ui::video::MpvVideoItem *>(qml_root_object_->findChild<QObject *>(QStringLiteral("playerVideoItem")));
-    Q_ASSERT(video_item_ != nullptr);
+    ffmpeg_video_item_ = qobject_cast<ui::video::VideoPresenterItem *>(
+        qml_root_object_->findChild<QObject *>(QStringLiteral("ffmpegVideoItem")));
+    Q_ASSERT(ffmpeg_video_item_ != nullptr);
 
-    if (auto *mpv_backend = dynamic_cast<player::MpvPlayerBackend *>(backend_.get())) {
-        mpv_backend->SetNetworkUserAgent(settings_.UserAgent());
-        video_item_->SetBackend(mpv_backend);
+    if (auto *ffmpeg_backend = dynamic_cast<player::FfmpegPlayerBackend *>(backend_.get())) {
+        ffmpeg_backend->SetVideoOnlyMode(options_.ffmpeg_smoke && qEnvironmentVariable("SHATV_FFMPEG_SMOKE_MEDIA").isEmpty());
+        ffmpeg_video_item_->SetBackend(ffmpeg_backend);
     }
 
     QObject::connect(shell_bridge_.get(), &ui::shell::AppShellBridge::ActivateChannelRequested, qt_app_,
                      [this](const QModelIndex &index) {
                          const QModelIndex source_index = channel_filter_model_->mapToSource(index);
-                         const domain::Channel channel = channel_model_->ChannelAt(source_index);
-                         if (channel.id.isEmpty()) {
+                         const domain::ResolvedChannel *resolved_channel =
+                             FindResolvedChannelBySourceRow(source_index.row());
+                         if (resolved_channel == nullptr) {
                              return;
                          }
-                         controller_->PlayChannel(channel);
+                         controller_->PlayResolvedChannel(*resolved_channel);
                      });
     QObject::connect(shell_bridge_.get(), &ui::shell::AppShellBridge::PlayPauseRequested, qt_app_, [this]() {
         const domain::PlaybackState state = controller_->CurrentSnapshot().state;
@@ -154,9 +159,23 @@ Application::Application(QGuiApplication *qt_app, LaunchOptions options)
     QObject::connect(shell_bridge_.get(), &ui::shell::AppShellBridge::VolumeRequested, controller_.get(),
                      &application::PlayerController::SetVolume);
     QObject::connect(shell_bridge_.get(), &ui::shell::AppShellBridge::OpenFileRequested, qt_app_,
-                     [this](const QString &path) { OpenFile(path); });
+                     [this](const QString &path) {
+                         ResolveOpenRequest(OpenRequest{
+                             .request_kind = OpenRequestKind::kFilePath,
+                             .target = path,
+                             .label = {},
+                             .replay_request_kind = std::nullopt,
+                         });
+                     });
     QObject::connect(shell_bridge_.get(), &ui::shell::AppShellBridge::OpenUrlRequested, qt_app_,
-                     [this](const QString &url_text) { OpenUrl(url_text); });
+                     [this](const QString &url_text) {
+                         ResolveOpenRequest(OpenRequest{
+                             .request_kind = OpenRequestKind::kUrlText,
+                             .target = url_text,
+                             .label = {},
+                             .replay_request_kind = std::nullopt,
+                         });
+                     });
     QObject::connect(shell_bridge_.get(), &ui::shell::AppShellBridge::NetworkSettingsRequested, qt_app_,
                      [this](const QString &user_agent, const QString &epg_url) {
                          UpdateNetworkSettings(user_agent, epg_url);
@@ -188,10 +207,9 @@ Application::Application(QGuiApplication *qt_app, LaunchOptions options)
     QObject::connect(&epg_refresh_timer_, &QTimer::timeout, qt_app_, [this]() { UpdateDisplayedEpg(); });
     epg_refresh_timer_.start();
 
-    startup_channel_ = BuildStartupChannel(options_, qEnvironmentVariable("SHATV_SMOKE_MEDIA"), QDir::currentPath());
     initial_channels_ = BuildInitialChannels();
     current_channels_ = initial_channels_;
-    channel_model_->SetChannels(initial_channels_);
+    channel_model_->SetChannels(ExtractChannels(initial_channels_));
     RefreshShellFilters();
     RefreshRecentItems();
     shell_bridge_->SetStatusMessage(QString());
@@ -203,11 +221,11 @@ Application::Application(QGuiApplication *qt_app, LaunchOptions options)
 
 Application::~Application() {
     status_message_timer_.stop();
-    if (video_item_ != nullptr) {
-        video_item_->SetBackend(nullptr);
+    if (ffmpeg_video_item_ != nullptr) {
+        ffmpeg_video_item_->SetBackend(nullptr);
     }
 
-    if (!settings_.Save()) {
+    if (!options_.smoke_test && !options_.ffmpeg_audio_smoke && !options_.ffmpeg_smoke && !settings_.Save()) {
         std::cerr << "ShaTV config save failed on exit" << std::endl;
     }
 
@@ -224,151 +242,87 @@ int Application::Run() {
     root_window_->show();
 
     if (options_.smoke_test) {
-        std::cout << "ShaTV Qt6 bootstrap" << std::endl;
-        SetupSmokeScenario();
-    } else if (options_.mpv_smoke) {
-        SetupMpvSmokeScenario();
+        SetupFfmpegSmokeScenario();
+    } else if (options_.ffmpeg_audio_smoke) {
+        SetupFfmpegAudioSmokeScenario();
+    } else if (options_.ffmpeg_smoke) {
+        SetupFfmpegSmokeScenario();
     } else if (!options_.open_url_argument.isEmpty()) {
         const QString startup_url = options_.open_url_argument;
-        QTimer::singleShot(0, qt_app_, [this, startup_url]() { OpenUrl(startup_url); });
+        QTimer::singleShot(0, qt_app_, [this, startup_url]() {
+            ResolveOpenRequest(OpenRequest{
+                .request_kind = OpenRequestKind::kStartupOpenUrl,
+                .target = startup_url,
+                .label = {},
+                .replay_request_kind = std::nullopt,
+            });
+        });
     } else if (!options_.open_media_argument.isEmpty()) {
         const QString startup_media = options_.open_media_argument;
-        QTimer::singleShot(0, qt_app_, [this, startup_media]() { OpenFile(startup_media); });
+        QTimer::singleShot(0, qt_app_, [this, startup_media]() {
+            ResolveOpenRequest(OpenRequest{
+                .request_kind = OpenRequestKind::kStartupOpenMedia,
+                .target = startup_media,
+                .label = {},
+                .replay_request_kind = std::nullopt,
+            });
+        });
     }
 
     return qt_app_->exec();
 }
 
-std::vector<domain::Channel> Application::BuildInitialChannels() const {
-    if (options_.mpv_smoke && startup_channel_.has_value()) {
-        return {*startup_channel_};
-    }
-
-    if (options_.smoke_test) {
-        return {BuildSmokeTestChannel()};
-    }
-
+std::vector<domain::ResolvedChannel> Application::BuildInitialChannels() const {
     return {};
 }
 
-void Application::OpenChannel(const domain::Channel &channel) {
-    if (!channel.url.isValid() || channel.url.toString().isEmpty()) {
-        ShowAlert(QCoreApplication::translate("Application", "Open request failed: invalid media target."));
-        return;
-    }
-
-    // 菜单入口统一替换成单项列表，避免当前阶段再引入复杂播放列表管理。
-    OpenChannels({channel});
+void Application::ResolveOpenRequest(OpenRequest request) {
+    source_open_service_->Resolve(std::move(request),
+                                  SourceOpenContext{
+                                      .current_directory = QDir::currentPath(),
+                                      .user_agent = settings_.UserAgent(),
+                                  },
+                                  [this](OpenResolution resolution) { HandleOpenResolution(std::move(resolution)); });
 }
 
-void Application::OpenChannels(std::vector<domain::Channel> channels, const QString &playlist_epg_url) {
-    if (channels.empty()) {
-        ShowPlaylistImportError(QCoreApplication::translate("Application", "Playlist contains no playable channels"));
+void Application::HandleOpenResolution(OpenResolution resolution) {
+    if (auto *error = std::get_if<OpenErrorResolution>(&resolution); error != nullptr) {
+        ShowAlert(error->message);
         return;
     }
 
-    current_channels_ = channels;
+    if (auto *direct_media = std::get_if<DirectMediaResolution>(&resolution); direct_media != nullptr) {
+        if (direct_media->recent_item.has_value()) {
+            RememberRecentItem(*direct_media->recent_item);
+        }
+
+        std::vector<domain::ResolvedChannel> channels;
+        channels.push_back(std::move(direct_media->item));
+        OpenChannels(std::move(channels));
+        return;
+    }
+
+    if (auto *channel_list = std::get_if<ChannelListResolution>(&resolution); channel_list != nullptr) {
+        if (channel_list->recent_item.has_value()) {
+            RememberRecentItem(*channel_list->recent_item);
+        }
+
+        OpenChannels(std::move(channel_list->channels), channel_list->playlist_epg_url);
+    }
+}
+
+void Application::OpenChannels(std::vector<domain::ResolvedChannel> channels, const QString &playlist_epg_url) {
+    if (channels.empty()) {
+        ShowAlert(QCoreApplication::translate("Application", "Playlist contains no playable channels"));
+        return;
+    }
+
+    current_channels_ = std::move(channels);
     playlist_epg_url_ = playlist_epg_url;
-    channel_model_->SetChannels(std::move(channels));
+    channel_model_->SetChannels(ExtractChannels(current_channels_));
     RefreshShellFilters();
     ReloadEpg();
     StartInitialPlayback();
-}
-
-void Application::OpenFile(const QString &path) {
-    if (path.isEmpty()) {
-        return;
-    }
-
-    if (LooksLikeLocalM3uPath(path)) {
-        OpenPlaylistFile(path);
-        return;
-    }
-
-    RememberRecentItem(BuildRecentFileItem(path, QDir::currentPath()));
-    OpenChannel(BuildOpenMediaChannel(path, QDir::currentPath()));
-}
-
-void Application::OpenPlaylistFile(const QString &path) {
-    QFile input(path);
-    if (!input.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        ShowPlaylistImportError(QCoreApplication::translate("Application", "Failed to open playlist file"));
-        return;
-    }
-
-    const QString text = QString::fromUtf8(input.readAll());
-    const PlaylistImportResult playlist = ParsePlaylistImportText(text, QFileInfo(path).baseName());
-    if (playlist.channels.empty()) {
-        ShowPlaylistImportError(QCoreApplication::translate("Application", "Playlist contains no playable channels"));
-        return;
-    }
-
-    RememberRecentItem(BuildRecentFileItem(path, QDir::currentPath()));
-    OpenChannels(playlist.channels, playlist.epg_url);
-}
-
-void Application::OpenUrl(const QString &url_text) {
-    if (url_text.isEmpty()) {
-        return;
-    }
-
-    const domain::Channel channel = BuildOpenUrlChannel(url_text, QDir::currentPath());
-    if (!IsRemotePlaybackUrl(channel.url)) {
-        ShowAlert(QCoreApplication::translate("Application", "Open Link expects an http:// or https:// URL."));
-        return;
-    }
-    if (LooksLikeRemoteM3uUrl(channel.url)) {
-        RememberRecentItem(BuildRecentUrlItem(url_text, QDir::currentPath()));
-        DownloadPlaylist(channel.url);
-        return;
-    }
-    if (LooksLikeRemoteMediaDirectoryUrl(channel.url)) {
-        ShowAlert(QCoreApplication::translate(
-            "Application", "Open Link needs a full media URL, for example http://127.0.0.1:8080/index.m3u8"));
-        return;
-    }
-
-    RememberRecentItem(BuildRecentUrlItem(url_text, QDir::currentPath()));
-    OpenChannel(channel);
-}
-
-void Application::DownloadPlaylist(const QUrl &url) {
-    QNetworkRequest request(url);
-    if (!settings_.UserAgent().isEmpty()) {
-        request.setHeader(QNetworkRequest::UserAgentHeader, settings_.UserAgent());
-    }
-
-    QNetworkReply *reply = network_manager_->get(request);
-    QObject::connect(reply, &QNetworkReply::finished, qt_app_, [this, reply, url]() {
-        const std::unique_ptr<QNetworkReply, void (*)(QNetworkReply *)> cleanup(reply, [](QNetworkReply *r) {
-            if (r != nullptr) {
-                r->deleteLater();
-            }
-        });
-
-        if (reply->error() != QNetworkReply::NoError) {
-            ShowPlaylistImportError(QCoreApplication::translate("Application", "Failed to download playlist"));
-            return;
-        }
-
-        const QString text = QString::fromUtf8(reply->readAll());
-        if (!LooksLikeM3uPlaylistText(text)) {
-            ShowPlaylistImportError(QCoreApplication::translate("Application", "Playlist format is not supported"));
-            return;
-        }
-
-        const PlaylistImportResult playlist = ParsePlaylistImportText(text, QFileInfo(url.path()).baseName());
-        if (playlist.channels.empty()) {
-            ShowPlaylistImportError(QCoreApplication::translate("Application", "Playlist contains no playable channels"));
-            return;
-        }
-
-        OpenChannels(playlist.channels, playlist.epg_url);
-    });
-}
-
-void Application::ShowPlaylistImportError(const QString &message) {
-    ShowAlert(message);
 }
 
 void Application::UpdateNetworkSettings(const QString &user_agent, const QString &epg_url) {
@@ -385,9 +339,6 @@ void Application::UpdateNetworkSettings(const QString &user_agent, const QString
         return;
     }
 
-    if (auto *mpv_backend = dynamic_cast<player::MpvPlayerBackend *>(backend_.get())) {
-        mpv_backend->SetNetworkUserAgent(settings_.UserAgent());
-    }
     shell_bridge_->SetConfiguredUserAgent(settings_.UserAgent());
     shell_bridge_->SetConfiguredEpgUrl(settings_.EpgUrl());
     ReloadEpg();
@@ -513,17 +464,25 @@ void Application::ClearDisplayedEpg() {
 }
 
 std::optional<domain::Channel> Application::FindChannelById(const QString &channel_id) const {
-    for (const domain::Channel &channel : current_channels_) {
-        if (channel.id == channel_id) {
-            return channel;
+    for (const domain::ResolvedChannel &resolved_channel : current_channels_) {
+        if (resolved_channel.channel.id == channel_id) {
+            return resolved_channel.channel;
         }
     }
 
     return std::nullopt;
 }
 
+const domain::ResolvedChannel *Application::FindResolvedChannelBySourceRow(int row) const {
+    if (row < 0 || row >= static_cast<int>(current_channels_.size())) {
+        return nullptr;
+    }
+
+    return &current_channels_.at(static_cast<std::size_t>(row));
+}
+
 void Application::RememberRecentItem(const RecentOpenItem &item) {
-    if (options_.smoke_test || options_.mpv_smoke) {
+    if (options_.smoke_test || options_.ffmpeg_audio_smoke || options_.ffmpeg_smoke) {
         return;
     }
 
@@ -557,14 +516,19 @@ void Application::ShowStatusMessage(const QString &message, int timeout_ms) {
     status_message_timer_.start(timeout_ms);
 }
 
-void Application::OpenRecentItem(const QString &kind, const QString &target) {
-    if (kind == "file") {
-        OpenFile(target);
+void Application::OpenRecentItem(const QString &request_kind, const QString &target) {
+    const std::optional<OpenRequestKind> parsed_request_kind = LegacyOpenRequestKindFromToken(request_kind);
+    if (!parsed_request_kind.has_value() || *parsed_request_kind == OpenRequestKind::kRecentItem) {
+        ShowAlert(QCoreApplication::translate("Application", "Recent item cannot be reopened"));
         return;
     }
-    if (kind == "url") {
-        OpenUrl(target);
-    }
+
+    ResolveOpenRequest(OpenRequest{
+        .request_kind = OpenRequestKind::kRecentItem,
+        .target = target,
+        .label = {},
+        .replay_request_kind = *parsed_request_kind,
+    });
 }
 
 void Application::StartInitialPlayback() {
@@ -573,36 +537,15 @@ void Application::StartInitialPlayback() {
     }
 
     const QModelIndex source_index = channel_filter_model_->mapToSource(channel_filter_model_->index(0, 0));
-    const domain::Channel channel = channel_model_->ChannelAt(source_index);
-    if (channel.id.isEmpty()) {
+    const domain::ResolvedChannel *resolved_channel = FindResolvedChannelBySourceRow(source_index.row());
+    if (resolved_channel == nullptr) {
         return;
     }
 
-    controller_->PlayChannel(channel);
+    controller_->PlayResolvedChannel(*resolved_channel);
 }
 
-void Application::SetupSmokeScenario() {
-    QObject::connect(controller_.get(), &application::PlayerController::PlaybackSnapshotChanged, qt_app_,
-                     [this](const domain::PlayerSnapshot &snapshot) {
-                         if (smoke_completed_ || snapshot.state != domain::PlaybackState::kPlaying) {
-                             return;
-                         }
-
-                         smoke_completed_ = true;
-                         const QString state_name = domain::PlaybackStateToken(controller_->CurrentSnapshot().state);
-
-                         std::cout << "ShaTV Stage2 smoke ok channels=" << channel_model_->rowCount()
-                                   << " current=" << controller_->CurrentSnapshot().channel_id.toStdString()
-                                   << " state=" << state_name.toStdString() << std::endl;
-
-                         QTimer::singleShot(0, qt_app_, &QCoreApplication::quit);
-                     });
-
-    // 通过定时触发模拟一次真实的首频道点击，验证 UI -> Controller -> Backend -> UI 主链。
-    QTimer::singleShot(0, qt_app_, [this]() { StartInitialPlayback(); });
-}
-
-void Application::SetupMpvSmokeScenario() {
+void Application::SetupFfmpegAudioSmokeScenario() {
     QObject::connect(controller_.get(), &application::PlayerController::PlaybackSnapshotChanged, qt_app_,
                      [this](const domain::PlayerSnapshot &snapshot) {
                          if (smoke_completed_) {
@@ -611,26 +554,101 @@ void Application::SetupMpvSmokeScenario() {
 
                          if (snapshot.state == domain::PlaybackState::kPlaying) {
                              smoke_completed_ = true;
-                             std::cout << "ShaTV Stage3 mpv smoke ok state=playing" << std::endl;
+                             std::cout << "ShaTV FFmpeg audio smoke ok state=playing" << std::endl;
+                             // Keep the process alive briefly so the smoke path proves real QAudioSink playback,
+                             // not just demux/decode success.
+                             QTimer::singleShot(1500, qt_app_, &QCoreApplication::quit);
+                             return;
+                         }
+
+                         if (snapshot.state == domain::PlaybackState::kError) {
+                             smoke_completed_ = true;
+                             std::cout << "ShaTV FFmpeg audio smoke failed state=error message="
+                                       << snapshot.message.toStdString() << std::endl;
+                             QTimer::singleShot(0, qt_app_, []() { QCoreApplication::exit(1); });
+                         }
+                     });
+
+    const QString media_path = FfmpegAudioSmokeMediaPath();
+    if (media_path.isEmpty()) {
+        smoke_completed_ = true;
+        std::cout << "ShaTV FFmpeg audio smoke failed missing fixture; set SHATV_FFMPEG_AUDIO_SMOKE_MEDIA" << std::endl;
+        QTimer::singleShot(0, qt_app_, []() { QCoreApplication::exit(1); });
+        return;
+    }
+
+    QTimer::singleShot(0, qt_app_, [this, media_path]() {
+        ResolveOpenRequest(OpenRequest{
+            .request_kind = OpenRequestKind::kStartupOpenMedia,
+            .target = media_path,
+            .label = {},
+            .replay_request_kind = std::nullopt,
+        });
+    });
+    QTimer::singleShot(10000, qt_app_, [this]() {
+        if (smoke_completed_) {
+            return;
+        }
+
+        smoke_completed_ = true;
+        std::cout << "ShaTV FFmpeg audio smoke timeout" << std::endl;
+        QCoreApplication::exit(1);
+    });
+}
+
+void Application::SetupFfmpegSmokeScenario() {
+    auto saw_playing = std::make_shared<bool>(false);
+    QObject::connect(controller_.get(), &application::PlayerController::PlaybackSnapshotChanged, qt_app_,
+                     [this, saw_playing](const domain::PlayerSnapshot &snapshot) {
+                         if (smoke_completed_) {
+                             return;
+                         }
+
+                         if (snapshot.state == domain::PlaybackState::kPlaying) {
+                             *saw_playing = true;
+                             std::cout << "ShaTV FFmpeg video smoke ok state=playing" << std::endl;
+                             return;
+                         }
+
+                         if (snapshot.state == domain::PlaybackState::kIdle && *saw_playing) {
+                             smoke_completed_ = true;
+                             std::cout << "ShaTV FFmpeg video smoke ok state=idle" << std::endl;
                              QTimer::singleShot(0, qt_app_, &QCoreApplication::quit);
                              return;
                          }
 
                          if (snapshot.state == domain::PlaybackState::kError) {
                              smoke_completed_ = true;
-                             std::cout << "ShaTV Stage3 mpv smoke failed state=error" << std::endl;
-                             QTimer::singleShot(0, qt_app_, &QCoreApplication::quit);
+                             std::cout << "ShaTV FFmpeg video smoke failed state=error message="
+                                       << snapshot.message.toStdString() << std::endl;
+                             QTimer::singleShot(0, qt_app_, []() { QCoreApplication::exit(1); });
                          }
                      });
 
-    QTimer::singleShot(0, qt_app_, [this]() { StartInitialPlayback(); });
-    QTimer::singleShot(1500, qt_app_, [this]() {
+    const QString media_path = FfmpegSmokeMediaPath();
+    if (media_path.isEmpty()) {
+        smoke_completed_ = true;
+        std::cout << "ShaTV FFmpeg video smoke failed missing fixture; set SHATV_FFMPEG_SMOKE_MEDIA" << std::endl;
+        QTimer::singleShot(0, qt_app_, []() { QCoreApplication::exit(1); });
+        return;
+    }
+
+    QTimer::singleShot(0, qt_app_, [this, media_path]() {
+        ResolveOpenRequest(OpenRequest{
+            .request_kind = OpenRequestKind::kStartupOpenMedia,
+            .target = media_path,
+            .label = {},
+            .replay_request_kind = std::nullopt,
+        });
+    });
+    QTimer::singleShot(60000, qt_app_, [this]() {
         if (smoke_completed_) {
             return;
         }
 
-        std::cout << "ShaTV Stage3 mpv smoke timeout" << std::endl;
-        qt_app_->quit();
+        smoke_completed_ = true;
+        std::cout << "ShaTV FFmpeg video smoke timeout" << std::endl;
+        QCoreApplication::exit(1);
     });
 }
 

@@ -10,14 +10,22 @@ add_library(shatv_app
     app/epg_service.cpp
     app/launch_options.cpp
     app/m3u_playlist_parser.cpp
+    app/open_request.cpp
+    app/source_open_service.cpp
     app/xmltv_epg_payload.cpp
     app/xmltv_epg_parser.cpp
     application/player_controller.cpp
-    player/fake_player_backend.cpp
-    player/mpv_event_adapter.cpp
-    player/mpv_player_backend.cpp
+    domain/media_source.cpp
+    media/audio/audio_output.cpp
+    media/decode/audio_decoder.cpp
+    media/decode/video_decoder.cpp
+    media/demux/demuxer.cpp
+    media/ffmpeg_error.cpp
+    media/video/video_frame_queue.cpp
+    player/ffmpeg_player_backend.cpp
     player/player_backend.cpp
-    ui/video/mpv_video_item.cpp
+    player/retry_schedule.cpp
+    ui/video/video_presenter_item.cpp
     ui/models/channel_filter_model.cpp
     ui/models/channel_list_model.cpp
     ui/shell/app_shell_bridge.cpp
@@ -32,12 +40,14 @@ target_include_directories(shatv_app
 target_link_libraries(shatv_app
     PUBLIC
         Qt6::Core
+        Qt6::GuiPrivate
         Qt6::Network
+        Qt6::Multimedia
         Qt6::Qml
         Qt6::Quick
         Qt6::QuickControls2
         Qt6::QuickDialogs2
-        shatv_mpv
+        shatv_ffmpeg
         toml11::toml11
         ZLIB::ZLIB
 )
@@ -86,3 +96,13 @@ qt_add_resources(shatv_app shatv_app_main_window_qml
         ui/qml/dialogs/SettingsWindow.qml
         ui/qml/dialogs/OpenUrlDialog.qml
 )
+
+if(TARGET Qt6::ShaderTools)
+    qt6_add_shaders(shatv_app "shatv_video_shaders"
+        GLSL "440"
+        PREFIX "/shatv/shaders"
+        FILES
+            ui/video/shaders/video_present.vert
+            ui/video/shaders/video_present.frag
+    )
+endif()

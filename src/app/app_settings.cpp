@@ -25,7 +25,7 @@ constexpr int kDefaultVolume = 50;
 constexpr bool kDefaultMuted = false;
 
 bool IsSameRecentItem(const RecentOpenItem &lhs, const RecentOpenItem &rhs) {
-    return lhs.kind == rhs.kind && lhs.target == rhs.target;
+    return lhs.request_kind == rhs.request_kind && lhs.target == rhs.target;
 }
 
 void NormalizeRecentItems(std::vector<RecentOpenItem> &items) {
@@ -33,7 +33,7 @@ void NormalizeRecentItems(std::vector<RecentOpenItem> &items) {
     normalized.reserve(std::min(items.size(), kMaxRecentItems));
 
     for (auto &item : items) {
-        if (item.kind.isEmpty() || item.target.isEmpty()) {
+        if (item.target.isEmpty()) {
             continue;
         }
         if (item.label.isEmpty()) {
@@ -176,7 +176,7 @@ void AppSettings::SetMuted(bool muted) {
 }
 
 void AppSettings::RememberRecentItem(RecentOpenItem item) {
-    if (item.kind.isEmpty() || item.target.isEmpty()) {
+    if (item.target.isEmpty()) {
         return;
     }
 
@@ -226,17 +226,22 @@ bool AppSettings::Load() {
                             continue;
                         }
 
-                        const QString kind =
+                        const QString request_kind =
+                            QString::fromStdString(toml::find_or<std::string>(entry, "request_kind", std::string()));
+                        const QString legacy_kind =
                             QString::fromStdString(toml::find_or<std::string>(entry, "kind", std::string()));
                         const QString target =
                             QString::fromStdString(toml::find_or<std::string>(entry, "target", std::string()));
                         const QString label =
                             QString::fromStdString(toml::find_or<std::string>(entry, "label", std::string()));
-                        if (kind.isEmpty() || target.isEmpty()) {
+                        const std::optional<OpenRequestKind> parsed_request_kind =
+                            request_kind.isEmpty() ? LegacyOpenRequestKindFromToken(legacy_kind)
+                                                   : OpenRequestKindFromToken(request_kind);
+                        if (!parsed_request_kind.has_value() || target.isEmpty()) {
                             continue;
                         }
                         recent_items_.push_back(RecentOpenItem{
-                            .kind = kind,
+                            .request_kind = *parsed_request_kind,
                             .target = target,
                             .label = label.isEmpty() ? target : label,
                         });
@@ -274,7 +279,7 @@ bool AppSettings::Save() const {
         toml::array recent_entries;
         for (const auto &item : recent_items_) {
             toml::value entry;
-            entry["kind"] = toml::value(ToStdString(item.kind));
+            entry["request_kind"] = toml::value(ToStdString(OpenRequestKindToken(item.request_kind)));
             entry["target"] = toml::value(ToStdString(item.target));
             entry["label"] = toml::value(ToStdString(item.label));
             recent_entries.push_back(std::move(entry));

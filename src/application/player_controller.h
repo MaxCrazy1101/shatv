@@ -2,7 +2,7 @@
 
 #include <QObject>
 
-#include "domain/channel.h"
+#include "domain/media_source.h"
 #include "domain/player_snapshot.h"
 #include "player/player_backend.h"
 
@@ -14,7 +14,7 @@ class PlayerController final : public QObject {
    public:
     explicit PlayerController(player::PlayerBackend *backend, QObject *parent = nullptr);
 
-    void PlayChannel(const domain::Channel &channel);
+    void PlayResolvedChannel(const domain::ResolvedChannel &resolved_channel);
     void Pause();
     void Resume();
     void Stop();
@@ -33,11 +33,8 @@ class PlayerController final : public QObject {
 
    private:
     player::PlayerBackend *backend_ = nullptr;
-    domain::Channel current_channel_;
+    domain::ResolvedChannel current_channel_;
     domain::PlayerSnapshot current_snapshot_;
-    int retry_count_ = 0;
-    int retry_generation_ = 0;
-    static constexpr int kMaxRetryCount = 1;
 };
 
 }  // namespace shatv::application

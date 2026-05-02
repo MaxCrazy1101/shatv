@@ -859,15 +859,16 @@ ApplicationWindow {
                         Layout.fillHeight: true
                         Layout.minimumHeight: Shell.Theme.videoMinHeight
 
-                        MpvVideoItem {
-                            id: playerVideoItem
-                            objectName: "playerVideoItem"
+                        VideoPresenterItem {
+                            id: ffmpegVideoItem
+                            objectName: "ffmpegVideoItem"
                             anchors.fill: parent
+                            visible: ready
                         }
 
                         Label {
                             anchors.centerIn: parent
-                            visible: !playerVideoItem.ready
+                            visible: !ffmpegVideoItem.ready
                             text: root.effectiveStatusText
                             color: Shell.Theme.textPrimary
                         }

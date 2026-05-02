@@ -14,7 +14,7 @@ int main(int argc, char *argv[]) {
     QQuickStyle::setStyle(QStringLiteral("Fusion"));
 #endif
     QGuiApplication app(argc, argv);
-    // Qt 初始化后会覆盖 LC_NUMERIC，这里统一钉回 C 供 libmpv 使用。
+    // Qt 初始化后会覆盖 LC_NUMERIC，这里统一钉回 C 供 FFmpeg 等媒体库使用。
     std::setlocale(LC_NUMERIC, "C");
 
     QTranslator translator;

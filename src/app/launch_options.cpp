@@ -49,7 +49,8 @@ QString ChannelNameFromUrl(const QUrl &url) {
 LaunchOptions ParseLaunchOptions(const QStringList &arguments) {
     LaunchOptions options;
     options.smoke_test = arguments.contains("--smoke-test");
-    options.mpv_smoke = arguments.contains("--mpv-smoke");
+    options.ffmpeg_audio_smoke = arguments.contains("--ffmpeg-audio-smoke");
+    options.ffmpeg_smoke = arguments.contains("--ffmpeg-smoke");
     options.open_url_argument = FindOptionValue(arguments, "--open-url");
     options.open_media_argument = FindOptionValue(arguments, "--open-media");
     return options;
@@ -101,20 +102,7 @@ bool LooksLikeRemoteMediaDirectoryUrl(const QUrl &url) {
     return !url.hasQuery();
 }
 
-std::optional<domain::Channel> BuildStartupChannel(const LaunchOptions &options, const QString &smoke_media,
-                                                   const QString &current_directory) {
-    if (options.mpv_smoke && !smoke_media.isEmpty()) {
-        const QString absolute_path = QFileInfo(smoke_media).absoluteFilePath();
-        return domain::Channel{
-            .id = "demo-news",
-            .name = QFileInfo(absolute_path).fileName(),
-            .url = QUrl::fromLocalFile(absolute_path),
-            .group = QCoreApplication::translate("LaunchOptions", "Smoke"),
-            .tvg_id = {},
-            .tvg_name = {},
-        };
-    }
-
+std::optional<domain::Channel> BuildStartupChannel(const LaunchOptions &options, const QString &current_directory) {
     // 启动参数冲突时优先使用显式 URL，避免被本地媒体参数覆盖。
     if (!options.open_url_argument.isEmpty()) {
         return BuildOpenUrlChannel(options.open_url_argument, current_directory);

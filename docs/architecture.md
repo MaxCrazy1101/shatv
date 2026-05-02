@@ -2,236 +2,262 @@
 
 ## 目标
 
-ShaTV 是一个桌面 IPTV 播放器，当前阶段优先保证：
+ShaTV 当前的主线目标很明确：
 
-- 可演示
-- 可维护
-- 可扩展
-- Linux 本地开发顺畅
-- 为 Windows 构建与分发预留空间
+- 保持桌面 IPTV 播放器的主链稳定
+- 用纯 QML 壳层承载交互和视觉演进
+- 用清晰的层次边界保证后续功能继续可维护
+- 保持 Linux 本地开发顺畅，并为 Windows 构建保留兼容路径
 
-当前项目已经不再是“纯 Qt Widgets 壳层”，而是演进为：
+当前主线已经完成从旧的 Widgets 过渡方案收敛，真实架构是：
 
-- `QML shell`
-- `C++ bridge`
-- `Widgets/OpenGL` 视频视口
-- `libmpv` 播放后端
+- `QGuiApplication`
+- `QQmlApplicationEngine`
+- `ApplicationWindow` QML 壳层
+- `AppShellBridge` C++/QML bridge
+- `QQuickRhiItem` 承载 FFmpeg 解码后的视频帧显示
+- FFmpeg 作为唯一播放后端和媒体核心入口
 
-因此后续架构演进目标不是“把所有代码推倒重来迁移到 QML”，而是在保持 `application / player / domain` 边界稳定的前提下，继续完善这套混合架构。
+不再是：
+
+- `QMainWindow`
+- `QQuickWidget`
+- `QWidget` 视频 sibling
+- `QOpenGLWidget` 视频视口壳层
+
+如果看到 `docs/superpowers/` 下还有旧设计文档，那些是迁移过程的历史资料，不代表当前主线实现。
 
 ## 技术决策
 
 - 语言标准：`C++20`
-- 壳层 UI：`Qt Quick / QML`
-- 壳层承载：`QQuickWidget`
-- 视频容器：`Qt Widgets`
-- 视频渲染控件：`QOpenGLWidget`
-- 播放后端：`libmpv render API`
-- 平台策略：`Linux first`，保留 `Windows` 兼容空间
+- 应用宿主：`QGuiApplication`
+- QML 引擎：`QQmlApplicationEngine`
+- UI 壳层：`Qt Quick / QML`
+- 视频承载：`QQuickRhiItem` / `VideoPresenterItem`
+- 默认播放后端：`FfmpegPlayerBackend`
+- 平台策略：`Linux first`，持续保留 `Windows` 兼容能力
 
-选择原因：
+选择这套结构的原因：
 
-- QML 更适合当前的主界面壳层、频道列表、状态栏、工具栏和后续视觉演进。
-- `QQuickWidget` 允许在不重写播放器渲染链的前提下，把主界面迁移到 QML。
-- `PlaybackViewport + MpvRenderWidget` 保留了成熟的 OpenGL 视频承载方式，避免当前阶段重做 `libmpv` 与 Qt Quick Scene Graph 的集成。
-- `libmpv` 继续作为成熟播放内核，不在当前阶段自研解码、同步和渲染链路。
+- `ApplicationWindow` 足以承载当前主界面、标题栏、频道栏、状态区和弹窗交互
+- `VideoPresenterItem` 能把 FFmpeg 解码后的 YUV 视频帧收进 Qt Quick 场景，而不再需要 QWidget 混合层
+- `AppShellBridge` 统一了 QML 状态读取与用户动作回传，避免 QML 直接碰播放器后端
+- `PlayerController`、`PlayerBackend`、`domain` 层仍然可以保持独立，不受具体 UI 技术细节污染
+
+## 当前入口与启动链
+
+当前启动入口位于 `src/app/main.cpp`：
+
+```text
+main()
+-> QGuiApplication
+-> ParseLaunchOptions()
+-> Application(qt_app, options)
+-> Application::Run()
+```
+
+`Application` 是当前的组合根（composition root），负责：
+
+- 创建 `PlayerBackend`
+- 创建 `PlayerController`
+- 创建 `ChannelListModel` / `ChannelFilterModel`
+- 创建 `AppShellBridge`
+- 创建 `QQmlApplicationEngine`
+- 注册 `VideoPresenterItem` QML type
+- 将 `appShellBridge` 注入 QML context
+- 加载 `qrc:/qt/qml/MainWindow.qml`
 
 ## 架构边界
 
-- `ui`
-  - 负责界面展示和用户交互
-  - 当前采用 `QML shell + QWidget 视频视口` 的混合模式
-  - 不直接调用底层 `mpv_handle`
-- `application`
-  - 负责播放流程协调、自动重试、配置下发和 UI 协调
-- `player`
-  - 负责 `libmpv` 集成、事件转换、视频渲染和播放控制
-- `domain`
-  - 定义稳定数据结构，例如 `Channel`、`PlayerSnapshot`、`PlaybackState`
-- `app`
-  - 负责对象装配和启动入口
+### `app`
 
-核心原则：
+职责：
 
-- UI 不直接操作 `mpv_handle`
-- 播放器原始事件先转换为内部 snapshot，再交给 UI 使用
-- QML 不直接感知后端实现，统一通过桥接对象与模型交互
-- 视频区继续由专门的 Widgets/OpenGL 组件承载，不把 Scene Graph 集成复杂度扩散到当前阶段
+- 作为组合根装配全局对象
+- 处理启动参数、配置、网络访问、EPG 加载
+- 连接 bridge、controller、model、backend
 
-## 当前主界面结构
+关键对象：
 
-当前主界面不是传统 `QMainWindow + Splitter + 全 Widgets`，而是：
+- `Application`
+- `AppSettings`
+- `LaunchOptions`
+- `EpgService`
+- `m3u/xmltv` 解析与 payload 解码
+
+### `application`
+
+职责：
+
+- 封装播放器业务编排逻辑
+- 统一播放、暂停、停止、静音、音量和快照回流
+
+关键对象：
+
+- `PlayerController`
+
+### `player`
+
+职责：
+
+- 封装播放器后端实现
+- 默认通过 FFmpeg 完成 demux / decode / audio output / video presentation
+- 对外暴露稳定的播放器接口
+
+关键对象：
+
+- `PlayerBackend`
+- `FfmpegPlayerBackend`
+- `VideoFrameSink`
+
+### `domain`
+
+职责：
+
+- 定义跨层稳定数据结构
+
+关键对象：
+
+- `Channel`
+- `MediaSourceDescriptor`
+- `ResolvedChannel`
+- `PlaybackState`
+- `PlayerSnapshot`
+
+### `ui/models`
+
+职责：
+
+- 暴露给 QML 的列表模型与过滤模型
+
+关键对象：
+
+- `ChannelListModel`
+- `ChannelFilterModel`
+
+### `ui/shell`
+
+职责：
+
+- 作为 QML 与 C++ 之间唯一桥接对象
+- 提供 `Q_PROPERTY`
+- 暴露 `Q_INVOKABLE`
+- 将 QML 动作转换为 Qt signal
+
+关键对象：
+
+- `AppShellBridge`
+
+### `ui/video`
+
+职责：
+
+- 承载 Qt Quick 场景内的视频渲染项
+- 把 Qt Quick 视频显示项与后端视频帧提交协议接上
+
+关键对象：
+
+- `VideoPresenterItem`
+
+### `ui/qml`
+
+职责：
+
+- 承载真正的应用窗口与界面组件
+- 组织标题栏、侧栏、视频区、控制区、状态区和各类弹窗
+
+关键对象：
+
+- `MainWindow.qml`
+- `Theme.qml`
+- `controls/*.qml`
+- `dialogs/*.qml`
+
+## 当前真实对象关系
+
+主交互链：
 
 ```text
-QMainWindow
-└── content_host_ : QWidget
-    ├── qml_view_ : QQuickWidget
-    │   └── MainWindow.qml
-    │       ├── 顶部工具栏
-    │       ├── 左侧频道区
-    │       │   ├── 搜索框
-    │       │   ├── 分组筛选
-    │       │   └── ChannelListView
-    │       └── 右侧内容区
-    │           ├── videoHost : QQuickItem
-    │           ├── 底部状态/工具区域
-    │           └── 全屏状态切换入口
-    └── playback_viewport_ : QWidget
-        ├── MpvRenderWidget
-        └── PlaybackOsdOverlay
+MainWindow.qml
+    -> bridge (alias of appShellBridge)
+        -> AppShellBridge
+            -> Application signal wiring
+                -> PlayerController
+                    -> PlayerBackend
+                        -> FfmpegPlayerBackend
 ```
 
-这里的关键点是：
-
-- `QQuickWidget` 负责 QML 壳层
-- `videoHost` 只是 QML 中的几何占位区域
-- `MainWindow` 负责把 `videoHost` 的几何同步给 `playback_viewport_`
-- 真正的视频显示和 OSD 交互仍在 `playback_viewport_` 内完成
-
-## 核心对象关系
-
-### `MainWindow`
-
-职责：
-
-- 承载 `QQuickWidget`
-- 创建并维护 `MainWindowBridge`
-- 管理 `PlaybackViewport`
-- 接收 `PlayerController` 的快照回流
-- 把模型、状态、recent items、fullscreen 状态同步给 QML
-
-`MainWindow` 不直接操作 `mpv_handle`，也不直接写播放后端逻辑。
-
-### `MainWindowBridge`
-
-职责：
-
-- 作为 QML 与 C++ 主窗口之间的桥接层
-- 向 QML 暴露：
-  - 频道模型
-  - 分组列表
-  - 搜索文本
-  - recent items
-  - fullscreen 状态
-  - status message
-- 把 QML 操作转成 C++ signal，例如：
-  - 激活频道
-  - 打开文件
-  - 打开链接
-  - 打开 recent item
-  - 切换全屏
-
-桥接层只做状态与事件转接，不承载业务流程。
-
-### `PlaybackViewport`
-
-职责：
-
-- 承载 `MpvRenderWidget`
-- 叠加 `PlaybackOsdOverlay`
-- 管理全屏下的 OSD 自动隐藏与唤起
-- 继续作为视频显示的真实 QWidget 容器
-
-它是 QML 外壳与视频渲染层之间的边界。
-
-### `PlayerController`
-
-职责：
-
-- 协调播放器主链
-- 统一处理播放快照
-- 管理应用级自动重试策略
-- 不依赖 QML、QQuickWidget、`MpvRenderWidget` 等具体视图实现
-
-### `MpvPlayerBackend`
-
-职责：
-
-- 封装 `libmpv`
-- 管理 `mpv_handle` 与 `mpv_render_context`
-- 对外提供加载、暂停、停止、音量、静音等能力
-
-## 依赖方向
-
-当前真实依赖方向是：
+视频渲染链：
 
 ```text
-QML (MainWindow.qml)
-    -> MainWindowBridge
-        -> MainWindow
-            -> PlayerController
-                -> PlayerBackend
-                    -> MpvPlayerBackend
+MainWindow.qml
+    -> VideoPresenterItem
+        -> FfmpegPlayerBackend::SetVideoFrameSink(...)
+            -> media::video::VideoFrame
+                -> QRhi Y/U/V texture upload
 ```
 
-视频显示链单独为：
+EPG 链：
 
 ```text
-MainWindow
-    -> PlaybackViewport
-        -> MpvRenderWidget
-            -> MpvPlayerBackend render path
+Application
+    -> QNetworkAccessManager / local file
+        -> DecodeXmltvPayload()
+            -> EpgService::LoadXmltv()
+                -> LookupNowNext()
+                    -> AppShellBridge::SetProgrammeTexts(...)
+                        -> MainWindow.qml
 ```
-
-禁止出现的反向依赖：
-
-- `MainWindowBridge -> mpv_handle`
-- `QML -> PlayerController`
-- `MpvPlayerBackend -> MainWindow`
-- `ChannelListModel -> PlayerController`
 
 ## 关键调用链
 
 ### 播放主链
 
 ```text
-用户在 QML 频道列表点击频道
--> MainWindowBridge::activateChannelRow()
--> MainWindow 收到 ActivateChannelRequested(row)
--> MainWindow 从 ChannelFilterModel 取得选中项
--> MainWindow 调用 PlayerController::PlayChannel(channel)
--> PlayerController 调用 PlayerBackend::Load(channel)
--> MpvPlayerBackend 驱动 libmpv
--> 后端快照回流
--> MainWindow 更新：
-   - PlaybackViewport
-   - ChannelFilterModel / ChannelListModel 当前高亮
-   - QML bridge 状态
+用户点击频道
+-> MainWindow.qml 调用 bridge.activateChannelRow(index)
+-> AppShellBridge 发出 ActivateChannelRequested(sourceIndex)
+-> Application 取出 ResolvedChannel
+-> PlayerController::PlayResolvedChannel(resolved_channel)
+-> PlayerBackend::Load(resolved_channel.source)
+-> FfmpegPlayerBackend 驱动 FFmpeg media core
+-> PlaybackSnapshotChanged 回流
+-> AppShellBridge::SetPlaybackSnapshot(...)
+-> QML 更新播放状态、频道名、音量、静音状态
 ```
 
-### 搜索与分组筛选链
+### 搜索 / 分组筛选链
 
 ```text
-用户在 QML 输入搜索或切换分组
--> MainWindowBridge::setSearchText() / setGroupFilter()
--> ChannelFilterModel 更新过滤条件
--> QML ListView 通过 model 自动刷新可见项
+用户输入搜索词或切换分组
+-> MainWindow.qml 调用 bridge.setSearchText() / bridge.setGroupFilter()
+-> AppShellBridge 更新 ChannelFilterModel
+-> ListView 自动刷新
 ```
 
-### 全屏与 OSD 链
+### 打开文件 / 打开链接链
 
 ```text
-用户在 QML 或键盘触发全屏
--> MainWindow::ToggleFullscreen()
--> MainWindow 切换窗口态并同步 fullscreen 状态到 bridge
--> PlaybackViewport::SetFullscreenActive(true)
--> PlaybackOsdOverlay 管理显示/隐藏
+QML Dialog / FileDialog 提交
+-> bridge.submitOpenFile() / bridge.submitOpenUrl()
+-> AppShellBridge 发出 OpenFileRequested / OpenUrlRequested
+-> Application::ResolveOpenRequest(...)
+-> SourceOpenService 解析播放列表、下载远程 M3U、或返回单一媒体 OpenResolution
+-> Application::OpenChannels(...)
 ```
 
-### 配置链
+### 网络设置链
 
 ```text
-Application 启动
--> AppSettings::Load()
--> MainWindow::SetConfiguredUserAgent()
--> MainWindow::SetOsdAutoHideSeconds()
--> MainWindow::SetRecentItems()
--> MainWindowBridge 同步给 QML
+SettingsWindow 提交 userAgent / epgUrl
+-> bridge.submitNetworkSettings(...)
+-> Application::UpdateNetworkSettings(...)
+-> AppSettings::Save()
+-> 后续 SourceOpenService / MediaSourceDescriptor 使用最新 User-Agent
+-> ReloadEpg()
 ```
 
 ## 当前目录结构
-
-当前有效目录结构如下：
 
 ```text
 src/
@@ -241,47 +267,64 @@ src/
   player/
   ui/
     models/
-    panels/
     qml/
-    widgets/
-    windows/
+      controls/
+      dialogs/
+      fonts/
+    shell/
+    video/
 tests/
   unit/
 docs/
 translations/
+cmake/
+scripts/
 ```
 
 说明：
 
-- `ui/qml/` 放 QML 壳层页面
-- `ui/windows/` 放 QWidget 主窗口壳与桥接对象
-- `ui/widgets/` 放视频区等 QWidget 组件
-- `ui/panels/` 放 OSD 等可复用控件
+- `ui/qml/` 是纯 QML UI 资源目录
+- `ui/shell/` 只放 bridge
+- `ui/video/` 只放 Qt Quick 视频渲染项
+- 不再有 `ui/windows/`、`ui/widgets/`、`ui/panels/` 这类当前主线目录
 
 ## 当前阶段的技术立场
 
-当前项目已经进入“**QML 外壳 + Widgets 视频层**”的混合架构。
+当前项目的正确描述是：
 
-因此当前阶段的正确方向是：
+- 纯 QML 壳层
+- C++ bridge
+- `QQuickRhiItem` / `VideoPresenterItem` 视频承载
+- FFmpeg 播放后端
 
-- 继续完善 QML 壳层
-- 保持 `PlaybackViewport + MpvRenderWidget` 视频路径稳定
-- 继续保持 `application / player / domain` 不受 UI 技术栈变化影响
+因此当前阶段应继续保持：
 
-当前阶段不建议做：
+- QML 不直接调用播放器后端
+- 所有 QML 动作先进入 `AppShellBridge`
+- `Application` 继续承担组合根和顶层流程协调职责
+- `PlayerController` 不依赖 QML 细节
+- `domain` 继续作为稳定跨层数据协议
 
-- 全量重写为纯 Qt Quick 视频渲染架构
-- 让 QML 直接操作播放器后端
-- 为了追求“纯 QML”打破当前清晰的层次边界
+当前阶段不应回退到：
+
+- 再引入 `QQuickWidget` / `QMainWindow`
+- 恢复 QWidget 视频 sibling 架构
+- 让 QML 直接持有媒体后端内部句柄
 
 ## 后续演进
 
-- 短期：
-  - 完善 QML 主界面交互
-  - 继续补齐全屏、设置、状态展示和 About 等壳层能力
-- 中期：
-  - 如果 QML 壳层进一步稳定，可逐步把更多非视频控件从 Widgets 收口到 QML
-- 长期：
-  - 只有在明确需要更深的 Scene Graph 集成时，才评估是否将视频承载从 `QOpenGLWidget` 迁移到 Qt Quick 原生渲染项
+短期方向：
 
-当前架构目标不是“全面迁移到纯 QML”，而是维护这套对播放器项目更稳妥的混合方案。
+- 继续补齐 QML 壳层交互
+- 完善弹窗、状态展示、recent items、网络配置和 EPG 展示
+- 继续补 smoke / unit 覆盖
+
+中期方向：
+
+- 在不破坏层次边界的前提下继续扩展 QML 组件体系
+- 继续把 UI 状态收敛到 `AppShellBridge`
+
+长期方向：
+
+- 仅在确有收益时才评估更深的 Qt Quick render path 优化
+- 保持架构边界比“追求更炫的技术形态”更优先

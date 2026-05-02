@@ -4,13 +4,9 @@
 
 #include <QString>
 
-namespace shatv::app {
+#include "app/open_request.h"
 
-struct RecentOpenItem {
-    QString kind;
-    QString target;
-    QString label;
-};
+namespace shatv::app {
 
 class AppSettings final {
    public:

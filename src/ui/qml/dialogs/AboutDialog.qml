@@ -74,7 +74,7 @@ Dialog {
 
         Label {
             Layout.fillWidth: true
-            text: qsTr("Built with C++20, Qt 6, and libmpv.")
+            text: qsTr("Built with C++20, Qt 6, and FFmpeg.")
             color: Shell.Theme.textSecondary
             wrapMode: Text.WordWrap
         }

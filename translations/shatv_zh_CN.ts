@@ -130,8 +130,8 @@
       <translation>关于 ShaTV</translation>
     </message>
     <message>
-      <source>&lt;h2&gt;ShaTV&lt;/h2&gt;&lt;p&gt;A Linux-first IPTV player.&lt;/p&gt;&lt;p&gt;Built with C++20, Qt 6, and libmpv.&lt;/p&gt;&lt;p&gt;Licensed under the terms of the project license.&lt;/p&gt;&lt;p&gt;&lt;a href="https://github.com/MaxCrazy1101/shatv"&gt;github.com/MaxCrazy1101/shatv&lt;/a&gt;&lt;/p&gt;</source>
-      <translation>&lt;h2&gt;ShaTV&lt;/h2&gt;&lt;p&gt;面向 Linux 的 IPTV 播放器。&lt;/p&gt;&lt;p&gt;基于 C++20、Qt 6 和 libmpv 构建。&lt;/p&gt;&lt;p&gt;按项目许可证条款授权。&lt;/p&gt;&lt;p&gt;&lt;a href="https://github.com/MaxCrazy1101/shatv"&gt;github.com/MaxCrazy1101/shatv&lt;/a&gt;&lt;/p&gt;</translation>
+      <source>&lt;h2&gt;ShaTV&lt;/h2&gt;&lt;p&gt;A Linux-first IPTV player.&lt;/p&gt;&lt;p&gt;Built with C++20, Qt 6, and FFmpeg.&lt;/p&gt;&lt;p&gt;Licensed under the terms of the project license.&lt;/p&gt;&lt;p&gt;&lt;a href="https://github.com/MaxCrazy1101/shatv"&gt;github.com/MaxCrazy1101/shatv&lt;/a&gt;&lt;/p&gt;</source>
+      <translation>&lt;h2&gt;ShaTV&lt;/h2&gt;&lt;p&gt;面向 Linux 的 IPTV 播放器。&lt;/p&gt;&lt;p&gt;基于 C++20、Qt 6 和 FFmpeg 构建。&lt;/p&gt;&lt;p&gt;按项目许可证条款授权。&lt;/p&gt;&lt;p&gt;&lt;a href="https://github.com/MaxCrazy1101/shatv"&gt;github.com/MaxCrazy1101/shatv&lt;/a&gt;&lt;/p&gt;</translation>
     </message>
     <message>
       <source>&amp;View</source>
@@ -308,8 +308,8 @@
       <translation>构建</translation>
     </message>
     <message>
-      <source>Built with C++20, Qt 6, and libmpv.</source>
-      <translation>基于 C++20、Qt 6 和 libmpv 构建。</translation>
+      <source>Built with C++20, Qt 6, and FFmpeg.</source>
+      <translation>基于 C++20、Qt 6 和 FFmpeg 构建。</translation>
     </message>
     <message>
       <source>Authors</source>
@@ -410,8 +410,8 @@
       <translation>构建</translation>
     </message>
     <message>
-      <source>Built with C++20, Qt 6, and libmpv.</source>
-      <translation>基于 C++20、Qt 6 和 libmpv 构建。</translation>
+      <source>Built with C++20, Qt 6, and FFmpeg.</source>
+      <translation>基于 C++20、Qt 6 和 FFmpeg 构建。</translation>
     </message>
     <message>
       <source>Authors</source>
@@ -484,8 +484,8 @@
       <translation>构建</translation>
     </message>
     <message>
-      <source>Built with C++20, Qt 6, and libmpv.</source>
-      <translation>基于 C++20、Qt 6 和 libmpv 构建。</translation>
+      <source>Built with C++20, Qt 6, and FFmpeg.</source>
+      <translation>基于 C++20、Qt 6 和 FFmpeg 构建。</translation>
     </message>
     <message>
       <source>Authors</source>
@@ -556,46 +556,6 @@
     <message>
       <source>Unmute</source>
       <translation>取消静音</translation>
-    </message>
-  </context>
-  <context>
-    <name>shatv::player::MpvRenderWidget</name>
-    <message>
-      <source>No Channel Selected</source>
-      <translation>未选择频道</translation>
-    </message>
-    <message>
-      <source>Stage 3 OpenGL Placeholder
-State: %1</source>
-      <translation>阶段 3 OpenGL 占位图
-状态：%1</translation>
-    </message>
-  </context>
-  <context>
-    <name>MpvEventAdapter</name>
-    <message>
-      <source>Playing</source>
-      <translation>播放中</translation>
-    </message>
-    <message>
-      <source>Playing %1</source>
-      <translation>正在播放 %1</translation>
-    </message>
-    <message>
-      <source>Finished</source>
-      <translation>播放结束</translation>
-    </message>
-    <message>
-      <source>Finished %1</source>
-      <translation>%1 播放结束</translation>
-    </message>
-    <message>
-      <source>Paused</source>
-      <translation>已暂停</translation>
-    </message>
-    <message>
-      <source>Paused %1</source>
-      <translation>%1 已暂停</translation>
     </message>
   </context>
   <context>
@@ -706,57 +666,6 @@ State: %1</source>
     <message>
       <source>Unmuted</source>
       <translation>已取消静音</translation>
-    </message>
-  </context>
-  <context>
-    <name>shatv::player::MpvPlayerBackend</name>
-    <message>
-      <source>mpv render context failed: no current OpenGL context</source>
-      <translation>mpv 渲染上下文初始化失败：当前没有可用的 OpenGL 上下文。</translation>
-    </message>
-    <message>
-      <source>mpv render context create failed: %1</source>
-      <translation>mpv 渲染上下文创建失败：%1</translation>
-    </message>
-    <message>
-      <source>Loading %1</source>
-      <translation>正在加载 %1</translation>
-    </message>
-    <message>
-      <source>mpv backend initialization failed</source>
-      <translation>mpv 后端初始化失败。</translation>
-    </message>
-    <message>
-      <source>Playing %1</source>
-      <translation>正在播放 %1</translation>
-    </message>
-    <message>
-      <source>Paused %1</source>
-      <translation>%1 已暂停</translation>
-    </message>
-    <message>
-      <source>Stopped</source>
-      <translation>已停止</translation>
-    </message>
-    <message>
-      <source>Volume %1</source>
-      <translation>音量 %1</translation>
-    </message>
-    <message>
-      <source>Muted</source>
-      <translation>已静音</translation>
-    </message>
-    <message>
-      <source>Unmuted</source>
-      <translation>已取消静音</translation>
-    </message>
-    <message>
-      <source>mpv loadfile failed: %1</source>
-      <translation>mpv 加载媒体失败：%1</translation>
-    </message>
-    <message>
-      <source>Playback error: %1</source>
-      <translation>播放错误：%1</translation>
     </message>
   </context>
 </TS>
