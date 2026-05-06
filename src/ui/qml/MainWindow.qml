@@ -202,11 +202,6 @@ ApplicationWindow {
     }
 
     onVisibilityChanged: function(newVisibility) {
-        if (newVisibility === Window.FullScreen) {
-            root.fullscreenTransitionActive = false
-            return
-        }
-
         if (newVisibility === Window.Hidden) {
             return
         }
@@ -215,7 +210,10 @@ ApplicationWindow {
             return
         }
 
-        root.lastNonFullscreenVisibility = newVisibility
+        // Only update the non-fullscreen baseline when the transition is not active.
+        if (newVisibility !== Window.FullScreen) {
+            root.lastNonFullscreenVisibility = newVisibility
+        }
     }
 
     onXChanged: root.saveNormalGeometry()
