@@ -71,6 +71,8 @@ ApplicationWindow {
     property bool normalGeometryRestorePending: false
     property bool hasSavedNormalGeometry: false
     property bool alwaysOnTop: false
+    property bool sidebarVisible: true
+    property bool logPanelVisible: false
     property int savedNormalX: x
     property int savedNormalY: y
     property int savedNormalWidth: width
@@ -83,6 +85,12 @@ ApplicationWindow {
         || bridge.playbackStateToken === "loading"
         || bridge.playbackStateToken === "buffering"
         || bridge.playbackStateToken === "retrying"
+    readonly property bool showPlaybackBusyOverlay: bridge.playbackStateToken === "loading"
+        || bridge.playbackStateToken === "buffering"
+        || bridge.playbackStateToken === "retrying"
+    readonly property string playbackBusyTitle: bridge.playbackStateToken === "retrying"
+        ? qsTr("Reconnecting")
+        : (bridge.playbackStateToken === "buffering" ? qsTr("Buffering") : qsTr("Loading"))
     readonly property int selectedGroupIndex: {
         if (bridge.currentGroupFilter.length === 0) {
             return 0
@@ -352,12 +360,22 @@ ApplicationWindow {
             if (control.iconType === "pin") {
                 return "keep"
             }
+            if (control.iconType === "info") {
+                return "info"
+            }
+            if (control.iconType === "list") {
+                return "list"
+            }
             if (control.iconType === "settings") {
                 return "settings"
             }
             return "settings"
         }
-        readonly property bool symbolFilled: control.iconType === "pin" && control.checked
+        readonly property bool symbolFilled: {
+            return (control.iconType === "pin" && control.checked)
+                || (control.iconType === "info" && control.checked)
+                || (control.iconType === "list" && control.checked)
+        }
 
         implicitWidth: Shell.Theme.titleBarHeight - Shell.Theme.spacingSm
         implicitHeight: Shell.Theme.titleBarHeight - Shell.Theme.spacingSm
@@ -546,6 +564,16 @@ ApplicationWindow {
             }
 
             HeaderIconButton {
+                text: qsTr("Toggle Log Panel")
+                iconType: "info"
+                checkable: true
+                checked: root.logPanelVisible
+                ToolTip.visible: hovered
+                ToolTip.text: qsTr("Toggle Log Panel")
+                onClicked: root.logPanelVisible = !root.logPanelVisible
+            }
+
+            HeaderIconButton {
                 text: qsTr("Always on Top")
                 iconType: "pin"
                 checkable: true
@@ -553,6 +581,16 @@ ApplicationWindow {
                 ToolTip.visible: hovered
                 ToolTip.text: toolTipText
                 onClicked: root.toggleAlwaysOnTop()
+            }
+
+            HeaderIconButton {
+                text: qsTr("Toggle Channel List")
+                iconType: "list"
+                checkable: true
+                checked: root.sidebarVisible
+                ToolTip.visible: hovered
+                ToolTip.text: qsTr("Toggle Channel List")
+                onClicked: root.sidebarVisible = !root.sidebarVisible
             }
 
             Controls.WindowControlButton {
@@ -792,7 +830,7 @@ ApplicationWindow {
             orientation: Qt.Horizontal
 
             Rectangle {
-                visible: !root.fullscreenActive
+                visible: root.sidebarVisible && !root.fullscreenActive
                 color: Shell.Theme.surfaceContainer
                 implicitWidth: visible ? Shell.Theme.sidebarPreferredWidth : 0
                 SplitView.preferredWidth: visible ? Shell.Theme.sidebarPreferredWidth : 0
@@ -866,15 +904,103 @@ ApplicationWindow {
                             visible: ready
                         }
 
-                        Label {
-                            anchors.centerIn: parent
-                            visible: !ffmpegVideoItem.ready
-                            text: root.effectiveStatusText
-                            color: Shell.Theme.textPrimary
+                        // OSD log panel — semi-transparent overlay over video area
+                        Rectangle {
+                            visible: root.logPanelVisible && !root.fullscreenActive
+                            z: 15
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.bottom: parent.bottom
+                            anchors.margins: Shell.Theme.spacingSm
+                            implicitHeight: osdLogContent.implicitHeight + Shell.Theme.spacingSm * 2
+                            opacity: 0.82
+                            radius: Shell.Theme.radiusSm
+                            color: Shell.Theme.surfaceContainer
+
+                            ColumnLayout {
+                                id: osdLogContent
+                                anchors.fill: parent
+                                anchors.margins: Shell.Theme.spacingSm
+                                spacing: 2
+
+                                Label {
+                                    text: bridge.currentChannelName
+                                    color: Shell.Theme.textPrimary
+                                    visible: bridge.currentChannelName.length > 0
+                                    font.pixelSize: 13
+                                    font.bold: true
+                                    Layout.fillWidth: true
+                                    elide: Text.ElideRight
+                                }
+
+                                Label {
+                                    text: root.effectiveStatusText
+                                    color: Shell.Theme.textSecondary
+                                    font.pixelSize: 12
+                                    Layout.fillWidth: true
+                                    elide: Text.ElideRight
+                                    visible: !root.showPlaybackBusyOverlay
+                                }
+
+                                Label {
+                                    text: bridge.currentProgrammeText
+                                    color: Shell.Theme.textSecondary
+                                    font.pixelSize: 11
+                                    visible: bridge.currentProgrammeText.length > 0
+                                    Layout.fillWidth: true
+                                    elide: Text.ElideRight
+                                }
+
+                                Label {
+                                    text: bridge.nextProgrammeText
+                                    color: Shell.Theme.textDisabled
+                                    font.pixelSize: 11
+                                    visible: bridge.nextProgrammeText.length > 0
+                                    Layout.fillWidth: true
+                                    elide: Text.ElideRight
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            id: playbackBusyOverlay
+                            anchors.fill: parent
+                            visible: opacity > 0
+                            opacity: root.showPlaybackBusyOverlay ? 1 : 0
+                            z: 10
+                            color: Shell.Theme.playbackBusyOverlay
+
+                            Behavior on opacity {
+                                NumberAnimation {
+                                    duration: 160
+                                    easing.type: Easing.OutCubic
+                                }
+                            }
+
+                            ColumnLayout {
+                                anchors.centerIn: parent
+                                spacing: Shell.Theme.spacingMd
+
+                                BusyIndicator {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    Layout.preferredWidth: Shell.Theme.playbackBusyIndicatorSize
+                                    Layout.preferredHeight: Shell.Theme.playbackBusyIndicatorSize
+                                    running: root.showPlaybackBusyOverlay
+                                }
+
+                                Label {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    text: root.playbackBusyTitle
+                                    color: Shell.Theme.textPrimary
+                                    font.pixelSize: Shell.Theme.playbackBusyTitlePixelSize
+                                    font.bold: true
+                                }
+                            }
                         }
 
                         Rectangle {
                             visible: root.fullscreenActive
+                            z: 20
                             anchors.left: parent.left
                             anchors.right: parent.right
                             anchors.bottom: parent.bottom
@@ -913,13 +1039,72 @@ ApplicationWindow {
                                         onClicked: bridge.toggleMute()
                                     }
 
-                                    Controls.ThemedSlider {
-                                        Layout.fillWidth: true
-                                        from: 0
-                                        to: 100
-                                        stepSize: 1
-                                        value: bridge.volume
-                                        onMoved: bridge.setVolume(Math.round(value))
+                                    Item {
+                                        Layout.preferredWidth: fullscreenVolumeArea.width
+                                        Layout.preferredHeight: 38
+
+                                        MouseArea {
+                                            id: fullscreenVolumeArea
+                                            width: volumeIconBtn.implicitWidth
+                                            implicitHeight: 38
+                                            hoverEnabled: true
+
+                                            PlaybackIconButton {
+                                                id: volumeIconBtn
+                                                text: bridge.muted ? qsTr("Unmute") : qsTr("Mute")
+                                                symbolName: bridge.muted ? "volume_off" : "volume_up"
+                                                onClicked: bridge.toggleMute()
+                                            }
+
+                                            Rectangle {
+                                                id: fullscreenVolumePopup
+                                                visible: volumeHoverHandler.hovered
+                                                z: 100
+                                                anchors.centerIn: parent
+                                                anchors.verticalCenterOffset: -parent.height / 2 - 28
+                                                implicitWidth: 200
+                                                implicitHeight: 36
+                                                radius: Shell.Theme.radiusSm
+                                                color: Shell.Theme.surfaceContainerHigh
+                                                border.width: 1
+                                                border.color: Shell.Theme.outline
+
+                                                RowLayout {
+                                                    anchors.fill: parent
+                                                    anchors.margins: Shell.Theme.spacingSm
+                                                    spacing: Shell.Theme.spacingSm
+
+                                                    Label {
+                                                        Layout.preferredWidth: 24
+                                                        font.pixelSize: 12
+                                                        color: Shell.Theme.textSecondary
+                                                        horizontalAlignment: Text.AlignHCenter
+                                                        text: bridge.muted ? qsTr("X") : "🔊"
+                                                    }
+
+                                                    Controls.ThemedSlider {
+                                                        Layout.fillWidth: true
+                                                        from: 0
+                                                        to: 100
+                                                        stepSize: 1
+                                                        value: bridge.volume
+                                                        onMoved: bridge.setVolume(Math.round(value))
+                                                    }
+
+                                                    Label {
+                                                        Layout.preferredWidth: 28
+                                                        text: bridge.volume
+                                                        font.pixelSize: 12
+                                                        color: Shell.Theme.textSecondary
+                                                        horizontalAlignment: Text.AlignRight
+                                                    }
+                                                }
+                                            }
+
+                                            HoverHandler {
+                                                id: volumeHoverHandler
+                                            }
+                                        }
                                     }
 
                                     PlaybackIconButton {
@@ -991,74 +1176,81 @@ ApplicationWindow {
                                 onClicked: bridge.requestStop()
                             }
 
-                            PlaybackIconButton {
-                                text: bridge.muted ? qsTr("Unmute") : qsTr("Mute")
-                                symbolName: bridge.muted ? "volume_off" : "volume_up"
-                                onClicked: bridge.toggleMute()
+                            Item {
+                                Layout.preferredWidth: normalVolumeArea.width
+                                Layout.preferredHeight: 38
+
+                                MouseArea {
+                                    id: normalVolumeArea
+                                    width: normalVolumeIconBtn.implicitWidth
+                                    implicitHeight: 38
+                                    hoverEnabled: true
+
+                                    PlaybackIconButton {
+                                        id: normalVolumeIconBtn
+                                        text: bridge.muted ? qsTr("Unmute") : qsTr("Mute")
+                                        symbolName: bridge.muted ? "volume_off" : "volume_up"
+                                        onClicked: bridge.toggleMute()
+                                    }
+
+                                    Rectangle {
+                                        id: normalVolumePopup
+                                        visible: normalVolumeHoverHandler.hovered
+                                        z: 100
+                                        anchors.centerIn: parent
+                                        anchors.verticalCenterOffset: -parent.height / 2 - 28
+                                        implicitWidth: 200
+                                        implicitHeight: 36
+                                        radius: Shell.Theme.radiusSm
+                                        color: Shell.Theme.surfaceContainerHigh
+                                        border.width: 1
+                                        border.color: Shell.Theme.outline
+
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            anchors.margins: Shell.Theme.spacingSm
+                                            spacing: Shell.Theme.spacingSm
+
+                                            Label {
+                                                Layout.preferredWidth: 24
+                                                text: bridge.muted ? "🔇" : "🔊"
+                                                font.pixelSize: 14
+                                                horizontalAlignment: Text.AlignHCenter
+                                            }
+
+                                            Controls.ThemedSlider {
+                                                Layout.fillWidth: true
+                                                from: 0
+                                                to: 100
+                                                stepSize: 1
+                                                value: bridge.volume
+                                                onMoved: bridge.setVolume(Math.round(value))
+                                            }
+
+                                            Label {
+                                                Layout.preferredWidth: 28
+                                                text: bridge.volume
+                                                font.pixelSize: 12
+                                                color: Shell.Theme.textSecondary
+                                                horizontalAlignment: Text.AlignRight
+                                            }
+                                        }
+                                    }
+
+                                    HoverHandler {
+                                        id: normalVolumeHoverHandler
+                                    }
+                                }
                             }
 
-                            Controls.ThemedSlider {
+                            Item {
                                 Layout.fillWidth: true
-                                from: 0
-                                to: 100
-                                stepSize: 1
-                                value: bridge.volume
-                                onMoved: bridge.setVolume(Math.round(value))
                             }
 
                             PlaybackIconButton {
                                 text: qsTr("Full Screen")
                                 symbolName: "fullscreen"
                                 onClicked: root.toggleFullscreen()
-                            }
-                        }
-                    }
-
-                    Rectangle {
-                        visible: !root.fullscreenActive
-                        Layout.fillWidth: true
-                        implicitHeight: Shell.Theme.statusPanelHeight
-                        radius: Shell.Theme.radiusMd
-                        color: Shell.Theme.surfaceBright
-
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.margins: Shell.Theme.spacingMd
-                            spacing: Shell.Theme.spacingMd
-
-                            ColumnLayout {
-                                Layout.fillWidth: true
-
-                                Label {
-                                    text: bridge.currentChannelName
-                                    color: Shell.Theme.textPrimary
-                                    visible: bridge.currentChannelName.length > 0
-                                    Layout.fillWidth: true
-                                    elide: Text.ElideRight
-                                }
-
-                                Label {
-                                    text: root.effectiveStatusText
-                                    color: Shell.Theme.textPrimary
-                                    Layout.fillWidth: true
-                                    elide: Text.ElideRight
-                                }
-
-                                Label {
-                                    text: bridge.currentProgrammeText
-                                    color: Shell.Theme.textPrimary
-                                    visible: bridge.currentProgrammeText.length > 0
-                                    Layout.fillWidth: true
-                                    elide: Text.ElideRight
-                                }
-
-                                Label {
-                                    text: bridge.nextProgrammeText
-                                    color: Shell.Theme.textSecondary
-                                    visible: bridge.nextProgrammeText.length > 0
-                                    Layout.fillWidth: true
-                                    elide: Text.ElideRight
-                                }
                             }
                         }
                     }

@@ -48,8 +48,11 @@ QtObject {
     readonly property int sidebarMinWidth: 280
     readonly property int sidebarMaxWidth: 440
     readonly property int videoMinHeight: 320
-    readonly property int controlPanelHeight: 56
+    readonly property int controlPanelHeight: 64
     readonly property int statusPanelHeight: 44
+    readonly property int playbackBusyIndicatorSize: 44
+    readonly property int playbackBusyTitlePixelSize: 18
+    readonly property color playbackBusyOverlay: "#8A000000"
 
     // Title bar
     readonly property color titleBarCloseHover: "#c94f4f"

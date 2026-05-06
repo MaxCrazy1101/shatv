@@ -28,6 +28,13 @@ bool Demuxer::Open(const domain::MediaSourceDescriptor &source, QString *error_m
     }
 
     AVDictionary *options = nullptr;
+    // HLS API-style segment compatibility: allow extensionless URLs when the
+    // demuxer would otherwise reject them before seeing actual segment data.
+    // Only applied for remote sources; local files use the default strict check.
+    if (!source.url.isLocalFile()) {
+        av_dict_set(&options, "extension_picky", "0", 0);
+        av_dict_set(&options, "allowed_segment_extensions", "ALL", 0);
+    }
     if (!source.user_agent.isEmpty()) {
         const QByteArray user_agent = source.user_agent.toUtf8();
         av_dict_set(&options, "user_agent", user_agent.constData(), 0);

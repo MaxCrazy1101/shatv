@@ -294,7 +294,6 @@ PlaybackPipelineResult FfmpegPlayerBackend::RunMediaPipeline(domain::MediaSource
     }
 
     bool emitted_playing = false;
-    bool wrote_audio_frame = false;
     qint64 first_video_pts_usecs = -1;
     while (!abort_requested_) {
         const media::demux::ReadPacketResult read_result = demuxer.ReadNextMediaPacket(packet.get(), &error_message);
@@ -318,7 +317,6 @@ PlaybackPipelineResult FfmpegPlayerBackend::RunMediaPipeline(domain::MediaSource
                 if (!audio_output_.WriteFrame(*frame, &error_message)) {
                     return PipelineFailed(tr("FFmpeg audio output failed: %1").arg(error_message));
                 }
-                wrote_audio_frame = true;
                 DrainVideoFrames(source, &emitted_playing, false, &first_video_pts_usecs);
             }
             continue;
@@ -334,10 +332,10 @@ PlaybackPipelineResult FfmpegPlayerBackend::RunMediaPipeline(domain::MediaSource
                 if (abort_requested_) {
                     return PipelineAborted();
                 }
-                // A/V 管线不能让解码无限跑在音频时钟前面；但 HLS TS 可能先给一批视频包。
-                // 音频尚未写入前不能等待音频时钟，否则 worker 会在读到音频包前自锁。
+                // A/V 管线不能让解码无限跑在音频时钟前面；但启动预缓冲期间音频时钟尚未推进。
+                // 此时不能等待音频时钟，否则 worker 会在 QAudioSink 恢复前自锁。
                 while (!abort_requested_ && video_frame_queue_.IsFull()) {
-                    if (!wrote_audio_frame) {
+                    if (!audio_output_.PlaybackStarted()) {
                         video_frame_queue_.DropOldest();
                         continue;
                     }
@@ -359,6 +357,7 @@ PlaybackPipelineResult FfmpegPlayerBackend::RunMediaPipeline(domain::MediaSource
                 return PipelineFailed(tr("FFmpeg audio output failed: %1").arg(error_message));
             }
         }
+        audio_output_.FinishStartupPrebuffer();
 
         std::vector<media::video::VideoFrame> video_frames;
         if (!video_decoder.Flush(&video_frames, &error_message)) {
@@ -436,6 +435,7 @@ PlaybackPipelineResult FfmpegPlayerBackend::RunAudioPipeline(domain::MediaSource
                 EmitSnapshotForSource(source, domain::PlaybackState::kPlaying, tr("Playing %1").arg(source.name));
             }
         }
+        audio_output_.FinishStartupPrebuffer();
     }
 
     return abort_requested_ ? PipelineAborted() : PipelineFinished();
@@ -529,6 +529,14 @@ void FfmpegPlayerBackend::DrainVideoFrames(const domain::MediaSourceDescriptor &
         media::video::VideoFrame frame;
         if (!video_frame_queue_.TryPeek(&frame)) {
             return;
+        }
+
+        if (!audio_output_.PlaybackStarted()) {
+            if (!wait_for_due_frame) {
+                return;
+            }
+            QThread::msleep(kVideoDrainSleepMillis);
+            continue;
         }
 
         if (frame.pts_usecs >= 0) {

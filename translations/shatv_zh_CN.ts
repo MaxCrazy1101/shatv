@@ -225,6 +225,18 @@
       <translation>就绪</translation>
     </message>
     <message>
+      <source>Reconnecting</source>
+      <translation>正在重连</translation>
+    </message>
+    <message>
+      <source>Buffering</source>
+      <translation>正在缓冲</translation>
+    </message>
+    <message>
+      <source>Loading</source>
+      <translation>正在加载</translation>
+    </message>
+    <message>
       <source>File</source>
       <translation>文件</translation>
     </message>
@@ -283,6 +295,14 @@
     <message>
       <source>Always on Top</source>
       <translation>窗口置顶</translation>
+    </message>
+    <message>
+      <source>Toggle Log Panel</source>
+      <translation>日志面板</translation>
+    </message>
+    <message>
+      <source>Toggle Channel List</source>
+      <translation>频道列表</translation>
     </message>
   </context>
   <context>

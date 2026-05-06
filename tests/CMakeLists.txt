@@ -5,7 +5,7 @@ add_test(
 
 set_tests_properties(
     shatv_smoke
-    PROPERTIES PASS_REGULAR_EXPRESSION "ShaTV Stage2 smoke ok channels=1 current=smoke-test state=playing"
+    PROPERTIES PASS_REGULAR_EXPRESSION "ShaTV FFmpeg video smoke ok state=idle"
 )
 
 add_executable(launch_options_test
@@ -21,6 +21,71 @@ target_link_libraries(launch_options_test
 add_test(
     NAME launch_options_test
     COMMAND $<TARGET_FILE:launch_options_test>
+)
+
+add_executable(source_open_service_test
+    unit/source_open_service_test.cpp
+)
+
+target_link_libraries(source_open_service_test
+    PRIVATE
+        shatv_app
+        Qt6::Test
+)
+
+add_test(
+    NAME source_open_service_test
+    COMMAND $<TARGET_FILE:source_open_service_test>
+)
+
+add_executable(retry_schedule_test
+    unit/retry_schedule_test.cpp
+)
+
+target_link_libraries(retry_schedule_test
+    PRIVATE
+        shatv_app
+        Qt6::Test
+)
+
+add_test(
+    NAME retry_schedule_test
+    COMMAND $<TARGET_FILE:retry_schedule_test>
+)
+
+add_executable(ffmpeg_player_backend_retry_test
+    unit/ffmpeg_player_backend_retry_test.cpp
+)
+
+target_link_libraries(ffmpeg_player_backend_retry_test
+    PRIVATE
+        shatv_app
+        Qt6::Test
+)
+
+target_compile_definitions(ffmpeg_player_backend_retry_test
+    PRIVATE
+        SHATV_TESTDATA_DIR="${CMAKE_SOURCE_DIR}/testdata"
+)
+
+add_test(
+    NAME ffmpeg_player_backend_retry_test
+    COMMAND $<TARGET_FILE:ffmpeg_player_backend_retry_test>
+)
+
+add_executable(app_settings_recent_test
+    unit/app_settings_recent_test.cpp
+)
+
+target_link_libraries(app_settings_recent_test
+    PRIVATE
+        shatv_app
+        Qt6::Test
+)
+
+add_test(
+    NAME app_settings_recent_test
+    COMMAND $<TARGET_FILE:app_settings_recent_test>
 )
 
 add_executable(m3u_playlist_parser_test

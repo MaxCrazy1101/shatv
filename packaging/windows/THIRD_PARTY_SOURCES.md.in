@@ -7,8 +7,8 @@ This package bundles or depends on the following third-party components.
 - License: LGPL-3.0 or commercial
 - Source releases: https://download.qt.io/official_releases/qt/
 
-## libmpv
-- Version: @MPV_VERSION@
-- License: LGPL or GPL, depending on the upstream build
-- Binary source: @MPV_BINARY_URL@
-- Upstream source: https://github.com/mpv-player/mpv
+## FFmpeg
+- Version: @FFMPEG_VERSION@
+- License: LGPL-2.1 or GPL (components vary)
+- Binary source: @FFMPEG_URL@
+- Upstream source: https://github.com/FFmpeg/FFmpeg

@@ -4,10 +4,33 @@
 .cache
 .DS_Store
 
-build/
-build-tests/
-cmake-build-*/
-compile_commands.json
+/build/
+/build-tests/
+/cmake-build-*/
+/compile_commands.json
+
+# Qt/CMAKE generated artifacts (auto-built by Qt tools, not source)
+.qt/
+CMakeCache.txt
+CMakeFiles/
+CTestTestfile.cmake
+DartConfiguration.tcl
+Makefile
+Testing/
+cmake_install.cmake
+src/.qt/
+src/.lupdate/
+src/CMakeCache.txt
+src/CMakeFiles/
+src/CTestTestfile.cmake
+src/Makefile
+src/cmake_install.cmake
+src/app/build_info.h
+tests/CMakeCache.txt
+tests/CMakeFiles/
+tests/CTestTestfile.cmake
+tests/Makefile
+tests/cmake_install.cmake
 
 # local media fixtures
 docs/*.mp4

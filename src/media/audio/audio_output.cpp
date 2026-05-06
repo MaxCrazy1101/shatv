@@ -10,6 +10,7 @@
 #include <QByteArray>
 #include <QIODevice>
 #include <QMediaDevices>
+#include <QMetaObject>
 #include <QMutex>
 #include <QMutexLocker>
 
@@ -29,6 +30,7 @@ namespace {
 
 constexpr AVSampleFormat kOutputSampleFormat = AV_SAMPLE_FMT_S16;
 constexpr QAudioFormat::SampleFormat kQtOutputSampleFormat = QAudioFormat::Int16;
+constexpr qint64 kStartPrebufferUsecs = 300000;
 
 AVChannelLayout DefaultLayout(int channel_count) {
     AVChannelLayout layout{};
@@ -50,6 +52,11 @@ class AudioOutput::PcmBufferDevice final : public QIODevice {
     void Clear() {
         QMutexLocker locker(&mutex_);
         buffer_.clear();
+    }
+
+    qint64 BufferedBytes() const {
+        QMutexLocker locker(&mutex_);
+        return buffer_.size();
     }
 
     qint64 readData(char *data, qint64 max_size) override {
@@ -102,6 +109,8 @@ AudioOutput::~AudioOutput() {
 bool AudioOutput::Start(int sample_rate, int channel_count, QString *error_message) {
     Stop();
     clock_.Reset();
+    playback_started_ = false;
+    resume_queued_ = false;
 
     output_sample_rate_ = sample_rate > 0 ? sample_rate : 48000;
     output_channel_count_ = channel_count > 0 ? channel_count : 2;
@@ -134,6 +143,7 @@ bool AudioOutput::Start(int sample_rate, int channel_count, QString *error_messa
     }
 
     output_format_ = format;
+    start_prebuffer_bytes_ = output_format_.bytesForDuration(kStartPrebufferUsecs);
     pcm_device_ = std::make_unique<PcmBufferDevice>();
     pcm_device_->open(QIODevice::ReadOnly);
     sink_ = std::make_unique<QAudioSink>(output_device, format);
@@ -148,6 +158,7 @@ bool AudioOutput::Start(int sample_rate, int channel_count, QString *error_messa
         return false;
     }
 
+    sink_->suspend();
     clock_timer_.start();
     return true;
 }
@@ -187,12 +198,19 @@ bool AudioOutput::WriteFrame(const AVFrame &frame, QString *error_message) {
 
     pcm.resize(converted_samples * output_format_.bytesPerFrame());
     pcm_device_->Append(pcm);
+    MaybeResumeAfterPrebuffer();
     return true;
+}
+
+void AudioOutput::FinishStartupPrebuffer() {
+    MaybeResumeAfterPrebuffer(true);
 }
 
 void AudioOutput::Stop() {
     clock_timer_.stop();
     clock_.Reset();
+    playback_started_ = false;
+    resume_queued_ = false;
     if (sink_ != nullptr) {
         sink_->stop();
         sink_.reset();
@@ -203,6 +221,7 @@ void AudioOutput::Stop() {
         pcm_device_.reset();
     }
     output_format_ = QAudioFormat{};
+    start_prebuffer_bytes_ = 0;
     ResetResampler();
 }
 
@@ -213,7 +232,7 @@ void AudioOutput::Pause() {
 }
 
 void AudioOutput::Resume() {
-    if (sink_ != nullptr) {
+    if (sink_ != nullptr && playback_started_.load()) {
         sink_->resume();
     }
 }
@@ -226,6 +245,10 @@ void AudioOutput::SetVolume(int volume) {
 void AudioOutput::SetMuted(bool muted) {
     muted_ = muted;
     ApplyVolume();
+}
+
+bool AudioOutput::PlaybackStarted() const {
+    return playback_started_.load();
 }
 
 qint64 AudioOutput::ProcessedUsecs() const {
@@ -297,6 +320,29 @@ bool AudioOutput::EnsureResampler(const AVFrame &frame, QString *error_message) 
     }
 
     return true;
+}
+
+void AudioOutput::MaybeResumeAfterPrebuffer(bool force) {
+    if (playback_started_.load() || resume_queued_.load() || pcm_device_ == nullptr) {
+        return;
+    }
+    const qint64 buffered_bytes = pcm_device_->BufferedBytes();
+    if (buffered_bytes <= 0 || (!force && buffered_bytes < start_prebuffer_bytes_)) {
+        return;
+    }
+
+    resume_queued_ = true;
+    QMetaObject::invokeMethod(this, [this]() {
+        if (sink_ == nullptr || pcm_device_ == nullptr) {
+            resume_queued_ = false;
+            return;
+        }
+
+        // 网络流启动期先积累少量 PCM，再恢复 QAudioSink，避免设备开头反复读空补零。
+        playback_started_ = true;
+        resume_queued_ = false;
+        sink_->resume();
+    }, Qt::QueuedConnection);
 }
 
 void AudioOutput::ApplyVolume() {

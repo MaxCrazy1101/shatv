@@ -14,8 +14,9 @@ jobs:
       PACKAGE_ROOT: package-root
       PACKAGE_DIR: package-root/shatv-windows-x64
       QT_VERSION: 6.10.3
-      MPV_VERSION: 20260411
-      MPV_BINARY_URL: https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/20260411/mpv-dev-x86_64-v3-20260411-git-3e3048a.7z
+      # BtbN provides pre-built FFmpeg shared builds (GPL variant) for Windows.
+      FFMPEG_VERSION: 7.1
+      FFMPEG_URL: https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl-shared.zip
 
     steps:
       - uses: actions/checkout@v6
@@ -32,42 +33,29 @@ jobs:
           host: windows
           target: desktop
           arch: win64_msvc2022_64
-          modules: qt5compat
+          modules: qt5compat qtmultimedia
           cache: true
 
-      - name: Cache libmpv
-        id: cache-mpv
+      - name: Cache FFmpeg
+        id: cache-ffmpeg
         uses: actions/cache@v5
         with:
-          path: deps/mpv
-          key: mpv-dev-${{ env.MPV_VERSION }}
+          path: deps/ffmpeg
+          key: ffmpeg-shared-${{ env.FFMPEG_VERSION }}
 
-      - name: Download libmpv
-        if: steps.cache-mpv.outputs.cache-hit != 'true'
+      - name: Download FFmpeg
+        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path deps/mpv | Out-Null
-          Invoke-WebRequest $env:MPV_BINARY_URL -OutFile deps/mpv-dev.7z
-          7z x deps/mpv-dev.7z "-odeps/mpv" | Out-Null
-
-      - name: Create libmpv import library
-        if: steps.cache-mpv.outputs.cache-hit != 'true'
-        shell: pwsh
-        run: |
-          # shinchiro 的 dev 包提供 DLL 和头文件，但不提供 MSVC import lib，这里按导出表生成 mpv.lib。
-          $dllPath = Join-Path $PWD "deps/mpv/libmpv-2.dll"
-          $defPath = Join-Path $PWD "deps/mpv/libmpv.def"
-          $libPath = Join-Path $PWD "deps/mpv/mpv.lib"
-          $exportLines = & dumpbin /exports $dllPath |
-            Select-String '^\s+\d+\s+[0-9A-F]+\s+[0-9A-F]+\s+\S+$' |
-            ForEach-Object { $_.Line -replace '^\s+\d+\s+[0-9A-F]+\s+[0-9A-F]+\s+', '    ' }
-
-          @(
-            "LIBRARY libmpv-2.dll"
-            "EXPORTS"
-          ) + $exportLines | Set-Content $defPath
-
-          lib /def:$defPath /machine:x64 /out:$libPath
+          New-Item -ItemType Directory -Force -Path deps | Out-Null
+          Invoke-WebRequest $env:FFMPEG_URL -OutFile deps/ffmpeg.zip
+          Expand-Archive -Path deps/ffmpeg.zip -DestinationPath deps/ffmpeg -Force
+          # BtbN zip structure: ffmpeg-master-latest-win64-gpl-shared/*. Move contents up one level.
+          $inner = Get-ChildItem -Path deps/ffmpeg -Directory | Select-Object -First 1
+          if ($inner) {
+            Get-ChildItem -Path $inner.FullName -Recurse | Move-Item -Destination deps/ffmpeg -Force
+            Remove-Item $inner.FullName -Recurse -Force
+          }
 
       - name: Configure
         shell: pwsh
@@ -75,9 +63,8 @@ jobs:
           cmake -S . -B $env:BUILD_DIR -G Ninja -DCMAKE_BUILD_TYPE=Release `
             -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR" `
             -DBUILD_TESTING=OFF `
-            -DSHATV_MPV_INCLUDE_DIR="$PWD/deps/mpv/include" `
-            -DSHATV_MPV_LIBRARY="$PWD/deps/mpv/mpv.lib" `
-            -DSHATV_MPV_DLL="$PWD/deps/mpv/libmpv-2.dll"
+            -DSHATV_FFMPEG_INCLUDE_DIR="$PWD/deps/ffmpeg/include" `
+            -DSHATV_FFMPEG_LIBRARY_DIR="$PWD/deps/ffmpeg/lib"
 
       - name: Build
         shell: pwsh
@@ -88,7 +75,8 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path $env:PACKAGE_DIR | Out-Null
           Copy-Item "$env:BUILD_DIR/src/shatv.exe" "$env:PACKAGE_DIR/"
-          Copy-Item "$PWD/deps/mpv/libmpv-2.dll" "$env:PACKAGE_DIR/"
+          # Copy FFmpeg shared DLLs
+          Copy-Item "$PWD/deps/ffmpeg/bin/*.dll" "$env:PACKAGE_DIR/"
 
       - name: Deploy Qt runtime
         shell: pwsh
@@ -102,11 +90,11 @@ jobs:
           Copy-Item "packaging/licenses/LGPL-2.1.txt" "$env:PACKAGE_DIR/licenses/LGPL-2.1.txt"
 
           $notice = (Get-Content packaging/windows/NOTICE.txt.in -Raw)
-          $notice = $notice.Replace("@QT_VERSION@", $env:QT_VERSION).Replace("@MPV_VERSION@", $env:MPV_VERSION)
+          $notice = $notice.Replace("@QT_VERSION@", $env:QT_VERSION).Replace("@FFMPEG_VERSION@", $env:FFMPEG_VERSION)
           Set-Content "$env:PACKAGE_DIR/NOTICE.txt" $notice
 
           $sources = (Get-Content packaging/windows/THIRD_PARTY_SOURCES.md.in -Raw)
-          $sources = $sources.Replace("@QT_VERSION@", $env:QT_VERSION).Replace("@MPV_VERSION@", $env:MPV_VERSION).Replace("@MPV_BINARY_URL@", $env:MPV_BINARY_URL)
+          $sources = $sources.Replace("@QT_VERSION@", $env:QT_VERSION).Replace("@FFMPEG_VERSION@", $env:FFMPEG_VERSION).Replace("@FFMPEG_URL@", $env:FFMPEG_URL)
           Set-Content "$env:PACKAGE_DIR/THIRD_PARTY_SOURCES.md" $sources
 
       - name: Archive portable package

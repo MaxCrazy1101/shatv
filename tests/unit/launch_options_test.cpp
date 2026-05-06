@@ -4,8 +4,6 @@
 
 #include "app/app_settings.h"
 #include "app/launch_options.h"
-#include "domain/playback_state.h"
-#include "player/mpv_event_adapter.h"
 
 namespace {
 
@@ -14,17 +12,23 @@ using shatv::app::AppSettings;
 using shatv::app::IsRemotePlaybackUrl;
 using shatv::app::LooksLikeRemoteMediaDirectoryUrl;
 using shatv::app::LaunchOptions;
+using shatv::app::OpenRequestKind;
 using shatv::app::ParseLaunchOptions;
 using shatv::app::RecentOpenItem;
-using shatv::domain::PlaybackState;
-using shatv::domain::PlayerSnapshot;
-using shatv::player::MpvEventAdapter;
+
+template <typename Enum>
+int EnumValue(Enum value) {
+    return static_cast<int>(value);
+}
 
 class LaunchOptionsTest : public QObject {
     Q_OBJECT
 
    private slots:
     void parse_open_media_argument();
+    void parse_ffmpeg_audio_smoke_flag();
+    void parse_ffmpeg_smoke_flag();
+    void parse_smoke_test_flag();
     void build_startup_channel_from_open_url_argument();
     void build_startup_channel_from_local_media();
     void build_startup_channel_from_http_url();
@@ -41,9 +45,6 @@ class LaunchOptionsTest : public QObject {
     void load_recent_items_deduplicates_existing_config_entries();
     void load_invalid_osd_auto_hide_seconds_falls_back_to_default();
     void save_settings_preserves_existing_comments_and_fields();
-    void end_file_eof_pause_true_keeps_terminal_idle_state();
-    void idle_active_true_after_pause_becomes_finished_idle();
-    void eof_reached_true_after_pause_becomes_finished_idle();
 };
 
 void LaunchOptionsTest::parse_open_media_argument() {
@@ -51,15 +52,39 @@ void LaunchOptionsTest::parse_open_media_argument() {
         ParseLaunchOptions({"shatv", "--open-media", "./docs/file_example_MP4_1920_18MG.mp4"});
 
     QCOMPARE(options.smoke_test, false);
-    QCOMPARE(options.mpv_smoke, false);
+    QCOMPARE(options.ffmpeg_audio_smoke, false);
     QCOMPARE(options.open_media_argument, QString("./docs/file_example_MP4_1920_18MG.mp4"));
+}
+
+void LaunchOptionsTest::parse_ffmpeg_audio_smoke_flag() {
+    const LaunchOptions options = ParseLaunchOptions({"shatv", "--ffmpeg-audio-smoke"});
+
+    QCOMPARE(options.ffmpeg_audio_smoke, true);
+    QCOMPARE(options.ffmpeg_smoke, false);
+    QCOMPARE(options.smoke_test, false);
+}
+
+void LaunchOptionsTest::parse_ffmpeg_smoke_flag() {
+    const LaunchOptions options = ParseLaunchOptions({"shatv", "--ffmpeg-smoke"});
+
+    QCOMPARE(options.ffmpeg_smoke, true);
+    QCOMPARE(options.ffmpeg_audio_smoke, false);
+    QCOMPARE(options.smoke_test, false);
+}
+
+void LaunchOptionsTest::parse_smoke_test_flag() {
+    const LaunchOptions options = ParseLaunchOptions({"shatv", "--smoke-test"});
+
+    QCOMPARE(options.smoke_test, true);
+    QCOMPARE(options.ffmpeg_smoke, false);
+    QCOMPARE(options.ffmpeg_audio_smoke, false);
 }
 
 void LaunchOptionsTest::build_startup_channel_from_open_url_argument() {
     const LaunchOptions options =
         ParseLaunchOptions({"shatv", "--open-url", "http://127.0.0.1:8080/index.m3u8"});
 
-    const auto channel = BuildStartupChannel(options, QString(), "/home/alex/code/shatv");
+    const auto channel = BuildStartupChannel(options, "/home/alex/code/shatv");
 
     QVERIFY(channel.has_value());
     QCOMPARE(channel->id, QString("open-url"));
@@ -71,7 +96,7 @@ void LaunchOptionsTest::build_startup_channel_from_local_media() {
     LaunchOptions options;
     options.open_media_argument = "./docs/file_example_MP4_1920_18MG.mp4";
 
-    const auto channel = BuildStartupChannel(options, QString(), "/home/alex/code/shatv");
+    const auto channel = BuildStartupChannel(options, "/home/alex/code/shatv");
 
     QVERIFY(channel.has_value());
     QCOMPARE(channel->id, QString("open-media"));
@@ -84,7 +109,7 @@ void LaunchOptionsTest::build_startup_channel_from_http_url() {
     LaunchOptions options;
     options.open_media_argument = "http://127.0.0.1:8080/live.m3u8";
 
-    const auto channel = BuildStartupChannel(options, QString(), "/home/alex/code/shatv");
+    const auto channel = BuildStartupChannel(options, "/home/alex/code/shatv");
 
     QVERIFY(channel.has_value());
     QCOMPARE(channel->id, QString("open-media"));
@@ -97,7 +122,7 @@ void LaunchOptionsTest::build_startup_channel_prefers_open_url_over_open_media()
         {"shatv", "--open-media", "./docs/file_example_MP4_1920_18MG.mp4", "--open-url",
          "http://127.0.0.1:8080/index.m3u8"});
 
-    const auto channel = BuildStartupChannel(options, QString(), "/home/alex/code/shatv");
+    const auto channel = BuildStartupChannel(options, "/home/alex/code/shatv");
 
     QVERIFY(channel.has_value());
     QCOMPARE(channel->id, QString("open-url"));
@@ -203,37 +228,37 @@ void LaunchOptionsTest::save_and_load_recent_items_with_dedup_and_limit() {
 
     AppSettings settings(config_path);
     settings.RememberRecentItem(RecentOpenItem{
-        .kind = "url",
+        .request_kind = OpenRequestKind::kUrlText,
         .target = "https://example.com/live-1.m3u8",
         .label = "live-1.m3u8",
     });
     settings.RememberRecentItem(RecentOpenItem{
-        .kind = "file",
+        .request_kind = OpenRequestKind::kFilePath,
         .target = "/tmp/playlist-1.m3u",
         .label = "playlist-1.m3u",
     });
     settings.RememberRecentItem(RecentOpenItem{
-        .kind = "url",
+        .request_kind = OpenRequestKind::kUrlText,
         .target = "https://example.com/live-2.m3u8",
         .label = "live-2.m3u8",
     });
     settings.RememberRecentItem(RecentOpenItem{
-        .kind = "file",
+        .request_kind = OpenRequestKind::kFilePath,
         .target = "/tmp/playlist-2.m3u",
         .label = "playlist-2.m3u",
     });
     settings.RememberRecentItem(RecentOpenItem{
-        .kind = "url",
+        .request_kind = OpenRequestKind::kUrlText,
         .target = "https://example.com/live-3.m3u8",
         .label = "live-3.m3u8",
     });
     settings.RememberRecentItem(RecentOpenItem{
-        .kind = "file",
+        .request_kind = OpenRequestKind::kFilePath,
         .target = "/tmp/playlist-3.m3u",
         .label = "playlist-3.m3u",
     });
     settings.RememberRecentItem(RecentOpenItem{
-        .kind = "url",
+        .request_kind = OpenRequestKind::kUrlText,
         .target = "https://example.com/live-2.m3u8",
         .label = "live-2.m3u8",
     });
@@ -242,7 +267,9 @@ void LaunchOptionsTest::save_and_load_recent_items_with_dedup_and_limit() {
     AppSettings reloaded(config_path);
     QVERIFY(reloaded.Load());
     QCOMPARE(reloaded.RecentItems().size(), 5);
+    QCOMPARE(EnumValue(reloaded.RecentItems().at(0).request_kind), EnumValue(OpenRequestKind::kUrlText));
     QCOMPARE(reloaded.RecentItems().at(0).target, QString("https://example.com/live-2.m3u8"));
+    QCOMPARE(EnumValue(reloaded.RecentItems().at(1).request_kind), EnumValue(OpenRequestKind::kFilePath));
     QCOMPARE(reloaded.RecentItems().at(1).target, QString("/tmp/playlist-3.m3u"));
     QCOMPARE(reloaded.RecentItems().at(4).target, QString("/tmp/playlist-1.m3u"));
 }
@@ -293,7 +320,9 @@ void LaunchOptionsTest::load_recent_items_deduplicates_existing_config_entries()
     QVERIFY(settings.Load());
     QCOMPARE(settings.UserAgent(), QString("Seed Agent"));
     QCOMPARE(settings.RecentItems().size(), 5);
+    QCOMPARE(EnumValue(settings.RecentItems().at(0).request_kind), EnumValue(OpenRequestKind::kUrlText));
     QCOMPARE(settings.RecentItems().at(0).target, QString("https://example.com/live-1.m3u8"));
+    QCOMPARE(EnumValue(settings.RecentItems().at(1).request_kind), EnumValue(OpenRequestKind::kFilePath));
     QCOMPARE(settings.RecentItems().at(1).target, QString("/tmp/playlist-1.m3u"));
     QCOMPARE(settings.RecentItems().at(2).target, QString("/tmp/playlist-2.m3u"));
     QCOMPARE(settings.RecentItems().at(3).target, QString("https://example.com/live-2.m3u8"));
@@ -344,48 +373,6 @@ void LaunchOptionsTest::save_settings_preserves_existing_comments_and_fields() {
     QVERIFY(file_text.contains("# existing comment"));
     QVERIFY(file_text.contains("layout = \"classic\""));
     QVERIFY(file_text.contains("user_agent = \"ShaTV Desktop/2.0\""));
-}
-
-void LaunchOptionsTest::end_file_eof_pause_true_keeps_terminal_idle_state() {
-    MpvEventAdapter adapter;
-    PlayerSnapshot snapshot;
-    snapshot.state = PlaybackState::kIdle;
-    snapshot.channel_id = "open-media";
-    snapshot.channel_name = "Big_Buck_Bunny_720_10s_1MB.mp4";
-    snapshot.message = "Finished Big_Buck_Bunny_720_10s_1MB.mp4";
-
-    adapter.ApplyPauseChanged(snapshot, true);
-
-    QCOMPARE(snapshot.state, PlaybackState::kIdle);
-    QCOMPARE(snapshot.message, QString("Finished Big_Buck_Bunny_720_10s_1MB.mp4"));
-}
-
-void LaunchOptionsTest::idle_active_true_after_pause_becomes_finished_idle() {
-    MpvEventAdapter adapter;
-    PlayerSnapshot snapshot;
-    snapshot.state = PlaybackState::kPaused;
-    snapshot.channel_id = "open-media";
-    snapshot.channel_name = "Big_Buck_Bunny_720_10s_1MB.mp4";
-    snapshot.message = "Paused Big_Buck_Bunny_720_10s_1MB.mp4";
-
-    adapter.ApplyIdleActive(snapshot, true);
-
-    QCOMPARE(snapshot.state, PlaybackState::kIdle);
-    QCOMPARE(snapshot.message, QString("Finished Big_Buck_Bunny_720_10s_1MB.mp4"));
-}
-
-void LaunchOptionsTest::eof_reached_true_after_pause_becomes_finished_idle() {
-    MpvEventAdapter adapter;
-    PlayerSnapshot snapshot;
-    snapshot.state = PlaybackState::kPaused;
-    snapshot.channel_id = "open-media";
-    snapshot.channel_name = "Big_Buck_Bunny_720_10s_1MB.mp4";
-    snapshot.message = "Paused Big_Buck_Bunny_720_10s_1MB.mp4";
-
-    adapter.ApplyEofReached(snapshot, true);
-
-    QCOMPARE(snapshot.state, PlaybackState::kIdle);
-    QCOMPARE(snapshot.message, QString("Finished Big_Buck_Bunny_720_10s_1MB.mp4"));
 }
 
 }  // namespace
