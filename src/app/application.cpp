@@ -8,19 +8,27 @@
 
 #include <QCoreApplication>
 #include <QDateTime>
+#include <QDesktopServices>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QGuiApplication>
+#include <QClipboard>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
+#include <QQmlError>
+#include <QSysInfo>
+#include <QTextStream>
 #include <QTimer>
+#include <QUrl>
 #include <QWindow>
 
+#include "app/build_info.h"
 #include "app/epg_service.h"
+#include "app/logging.h"
 #include "app/source_open_service.h"
 #include "app/xmltv_epg_payload.h"
 #include "application/player_controller.h"
@@ -53,6 +61,16 @@ QString FormatProgrammeText(const std::optional<XmltvProgramme> &programme) {
     const QDateTime local_start = programme->start_at.toLocalTime();
     const QDateTime local_stop = programme->stop_at.toLocalTime();
     return QString("%1-%2 %3").arg(local_start.toString("HH:mm"), local_stop.toString("HH:mm"), programme->title);
+}
+
+QString OpenTargetForLog(const OpenRequest &request) {
+    if (request.request_kind == OpenRequestKind::kUrlText ||
+        request.request_kind == OpenRequestKind::kStartupOpenUrl) {
+        return RedactUrlForLog(QUrl::fromUserInput(request.target));
+    }
+
+    const QUrl url = QUrl::fromUserInput(request.target, QDir::currentPath(), QUrl::AssumeLocalFile);
+    return RedactUrlForLog(url);
 }
 
 QString FfmpegAudioSmokeMediaPath() {
@@ -96,7 +114,14 @@ Application::Application(QGuiApplication *qt_app, LaunchOptions options)
     channel_filter_model_ = std::make_unique<ui::models::ChannelFilterModel>();
     channel_filter_model_->setSourceModel(channel_model_.get());
     shell_bridge_ = std::make_unique<ui::shell::AppShellBridge>(channel_filter_model_.get());
+    shell_bridge_->SetLogPaths(CurrentLogFilePath(), LogsDirectoryPath());
     qml_engine_ = std::make_unique<QQmlApplicationEngine>();
+    QObject::connect(qml_engine_.get(), &QQmlApplicationEngine::warnings, qt_app_,
+                     [](const QList<QQmlError> &warnings) {
+                         for (const QQmlError &warning : warnings) {
+                             qCWarning(log_qml).noquote() << warning.toString();
+                         }
+                     });
     network_manager_ = std::make_unique<QNetworkAccessManager>();
     source_open_service_ = std::make_unique<SourceOpenService>(network_manager_.get());
 
@@ -107,7 +132,8 @@ Application::Application(QGuiApplication *qt_app, LaunchOptions options)
     });
 
     if (!settings_.Load()) {
-        std::cerr << "ShaTV config load failed path=" << settings_.ConfigPath().toStdString() << std::endl;
+        qCWarning(log_config).noquote()
+            << "Config load failed path=" << QDir::toNativeSeparators(settings_.ConfigPath());
     }
 
     controller_->SetVolume(settings_.Volume());
@@ -180,6 +206,10 @@ Application::Application(QGuiApplication *qt_app, LaunchOptions options)
                      [this](const QString &user_agent, const QString &epg_url) {
                          UpdateNetworkSettings(user_agent, epg_url);
                      });
+    QObject::connect(shell_bridge_.get(), &ui::shell::AppShellBridge::OpenLogsFolderRequested, qt_app_,
+                     [this]() { OpenLogsFolder(); });
+    QObject::connect(shell_bridge_.get(), &ui::shell::AppShellBridge::CopyDiagnosticsRequested, qt_app_,
+                     [this]() { CopyDiagnosticsToClipboard(); });
     QObject::connect(shell_bridge_.get(), &ui::shell::AppShellBridge::RecentOpenRequested, qt_app_,
                      [this](const QString &kind, const QString &target) { OpenRecentItem(kind, target); });
 
@@ -217,6 +247,11 @@ Application::Application(QGuiApplication *qt_app, LaunchOptions options)
     shell_bridge_->SetPlaybackSnapshot(controller_->CurrentSnapshot());
     shell_bridge_->SetConfiguredUserAgent(settings_.UserAgent());
     shell_bridge_->SetConfiguredEpgUrl(settings_.EpgUrl());
+
+    qCInfo(log_app).noquote()
+        << "Application initialized"
+        << "configPath=" << QDir::toNativeSeparators(settings_.ConfigPath())
+        << "logFile=" << CurrentLogFilePath();
 }
 
 Application::~Application() {
@@ -226,7 +261,7 @@ Application::~Application() {
     }
 
     if (!options_.smoke_test && !options_.ffmpeg_audio_smoke && !options_.ffmpeg_smoke && !settings_.Save()) {
-        std::cerr << "ShaTV config save failed on exit" << std::endl;
+        qCWarning(log_config) << "Config save failed on exit";
     }
 
     qml_engine_.reset();
@@ -269,7 +304,9 @@ int Application::Run() {
         });
     }
 
-    return qt_app_->exec();
+    const int exit_code = qt_app_->exec();
+    qCInfo(log_app) << "Application event loop finished" << "exitCode=" << exit_code;
+    return exit_code;
 }
 
 std::vector<domain::ResolvedChannel> Application::BuildInitialChannels() const {
@@ -277,6 +314,10 @@ std::vector<domain::ResolvedChannel> Application::BuildInitialChannels() const {
 }
 
 void Application::ResolveOpenRequest(OpenRequest request) {
+    qCInfo(log_app).noquote()
+        << "Open request"
+        << "kind=" << OpenRequestKindToken(request.request_kind)
+        << "target=" << OpenTargetForLog(request);
     source_open_service_->Resolve(std::move(request),
                                   SourceOpenContext{
                                       .current_directory = QDir::currentPath(),
@@ -287,11 +328,16 @@ void Application::ResolveOpenRequest(OpenRequest request) {
 
 void Application::HandleOpenResolution(OpenResolution resolution) {
     if (auto *error = std::get_if<OpenErrorResolution>(&resolution); error != nullptr) {
+        qCWarning(log_app).noquote() << "Open request failed reason=" << error->message;
         ShowAlert(error->message);
         return;
     }
 
     if (auto *direct_media = std::get_if<DirectMediaResolution>(&resolution); direct_media != nullptr) {
+        qCInfo(log_playback).noquote()
+            << "Open resolved direct media"
+            << "name=" << direct_media->item.channel.name
+            << "target=" << RedactUrlForLog(direct_media->item.channel.url);
         if (direct_media->recent_item.has_value()) {
             RememberRecentItem(*direct_media->recent_item);
         }
@@ -303,6 +349,10 @@ void Application::HandleOpenResolution(OpenResolution resolution) {
     }
 
     if (auto *channel_list = std::get_if<ChannelListResolution>(&resolution); channel_list != nullptr) {
+        qCInfo(log_playback)
+            << "Open resolved playlist"
+            << "channels=" << static_cast<int>(channel_list->channels.size())
+            << "hasPlaylistEpg=" << !channel_list->playlist_epg_url.isEmpty();
         if (channel_list->recent_item.has_value()) {
             RememberRecentItem(*channel_list->recent_item);
         }
@@ -319,6 +369,10 @@ void Application::OpenChannels(std::vector<domain::ResolvedChannel> channels, co
 
     current_channels_ = std::move(channels);
     playlist_epg_url_ = playlist_epg_url;
+    qCInfo(log_playback)
+        << "Opening channel list"
+        << "channels=" << static_cast<int>(current_channels_.size())
+        << "hasPlaylistEpg=" << !playlist_epg_url_.isEmpty();
     channel_model_->SetChannels(ExtractChannels(current_channels_));
     RefreshShellFilters();
     ReloadEpg();
@@ -334,6 +388,8 @@ void Application::UpdateNetworkSettings(const QString &user_agent, const QString
     if (!settings_.Save()) {
         settings_.SetUserAgent(previous_user_agent);
         settings_.SetEpgUrl(previous_epg_url);
+        qCWarning(log_config).noquote()
+            << "Network settings save failed path=" << QDir::toNativeSeparators(settings_.ConfigPath());
         ShowAlert(QCoreApplication::translate("Application", "Failed to save network settings to %1")
                       .arg(QDir::toNativeSeparators(settings_.ConfigPath())));
         return;
@@ -341,6 +397,12 @@ void Application::UpdateNetworkSettings(const QString &user_agent, const QString
 
     shell_bridge_->SetConfiguredUserAgent(settings_.UserAgent());
     shell_bridge_->SetConfiguredEpgUrl(settings_.EpgUrl());
+    qCInfo(log_config).noquote()
+        << "Network settings saved"
+        << "hasUserAgent=" << !settings_.UserAgent().isEmpty()
+        << "epgUrl=" << (settings_.EpgUrl().isEmpty()
+                              ? QStringLiteral("<empty>")
+                              : RedactUrlForLog(QUrl::fromUserInput(settings_.EpgUrl())));
     ReloadEpg();
     ShowStatusMessage(QCoreApplication::translate("Application", "Network settings saved"), 3000);
 }
@@ -356,32 +418,38 @@ void Application::ReloadEpg() {
 
     const QString source_url = EpgService::ResolveSourceUrl(settings_.EpgUrl(), playlist_epg_url_);
     if (source_url.isEmpty() || current_channels_.empty()) {
+        qCInfo(log_epg) << "EPG reload skipped" << "hasSource=" << !source_url.isEmpty()
+                        << "channels=" << static_cast<int>(current_channels_.size());
         return;
     }
 
     const int generation = epg_load_generation_;
     const QUrl epg_url = QUrl::fromUserInput(source_url, QDir::currentPath(), QUrl::AssumeLocalFile);
+    qCInfo(log_epg).noquote() << "EPG load started source=" << RedactUrlForLog(epg_url);
     if (epg_url.isLocalFile()) {
         QFile input(epg_url.toLocalFile());
         if (!input.open(QIODevice::ReadOnly)) {
-            std::cerr << "ShaTV EPG load failed source=" << source_url.toStdString() << " reason=read-local-file"
-                      << std::endl;
+            qCWarning(log_epg).noquote()
+                << "EPG local load failed source=" << RedactUrlForLog(epg_url)
+                << "reason=" << input.errorString();
             return;
         }
 
         QString decode_error;
         const std::optional<QString> xml = DecodeXmltvPayload(input.readAll(), source_url, &decode_error);
         if (!xml.has_value()) {
-            std::cerr << "ShaTV EPG load failed source=" << source_url.toStdString()
-                      << " reason=" << decode_error.toStdString() << std::endl;
+            qCWarning(log_epg).noquote()
+                << "EPG decode failed source=" << RedactUrlForLog(epg_url)
+                << "reason=" << decode_error;
             return;
         }
 
         EpgService loaded_service;
         QString parse_error;
         if (!loaded_service.LoadXmltv(*xml, &parse_error)) {
-            std::cerr << "ShaTV EPG parse failed source=" << source_url.toStdString()
-                      << " reason=" << parse_error.toStdString() << std::endl;
+            qCWarning(log_epg).noquote()
+                << "EPG parse failed source=" << RedactUrlForLog(epg_url)
+                << "reason=" << parse_error;
             return;
         }
 
@@ -390,6 +458,7 @@ void Application::ReloadEpg() {
         }
 
         epg_service_ = std::move(loaded_service);
+        qCInfo(log_epg).noquote() << "EPG local load completed source=" << RedactUrlForLog(epg_url);
         UpdateDisplayedEpg();
         return;
     }
@@ -412,24 +481,31 @@ void Application::ReloadEpg() {
         }
 
         if (reply->error() != QNetworkReply::NoError) {
-            std::cerr << "ShaTV EPG download failed source=" << source_url.toStdString()
-                      << " reason=" << reply->errorString().toStdString() << std::endl;
+            const QUrl failed_url = QUrl::fromUserInput(source_url);
+            qCWarning(log_epg).noquote()
+                << "EPG download failed source=" << RedactUrlForLog(failed_url)
+                << "status=" << reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt()
+                << "reason=" << reply->errorString();
             return;
         }
 
         QString decode_error;
         const std::optional<QString> xml = DecodeXmltvPayload(reply->readAll(), source_url, &decode_error);
         if (!xml.has_value()) {
-            std::cerr << "ShaTV EPG load failed source=" << source_url.toStdString()
-                      << " reason=" << decode_error.toStdString() << std::endl;
+            const QUrl failed_url = QUrl::fromUserInput(source_url);
+            qCWarning(log_epg).noquote()
+                << "EPG decode failed source=" << RedactUrlForLog(failed_url)
+                << "reason=" << decode_error;
             return;
         }
 
         EpgService loaded_service;
         QString parse_error;
         if (!loaded_service.LoadXmltv(*xml, &parse_error)) {
-            std::cerr << "ShaTV EPG parse failed source=" << source_url.toStdString()
-                      << " reason=" << parse_error.toStdString() << std::endl;
+            const QUrl failed_url = QUrl::fromUserInput(source_url);
+            qCWarning(log_epg).noquote()
+                << "EPG parse failed source=" << RedactUrlForLog(failed_url)
+                << "reason=" << parse_error;
             return;
         }
 
@@ -438,6 +514,7 @@ void Application::ReloadEpg() {
         }
 
         epg_service_ = std::move(loaded_service);
+        qCInfo(log_epg).noquote() << "EPG remote load completed source=" << RedactUrlForLog(QUrl::fromUserInput(source_url));
         UpdateDisplayedEpg();
     });
 }
@@ -489,7 +566,8 @@ void Application::RememberRecentItem(const RecentOpenItem &item) {
     settings_.RememberRecentItem(item);
     RefreshRecentItems();
     if (!settings_.Save()) {
-        std::cerr << "ShaTV recent history save failed path=" << settings_.ConfigPath().toStdString() << std::endl;
+        qCWarning(log_config).noquote()
+            << "Recent history save failed path=" << QDir::toNativeSeparators(settings_.ConfigPath());
         ShowStatusMessage(QCoreApplication::translate("Application", "Failed to save recent history"), 3000);
     }
 }
@@ -542,6 +620,7 @@ void Application::StartInitialPlayback() {
         return;
     }
 
+    qCInfo(log_playback).noquote() << "Starting initial playback channel=" << resolved_channel->channel.name;
     controller_->PlayResolvedChannel(*resolved_channel);
 }
 
@@ -650,6 +729,48 @@ void Application::SetupFfmpegSmokeScenario() {
         std::cout << "ShaTV FFmpeg video smoke timeout" << std::endl;
         QCoreApplication::exit(1);
     });
+}
+
+void Application::OpenLogsFolder() {
+    const QString logs_directory = LogsDirectoryPath();
+    if (logs_directory.isEmpty()) {
+        ShowAlert(QCoreApplication::translate("Application", "Log folder is not available"));
+        return;
+    }
+
+    qCInfo(log_app).noquote() << "Opening logs folder path=" << QDir::toNativeSeparators(logs_directory);
+    if (!QDesktopServices::openUrl(QUrl::fromLocalFile(logs_directory))) {
+        ShowAlert(QCoreApplication::translate("Application", "Failed to open logs folder"));
+    }
+}
+
+void Application::CopyDiagnosticsToClipboard() {
+    QClipboard *clipboard = QGuiApplication::clipboard();
+    if (clipboard == nullptr) {
+        ShowAlert(QCoreApplication::translate("Application", "Clipboard is not available"));
+        return;
+    }
+
+    clipboard->setText(BuildDiagnosticsText());
+    qCInfo(log_app) << "Diagnostics copied to clipboard";
+    ShowStatusMessage(QCoreApplication::translate("Application", "Diagnostics copied to clipboard"), 3000);
+}
+
+QString Application::BuildDiagnosticsText() const {
+    QString diagnostics;
+    QTextStream stream(&diagnostics);
+    stream << "ShaTV diagnostics\n";
+    stream << "Version: " << QString::fromUtf8(kProjectVersion) << '\n';
+    stream << "Build: " << QString::fromUtf8(kBuildId) << '\n';
+    stream << "Qt: " << QString::fromLatin1(qVersion()) << '\n';
+    stream << "Platform: " << QGuiApplication::platformName() << '\n';
+    stream << "OS: " << QSysInfo::prettyProductName() << '\n';
+    stream << "CPU: " << QSysInfo::currentCpuArchitecture() << '\n';
+    stream << "Log file: " << QDir::toNativeSeparators(CurrentLogFilePath()) << '\n';
+    stream << "Logs folder: " << QDir::toNativeSeparators(LogsDirectoryPath()) << '\n';
+    stream << "File logging enabled: " << (LoggingEnabled() ? "yes" : "no") << '\n';
+    stream << "Note: Logs may include local file paths that are useful for diagnosis.\n";
+    return diagnostics;
 }
 
 }  // namespace shatv::app

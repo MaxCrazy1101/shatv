@@ -9,6 +9,7 @@ add_library(shatv_app
     app/app_settings.cpp
     app/epg_service.cpp
     app/launch_options.cpp
+    app/logging.cpp
     app/m3u_playlist_parser.cpp
     app/open_request.cpp
     app/source_open_service.cpp

@@ -10,6 +10,7 @@
 #include <QMutexLocker>
 #include <QThread>
 
+#include "app/logging.h"
 #include "domain/player_snapshot.h"
 #include "media/decode/audio_decoder.h"
 #include "media/decode/video_decoder.h"
@@ -59,6 +60,20 @@ PlaybackPipelineResult PipelineFailed(QString error_message) {
 
 bool ReconnectOnEndOfStream(domain::SourceKind source_kind) {
     return source_kind == domain::SourceKind::kPlaylistChannelLive;
+}
+
+QString SourceKindName(domain::SourceKind source_kind) {
+    switch (source_kind) {
+        case domain::SourceKind::kLocalFile:
+            return QStringLiteral("local_file");
+        case domain::SourceKind::kDirectRemoteMedia:
+            return QStringLiteral("direct_remote_media");
+        case domain::SourceKind::kRemotePlaylistFetch:
+            return QStringLiteral("remote_playlist_fetch");
+        case domain::SourceKind::kPlaylistChannelLive:
+            return QStringLiteral("playlist_channel_live");
+    }
+    return QStringLiteral("unknown");
 }
 
 domain::RetryPolicy BackendRetryPolicy(const domain::MediaSourceDescriptor &source) {
@@ -120,6 +135,11 @@ FfmpegPlayerBackend::~FfmpegPlayerBackend() {
 }
 
 void FfmpegPlayerBackend::Load(const domain::MediaSourceDescriptor &source) {
+    qCInfo(app::log_ffmpeg).noquote()
+        << "FFmpeg load requested"
+        << "name=" << source.name
+        << "kind=" << SourceKindName(source.source_kind)
+        << "url=" << app::RedactUrlForLog(source.url);
     StopWorker();
     audio_output_.Stop();
     video_frame_queue_.Clear();
@@ -130,6 +150,7 @@ void FfmpegPlayerBackend::Load(const domain::MediaSourceDescriptor &source) {
     if (!video_only_mode_.load()) {
         QString audio_error;
         if (!audio_output_.Start(48000, 2, &audio_error)) {
+            qCWarning(app::log_ffmpeg).noquote() << "FFmpeg audio output start failed reason=" << audio_error;
             EmitSnapshot(domain::PlaybackState::kError, tr("FFmpeg audio output failed: %1").arg(audio_error));
             return;
         }
@@ -214,22 +235,38 @@ void FfmpegPlayerBackend::SetVideoOnlyMode(bool video_only) {
 void FfmpegPlayerBackend::RunPlaybackSession(domain::MediaSourceDescriptor source) {
     int attempt = 1;
     while (!abort_requested_) {
+        qCInfo(app::log_ffmpeg).noquote()
+            << "FFmpeg playback attempt started"
+            << "name=" << source.name
+            << "kind=" << SourceKindName(source.source_kind)
+            << "attempt=" << attempt
+            << "url=" << app::RedactUrlForLog(source.url);
         video_frame_queue_.Clear();
         const PlaybackPipelineResult result =
             video_only_mode_.load() ? RunVideoPipeline(source) : RunMediaPipeline(source);
         if (result.status == PlaybackPipelineStatus::kAborted || abort_requested_) {
+            qCInfo(app::log_ffmpeg).noquote() << "FFmpeg playback aborted name=" << source.name;
             return;
         }
         if (result.status == PlaybackPipelineStatus::kFinished) {
             if (ReconnectOnEndOfStream(source.source_kind)) {
                 const RetryDecision retry_decision = RetryDecisionForFailure(BackendRetryPolicy(source), attempt);
                 if (!retry_decision.should_retry) {
+                    qCWarning(app::log_ffmpeg).noquote()
+                        << "FFmpeg live stream ended without retry"
+                        << "name=" << source.name
+                        << "attempt=" << attempt;
                     EmitSnapshotForSource(source,
                                           domain::PlaybackState::kError,
                                           tr("FFmpeg live stream ended after %1 attempts").arg(attempt));
                     return;
                 }
 
+                qCInfo(app::log_ffmpeg).noquote()
+                    << "FFmpeg live stream reconnect scheduled"
+                    << "name=" << source.name
+                    << "nextAttempt=" << retry_decision.next_attempt
+                    << "delayMs=" << retry_decision.delay_ms;
                 EmitSnapshotForSource(source,
                                       domain::PlaybackState::kRetrying,
                                       tr("Reconnecting %1 with FFmpeg (attempt %2/%3)")
@@ -241,6 +278,7 @@ void FfmpegPlayerBackend::RunPlaybackSession(domain::MediaSourceDescriptor sourc
                 attempt = retry_decision.next_attempt;
                 continue;
             }
+            qCInfo(app::log_ffmpeg).noquote() << "FFmpeg playback finished name=" << source.name;
             EmitSnapshotForSource(source, domain::PlaybackState::kIdle, tr("Finished %1").arg(source.name));
             return;
         }
@@ -248,10 +286,21 @@ void FfmpegPlayerBackend::RunPlaybackSession(domain::MediaSourceDescriptor sourc
         const domain::RetryPolicy retry_policy = BackendRetryPolicy(source);
         const RetryDecision retry_decision = RetryDecisionForFailure(retry_policy, attempt);
         if (!retry_decision.should_retry) {
+            qCWarning(app::log_ffmpeg).noquote()
+                << "FFmpeg playback failed"
+                << "name=" << source.name
+                << "attempt=" << attempt
+                << "reason=" << result.error_message;
             EmitSnapshotForSource(source, domain::PlaybackState::kError, result.error_message);
             return;
         }
 
+        qCWarning(app::log_ffmpeg).noquote()
+            << "FFmpeg playback retry scheduled"
+            << "name=" << source.name
+            << "nextAttempt=" << retry_decision.next_attempt
+            << "delayMs=" << retry_decision.delay_ms
+            << "reason=" << result.error_message;
         EmitSnapshotForSource(source,
                               domain::PlaybackState::kRetrying,
                               tr("Retrying %1 with FFmpeg (attempt %2/%3)")

@@ -73,6 +73,21 @@ add_test(
     COMMAND $<TARGET_FILE:ffmpeg_player_backend_retry_test>
 )
 
+add_executable(logging_test
+    unit/logging_test.cpp
+)
+
+target_link_libraries(logging_test
+    PRIVATE
+        shatv_app
+        Qt6::Test
+)
+
+add_test(
+    NAME logging_test
+    COMMAND $<TARGET_FILE:logging_test>
+)
+
 add_executable(app_settings_recent_test
     unit/app_settings_recent_test.cpp
 )

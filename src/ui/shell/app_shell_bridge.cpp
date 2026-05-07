@@ -90,6 +90,14 @@ QString AppShellBridge::BuildId() const {
     return QString::fromUtf8(app::kBuildId);
 }
 
+QString AppShellBridge::LogFilePath() const {
+    return log_file_path_;
+}
+
+QString AppShellBridge::LogsDirectoryPath() const {
+    return logs_directory_path_;
+}
+
 QString AppShellBridge::AlertMessage() const {
     return alert_message_;
 }
@@ -216,6 +224,17 @@ void AppShellBridge::SetConfiguredEpgUrl(const QString &epg_url) {
     emit ConfiguredEpgUrlChanged();
 }
 
+void AppShellBridge::SetLogPaths(const QString &log_file_path, const QString &logs_directory_path) {
+    if (log_file_path_ != log_file_path) {
+        log_file_path_ = log_file_path;
+        emit LogFilePathChanged();
+    }
+    if (logs_directory_path_ != logs_directory_path) {
+        logs_directory_path_ = logs_directory_path;
+        emit LogsDirectoryPathChanged();
+    }
+}
+
 void AppShellBridge::SetAlertMessage(const QString &message) {
     const bool visible = !message.isEmpty();
 
@@ -313,6 +332,14 @@ void AppShellBridge::submitOpenUrl(const QString &url_text) {
 
 void AppShellBridge::submitNetworkSettings(const QString &user_agent, const QString &epg_url) {
     emit NetworkSettingsRequested(user_agent.trimmed(), epg_url.trimmed());
+}
+
+void AppShellBridge::openLogsFolder() {
+    emit OpenLogsFolderRequested();
+}
+
+void AppShellBridge::copyDiagnosticsToClipboard() {
+    emit CopyDiagnosticsRequested();
 }
 
 void AppShellBridge::dismissAlert() {

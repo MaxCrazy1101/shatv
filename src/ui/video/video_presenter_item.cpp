@@ -3,7 +3,6 @@
 #include <array>
 #include <memory>
 
-#include <QDebug>
 #include <QMatrix4x4>
 #include <QMetaObject>
 #include <QQuickWindow>
@@ -13,6 +12,7 @@
 #include <rhi/qshaderbaker.h>
 #include <rhi/qrhi.h>
 
+#include "app/logging.h"
 #include "player/ffmpeg_player_backend.h"
 
 namespace shatv::ui::video {
@@ -90,7 +90,9 @@ QShader BakeShader(QShader::Stage stage, const char *source) {
     baker.setGeneratedShaderVariants({QShader::StandardShader});
     const QShader result = baker.bake();
     if (!result.isValid()) {
-        qWarning().noquote() << "Video shader bake failed:" << baker.errorMessage();
+        qCWarning(app::log_video).noquote() << "Video shader bake failed reason=" << baker.errorMessage();
+    } else {
+        qCInfo(app::log_video) << "Video shader baked" << "stage=" << static_cast<int>(stage);
     }
     return result;
 }

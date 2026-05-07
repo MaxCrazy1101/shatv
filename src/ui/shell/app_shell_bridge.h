@@ -38,6 +38,8 @@ class AppShellBridge final : public QObject {
     Q_PROPERTY(QString configuredEpgUrl READ ConfiguredEpgUrl NOTIFY ConfiguredEpgUrlChanged)
     Q_PROPERTY(QString appVersion READ AppVersion CONSTANT)
     Q_PROPERTY(QString buildId READ BuildId CONSTANT)
+    Q_PROPERTY(QString logFilePath READ LogFilePath NOTIFY LogFilePathChanged)
+    Q_PROPERTY(QString logsDirectoryPath READ LogsDirectoryPath NOTIFY LogsDirectoryPathChanged)
     Q_PROPERTY(QString alertMessage READ AlertMessage NOTIFY AlertMessageChanged)
     Q_PROPERTY(bool alertVisible READ AlertVisible NOTIFY AlertVisibleChanged)
 
@@ -62,6 +64,8 @@ class AppShellBridge final : public QObject {
     QString ConfiguredEpgUrl() const;
     QString AppVersion() const;
     QString BuildId() const;
+    QString LogFilePath() const;
+    QString LogsDirectoryPath() const;
     QString AlertMessage() const;
     bool AlertVisible() const;
 
@@ -74,6 +78,7 @@ class AppShellBridge final : public QObject {
     void SetPlaybackSnapshot(const domain::PlayerSnapshot &snapshot);
     void SetConfiguredUserAgent(const QString &user_agent);
     void SetConfiguredEpgUrl(const QString &epg_url);
+    void SetLogPaths(const QString &log_file_path, const QString &logs_directory_path);
     void SetAlertMessage(const QString &message);
 
     Q_INVOKABLE void activateChannelRow(int row);
@@ -86,6 +91,8 @@ class AppShellBridge final : public QObject {
     Q_INVOKABLE void submitOpenFile(const QUrl &file_url);
     Q_INVOKABLE void submitOpenUrl(const QString &url_text);
     Q_INVOKABLE void submitNetworkSettings(const QString &user_agent, const QString &epg_url);
+    Q_INVOKABLE void openLogsFolder();
+    Q_INVOKABLE void copyDiagnosticsToClipboard();
     Q_INVOKABLE void dismissAlert();
     Q_INVOKABLE void openRecentAt(int index);
 
@@ -105,6 +112,8 @@ class AppShellBridge final : public QObject {
     void VolumeChanged();
     void ConfiguredUserAgentChanged();
     void ConfiguredEpgUrlChanged();
+    void LogFilePathChanged();
+    void LogsDirectoryPathChanged();
     void AlertMessageChanged();
     void AlertVisibleChanged();
 
@@ -116,6 +125,8 @@ class AppShellBridge final : public QObject {
     void OpenFileRequested(const QString &path);
     void OpenUrlRequested(const QString &url_text);
     void NetworkSettingsRequested(const QString &user_agent, const QString &epg_url);
+    void OpenLogsFolderRequested();
+    void CopyDiagnosticsRequested();
     void RecentOpenRequested(const QString &request_kind, const QString &target);
 
    private:
@@ -135,6 +146,8 @@ class AppShellBridge final : public QObject {
     int volume_ = 50;
     QString configured_user_agent_;
     QString configured_epg_url_;
+    QString log_file_path_;
+    QString logs_directory_path_;
     QString alert_message_;
     bool alert_visible_ = false;
 };

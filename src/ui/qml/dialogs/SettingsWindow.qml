@@ -11,8 +11,12 @@ Window {
 
     property string appVersion: ""
     property string buildId: ""
+    property string logFilePath: ""
+    property string logsDirectoryPath: ""
 
     signal submitted(string userAgent, string epgUrl)
+    signal openLogsFolderRequested()
+    signal copyDiagnosticsRequested()
 
     width: 720
     height: 560
@@ -220,6 +224,41 @@ Window {
                             text: qsTr("Built with C++20, Qt 6, and FFmpeg.")
                             color: Shell.Theme.textSecondary
                             wrapMode: Text.WordWrap
+                        }
+
+                        Label {
+                            text: qsTr("Diagnostics")
+                            color: Shell.Theme.textPrimary
+                            font.bold: true
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            text: root.logFilePath.length > 0
+                                ? qsTr("Log file: %1").arg(root.logFilePath)
+                                : qsTr("File logging is not available.")
+                            color: Shell.Theme.textSecondary
+                            wrapMode: Text.WrapAnywhere
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: Shell.Theme.spacingSm
+
+                            Controls.ThemedToolButton {
+                                text: qsTr("Open Logs Folder")
+                                enabled: root.logsDirectoryPath.length > 0
+                                onClicked: root.openLogsFolderRequested()
+                            }
+
+                            Controls.ThemedToolButton {
+                                text: qsTr("Copy Diagnostics")
+                                onClicked: root.copyDiagnosticsRequested()
+                            }
+
+                            Item {
+                                Layout.fillWidth: true
+                            }
                         }
 
                         Label {

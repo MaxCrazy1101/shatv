@@ -71,6 +71,9 @@ class Application final {
     void StartInitialPlayback();
     void SetupFfmpegAudioSmokeScenario();
     void SetupFfmpegSmokeScenario();
+    void OpenLogsFolder();
+    void CopyDiagnosticsToClipboard();
+    QString BuildDiagnosticsText() const;
 
     QGuiApplication *qt_app_ = nullptr;
     LaunchOptions options_;

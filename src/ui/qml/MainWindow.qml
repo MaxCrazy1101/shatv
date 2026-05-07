@@ -43,6 +43,8 @@ ApplicationWindow {
         property string configuredEpgUrl: ""
         property string appVersion: ""
         property string buildId: ""
+        property string logFilePath: ""
+        property string logsDirectoryPath: ""
         property string alertMessage: ""
         property bool alertVisible: false
 
@@ -56,6 +58,8 @@ ApplicationWindow {
         function submitOpenFile(path) {}
         function submitOpenUrl(urlText) {}
         function submitNetworkSettings(userAgent, epgUrl) {}
+        function openLogsFolder() {}
+        function copyDiagnosticsToClipboard() {}
         function openRecentAt(index) {}
         function dismissAlert() {}
     }
@@ -631,12 +635,12 @@ ApplicationWindow {
             }
 
             HeaderIconButton {
-                text: qsTr("Toggle Log Panel")
+                text: qsTr("Toggle Status Panel")
                 iconType: "info"
                 checkable: true
                 checked: root.logPanelVisible
                 ToolTip.visible: hovered
-                ToolTip.text: qsTr("Toggle Log Panel")
+                ToolTip.text: qsTr("Toggle Status Panel")
                 onClicked: root.logPanelVisible = !root.logPanelVisible
             }
 
@@ -853,7 +857,11 @@ ApplicationWindow {
         transientParent: root
         appVersion: bridge.appVersion
         buildId: bridge.buildId
+        logFilePath: bridge.logFilePath
+        logsDirectoryPath: bridge.logsDirectoryPath
         onSubmitted: (userAgent, epgUrl) => bridge.submitNetworkSettings(userAgent, epgUrl)
+        onOpenLogsFolderRequested: bridge.openLogsFolder()
+        onCopyDiagnosticsRequested: bridge.copyDiagnosticsToClipboard()
     }
 
     Dialogs.OpenUrlDialog {

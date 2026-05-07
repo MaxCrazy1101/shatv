@@ -1,12 +1,15 @@
 #include <clocale>
 
+#include <QCoreApplication>
 #include <QGuiApplication>
 #include <QLocale>
 #include <QQuickStyle>
 #include <QTranslator>
 
 #include "app/application.h"
+#include "app/build_info.h"
 #include "app/launch_options.h"
+#include "app/logging.h"
 
 int main(int argc, char *argv[]) {
 #ifdef Q_OS_WIN
@@ -14,8 +17,18 @@ int main(int argc, char *argv[]) {
     QQuickStyle::setStyle(QStringLiteral("Fusion"));
 #endif
     QGuiApplication app(argc, argv);
+    QCoreApplication::setApplicationVersion(QString::fromUtf8(shatv::app::kProjectVersion));
     // Qt 初始化后会覆盖 LC_NUMERIC，这里统一钉回 C 供 FFmpeg 等媒体库使用。
     std::setlocale(LC_NUMERIC, "C");
+
+    shatv::app::InitializeLogging();
+    qCInfo(shatv::app::log_app).noquote()
+        << "ShaTV startup"
+        << "version=" << shatv::app::kProjectVersion
+        << "build=" << shatv::app::kBuildId
+        << "qt=" << qVersion()
+        << "platform=" << QGuiApplication::platformName()
+        << "logFile=" << shatv::app::CurrentLogFilePath();
 
     QTranslator translator;
     if (translator.load(QLocale(), "shatv", "_", ":/i18n")) {
@@ -23,6 +36,13 @@ int main(int argc, char *argv[]) {
     }
 
     const shatv::app::LaunchOptions options = shatv::app::ParseLaunchOptions(app.arguments());
-    shatv::app::Application application(&app, options);
-    return application.Run();
+    int exit_code = 0;
+    {
+        shatv::app::Application application(&app, options);
+        exit_code = application.Run();
+    }
+
+    qCInfo(shatv::app::log_app) << "ShaTV shutdown" << "exitCode=" << exit_code;
+    shatv::app::ShutdownLogging();
+    return exit_code;
 }

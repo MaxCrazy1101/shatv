@@ -297,8 +297,8 @@
       <translation>窗口置顶</translation>
     </message>
     <message>
-      <source>Toggle Log Panel</source>
-      <translation>日志面板</translation>
+      <source>Toggle Status Panel</source>
+      <translation>显示状态面板</translation>
     </message>
     <message>
       <source>Toggle Channel List</source>
@@ -452,6 +452,26 @@
     <message>
       <source>Built with C++20, Qt 6, and FFmpeg.</source>
       <translation>基于 C++20、Qt 6 和 FFmpeg 构建。</translation>
+    </message>
+    <message>
+      <source>Diagnostics</source>
+      <translation>诊断</translation>
+    </message>
+    <message>
+      <source>Log file: %1</source>
+      <translation>日志文件：%1</translation>
+    </message>
+    <message>
+      <source>File logging is not available.</source>
+      <translation>文件日志不可用。</translation>
+    </message>
+    <message>
+      <source>Open Logs Folder</source>
+      <translation>打开日志文件夹</translation>
+    </message>
+    <message>
+      <source>Copy Diagnostics</source>
+      <translation>复制诊断信息</translation>
     </message>
     <message>
       <source>Authors</source>
@@ -667,6 +687,22 @@
     <message>
       <source>Failed to save network settings to %1</source>
       <translation>保存网络设置到 %1 失败。</translation>
+    </message>
+    <message>
+      <source>Log folder is not available</source>
+      <translation>日志文件夹不可用</translation>
+    </message>
+    <message>
+      <source>Failed to open logs folder</source>
+      <translation>打开日志文件夹失败</translation>
+    </message>
+    <message>
+      <source>Clipboard is not available</source>
+      <translation>剪贴板不可用</translation>
+    </message>
+    <message>
+      <source>Diagnostics copied to clipboard</source>
+      <translation>诊断信息已复制到剪贴板</translation>
     </message>
     <message>
       <source>Failed to save recent history</source>
