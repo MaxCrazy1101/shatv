@@ -43,13 +43,13 @@ set(SHATV_FFMPEG_INCLUDE_DIR "" CACHE PATH "Path to FFmpeg headers for Windows b
 set(SHATV_FFMPEG_LIBRARY_DIR "" CACHE PATH "Path to FFmpeg import libraries for Windows builds")
 
 if(WIN32)
-    find_package(Qt6 REQUIRED COMPONENTS Core Network Qml Quick QuickControls2 QuickDialogs2 Multimedia GuiPrivate)
-    find_package(Qt6 QUIET COMPONENTS LinguistTools ShaderTools)
+    find_package(Qt6 REQUIRED COMPONENTS Core Network Qml Quick QuickControls2 QuickDialogs2 Multimedia ShaderTools ShaderToolsPrivate)
+    find_package(Qt6 QUIET COMPONENTS LinguistTools)
     # Windows 上几乎不存在 toml11 系统包，默认启用 FetchContent。
     option(SHATV_FETCH_TOML11 "Fetch toml11 during configure" ON)
     option(SHATV_FETCH_ZLIB "Fetch zlib during configure" ON)
 else()
-    find_package(Qt6 REQUIRED COMPONENTS Core Network Qml Quick QuickControls2 QuickDialogs2 LinguistTools Multimedia ShaderTools GuiPrivate)
+    find_package(Qt6 REQUIRED COMPONENTS Core Network Qml Quick QuickControls2 QuickDialogs2 LinguistTools Multimedia ShaderTools ShaderToolsPrivate)
     option(SHATV_FETCH_TOML11 "Fetch toml11 during configure" OFF)
     option(SHATV_FETCH_ZLIB "Fetch zlib during configure" OFF)
 endif()

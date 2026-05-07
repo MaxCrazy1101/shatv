@@ -40,13 +40,14 @@ target_include_directories(shatv_app
 target_link_libraries(shatv_app
     PUBLIC
         Qt6::Core
-        Qt6::GuiPrivate
         Qt6::Network
         Qt6::Multimedia
         Qt6::Qml
         Qt6::Quick
         Qt6::QuickControls2
         Qt6::QuickDialogs2
+        Qt6::ShaderTools
+        Qt6::ShaderToolsPrivate
         shatv_ffmpeg
         toml11::toml11
         ZLIB::ZLIB
@@ -96,13 +97,3 @@ qt_add_resources(shatv_app shatv_app_main_window_qml
         ui/qml/dialogs/SettingsWindow.qml
         ui/qml/dialogs/OpenUrlDialog.qml
 )
-
-if(TARGET Qt6::ShaderTools)
-    qt6_add_shaders(shatv_app "shatv_video_shaders"
-        GLSL "440"
-        PREFIX "/shatv/shaders"
-        FILES
-            ui/video/shaders/video_present.vert
-            ui/video/shaders/video_present.frag
-    )
-endif()

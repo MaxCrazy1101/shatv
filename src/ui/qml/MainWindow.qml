@@ -276,6 +276,17 @@ ApplicationWindow {
         recentMenuPopup.close()
     }
 
+    function setVideoAspectRatioMode(mode) {
+        ffmpegVideoItem.aspectRatioMode = mode
+    }
+
+    function openVideoContextMenu(sourceItem, mouse) {
+        const point = sourceItem.mapToItem(Overlay.overlay, mouse.x, mouse.y)
+        videoContextMenu.x = point.x
+        videoContextMenu.y = point.y
+        videoContextMenu.open()
+    }
+
     function toggleAlwaysOnTop() {
         const targetVisibility = root.visibility
         root.alwaysOnTop = !root.alwaysOnTop
@@ -692,6 +703,52 @@ ApplicationWindow {
             }
         }
 
+        ButtonGroup {
+            id: aspectRatioModeGroup
+            exclusive: true
+        }
+
+        Menu {
+            id: videoContextMenu
+            parent: Overlay.overlay
+            popupType: Popup.Item
+            modal: false
+            dim: false
+
+            Menu {
+                title: qsTr("Aspect Ratio")
+
+                MenuItem {
+                    text: qsTr("Preserve (Fit)")
+                    checkable: true
+                    checked: ffmpegVideoItem.aspectRatioMode === VideoPresenterItem.PreserveAspectRatio
+                    ButtonGroup.group: aspectRatioModeGroup
+                    onTriggered: root.setVideoAspectRatioMode(VideoPresenterItem.PreserveAspectRatio)
+                }
+                MenuItem {
+                    text: qsTr("Stretch")
+                    checkable: true
+                    checked: ffmpegVideoItem.aspectRatioMode === VideoPresenterItem.StretchToFill
+                    ButtonGroup.group: aspectRatioModeGroup
+                    onTriggered: root.setVideoAspectRatioMode(VideoPresenterItem.StretchToFill)
+                }
+                MenuItem {
+                    text: qsTr("Fill (Crop)")
+                    checkable: true
+                    checked: ffmpegVideoItem.aspectRatioMode === VideoPresenterItem.CropToFill
+                    ButtonGroup.group: aspectRatioModeGroup
+                    onTriggered: root.setVideoAspectRatioMode(VideoPresenterItem.CropToFill)
+                }
+                MenuItem {
+                    text: qsTr("Native (1:1)")
+                    checkable: true
+                    checked: ffmpegVideoItem.aspectRatioMode === VideoPresenterItem.NativeSize
+                    ButtonGroup.group: aspectRatioModeGroup
+                    onTriggered: root.setVideoAspectRatioMode(VideoPresenterItem.NativeSize)
+                }
+            }
+        }
+
         ResizeHandle {
             edges: Qt.TopEdge
             anchors.left: parent.left
@@ -900,6 +957,18 @@ ApplicationWindow {
                             objectName: "ffmpegVideoItem"
                             anchors.fill: parent
                             visible: ready
+                        }
+
+                        // Right-click context menu for aspect ratio
+                        MouseArea {
+                            id: videoContextMouseArea
+                            anchors.fill: parent
+                            acceptedButtons: Qt.RightButton
+                            onClicked: function(mouse) {
+                                if (mouse.button === Qt.RightButton) {
+                                    root.openVideoContextMenu(videoContextMouseArea, mouse)
+                                }
+                            }
                         }
 
                         // OSD log panel — semi-transparent overlay over video area

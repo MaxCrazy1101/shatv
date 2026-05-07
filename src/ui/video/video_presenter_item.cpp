@@ -3,19 +3,27 @@
 #include <array>
 #include <memory>
 
-#include <QFile>
+#include <QDebug>
 #include <QMatrix4x4>
 #include <QMetaObject>
 #include <QQuickWindow>
+#include <QThreadStorage>
 #include <QtQml/qqml.h>
-#include <rhi/qrhi.h>
 #include <rhi/qshader.h>
+#include <rhi/qshaderbaker.h>
+#include <rhi/qrhi.h>
 
 #include "player/ffmpeg_player_backend.h"
 
 namespace shatv::ui::video {
 
+// NOLINTBEGIN(modernize-use-using) - QMatrix4x4 type alias for clarity
+using Matrix4x4 = QMatrix4x4;
+// NOLINTEND(modernize-use-using)
+
 namespace {
+
+using VideoAspectRatioMode = VideoPresenterItem::VideoAspectRatioMode;
 
 struct Vertex {
     float x;
@@ -31,17 +39,128 @@ constexpr std::array<Vertex, 4> kQuadVertices{{
     {1.0F, 1.0F, 1.0F, 0.0F},
 }};
 
-QShader LoadShader(const QString &path) {
-    QFile shader_file(path);
-    if (!shader_file.open(QIODevice::ReadOnly)) {
-        return {};
+// GLSL 440 source for YUV→RGB conversion (BT.709 limited range).
+constexpr char kVertexShaderSource[] = R"(
+#version 440
+layout(location = 0) in vec4 position;
+layout(location = 1) in vec2 texcoord;
+layout(location = 0) out vec2 v_texcoord;
+layout(std140, binding = 0) uniform VertexUBO {
+    mat4 mvp;
+} vertex_ubo;
+void main() {
+    v_texcoord = texcoord;
+    gl_Position = vertex_ubo.mvp * position;
+}
+)";
+
+constexpr char kFragmentShaderSource[] = R"(
+#version 440
+layout(location = 0) in vec2 v_texcoord;
+layout(location = 0) out vec4 fragColor;
+layout(binding = 1) uniform sampler2D y_tex;
+layout(binding = 2) uniform sampler2D u_tex;
+layout(binding = 3) uniform sampler2D v_tex;
+layout(std140, binding = 4) uniform FragmentUBO {
+    float opacity;
+} fragment_ubo;
+void main() {
+    float y = texture(y_tex, v_texcoord).r;
+    float u = texture(u_tex, v_texcoord).r - 0.5;
+    float v = texture(v_tex, v_texcoord).r - 0.5;
+    // BT.709 limited range.
+    y = 1.16438356 * (y - 0.0625);
+    float r = y + 1.79274107 * v;
+    float g = y - 0.21324861 * u - 0.53290933 * v;
+    float b = y + 2.11240179 * u;
+    fragColor = vec4(clamp(vec3(r, g, b), 0.0, 1.0), fragment_ubo.opacity);
+}
+)";
+
+QShader BakeShader(QShader::Stage stage, const char *source) {
+    QShaderBaker baker;
+    baker.setSourceString(source, stage);
+    baker.setGeneratedShaders({
+        {QShader::SpirvShader, QShaderVersion(100)},
+        {QShader::GlslShader, QShaderVersion(100, QShaderVersion::GlslEs)},
+        {QShader::GlslShader, QShaderVersion(120)},
+        {QShader::HlslShader, QShaderVersion(50)},
+        {QShader::MslShader, QShaderVersion(12)},
+    });
+    baker.setGeneratedShaderVariants({QShader::StandardShader});
+    const QShader result = baker.bake();
+    if (!result.isValid()) {
+        qWarning().noquote() << "Video shader bake failed:" << baker.errorMessage();
     }
-    return QShader::fromSerialized(shader_file.readAll());
+    return result;
+}
+
+struct VideoShaders {
+    QShader vertex;
+    QShader fragment;
+};
+
+VideoShaders *ThreadLocalVideoShaders() {
+    static QThreadStorage<VideoShaders *> shader_storage;
+    if (!shader_storage.hasLocalData()) {
+        shader_storage.setLocalData(new VideoShaders{
+            BakeShader(QShader::VertexStage, kVertexShaderSource),
+            BakeShader(QShader::FragmentStage, kFragmentShaderSource),
+        });
+    }
+    return shader_storage.localData();
+}
+
+// Calculate aspect ratio correction scale factors.
+// Returns (scale_x, scale_y) to apply to the video quad.
+// - PreserveAspectRatio: fit inside viewport with letterbox/pillarbox
+// - StretchToFill: no correction (1.0, 1.0)
+// - CropToFill: fill viewport (may crop)
+// - NativeSize: no correction (1.0, 1.0)
+QVector2D CalculateAspectRatioScale(VideoAspectRatioMode mode,
+                                     const QSize &frame_size,
+                                     const QSize &viewport_size) {
+    if (mode == VideoPresenterItem::StretchToFill || mode == VideoPresenterItem::NativeSize) {
+        return {1.0F, 1.0F};
+    }
+
+    if (!frame_size.isValid() || !viewport_size.isValid() || frame_size.isEmpty() ||
+        viewport_size.isEmpty()) {
+        return {1.0F, 1.0F};
+    }
+
+    const float frame_aspect = static_cast<float>(frame_size.width()) / frame_size.height();
+    const float viewport_aspect =
+        static_cast<float>(viewport_size.width()) / viewport_size.height();
+
+    if (mode == VideoPresenterItem::PreserveAspectRatio) {
+        if (frame_aspect > viewport_aspect) {
+            // Frame is wider than viewport: scale Y to fit, X will have pillarbox
+            return {1.0F, viewport_aspect / frame_aspect};
+        }
+        // Frame is taller than viewport: scale X to fit, Y will have letterbox
+        return {frame_aspect / viewport_aspect, 1.0F};
+    }
+
+    if (mode == VideoPresenterItem::CropToFill) {
+        if (frame_aspect > viewport_aspect) {
+            // Frame is wider: scale Y to fill, X will crop
+            return {frame_aspect / viewport_aspect, 1.0F};
+        }
+        // Frame is taller: scale X to fill, Y will crop
+        return {1.0F, viewport_aspect / frame_aspect};
+    }
+
+    return {1.0F, 1.0F};
 }
 
 class VideoPresenterRenderer final : public QQuickRhiItemRenderer {
    public:
     void initialize(QRhiCommandBuffer *cb) override {
+        VideoShaders *shaders = ThreadLocalVideoShaders();
+        vertex_shader_ = shaders->vertex;
+        fragment_shader_ = shaders->fragment;
+
         ResetPipeline();
         vertex_buffer_.reset(rhi()->newBuffer(QRhiBuffer::Immutable,
                                               QRhiBuffer::VertexBuffer,
@@ -66,6 +185,10 @@ class VideoPresenterRenderer final : public QQuickRhiItemRenderer {
 
     void synchronize(QQuickRhiItem *item) override {
         auto *video_item = static_cast<VideoPresenterItem *>(item);
+
+        // Read aspect ratio mode from the item.
+        aspect_ratio_mode_ = video_item->aspectRatioMode();
+
         media::video::VideoFrame frame;
         if (video_item->TakePendingFrame(&frame)) {
             pending_frame_ = std::move(frame);
@@ -77,7 +200,15 @@ class VideoPresenterRenderer final : public QQuickRhiItemRenderer {
         QRhiResourceUpdateBatch *updates = rhi()->nextResourceUpdateBatch();
         const bool has_frame = ApplyPendingFrame(updates);
 
-        QMatrix4x4 mvp = rhi()->clipSpaceCorrMatrix();
+        // Build MVP with aspect ratio correction.
+        Matrix4x4 mvp = rhi()->clipSpaceCorrMatrix();
+        const QSize viewport_size = renderTarget()->pixelSize();
+        const QVector2D scale =
+            CalculateAspectRatioScale(aspect_ratio_mode_, current_frame_.size, viewport_size);
+        Matrix4x4 scale_matrix;
+        scale_matrix.scale(scale.x(), scale.y(), 1.0F);
+        mvp = scale_matrix * mvp;
+
         updates->updateDynamicBuffer(vertex_uniform_buffer_.get(), 0, 64, mvp.constData());
         const std::array<float, 4> fragment_ubo{{1.0F, 0.0F, 0.0F, 0.0F}};
         updates->updateDynamicBuffer(fragment_uniform_buffer_.get(), 0, 16, fragment_ubo.data());
@@ -85,7 +216,7 @@ class VideoPresenterRenderer final : public QQuickRhiItemRenderer {
         cb->beginPass(renderTarget(), QColor::fromRgbF(0.0, 0.0, 0.0, 1.0), {1.0F, 0}, updates);
         if (has_frame && EnsurePipeline()) {
             cb->setGraphicsPipeline(pipeline_.get());
-            cb->setViewport(QRhiViewport(0, 0, renderTarget()->pixelSize().width(), renderTarget()->pixelSize().height()));
+            cb->setViewport(QRhiViewport(0, 0, viewport_size.width(), viewport_size.height()));
             cb->setShaderResources(shader_resource_bindings_.get());
             const QRhiCommandBuffer::VertexInput vertex_binding(vertex_buffer_.get(), 0);
             cb->setVertexInput(0, 1, &vertex_binding);
@@ -146,6 +277,9 @@ class VideoPresenterRenderer final : public QQuickRhiItemRenderer {
         if (y_texture_ == nullptr || u_texture_ == nullptr || v_texture_ == nullptr) {
             return false;
         }
+        if (!vertex_shader_.isValid() || !fragment_shader_.isValid()) {
+            return false;
+        }
 
         shader_resource_bindings_.reset(rhi()->newShaderResourceBindings());
         shader_resource_bindings_->setBindings({
@@ -159,12 +293,6 @@ class VideoPresenterRenderer final : public QQuickRhiItemRenderer {
             return false;
         }
 
-        QShader vertex_shader = LoadShader(QStringLiteral(":/shatv/shaders/ui/video/shaders/video_present.vert.qsb"));
-        QShader fragment_shader = LoadShader(QStringLiteral(":/shatv/shaders/ui/video/shaders/video_present.frag.qsb"));
-        if (!vertex_shader.isValid() || !fragment_shader.isValid()) {
-            return false;
-        }
-
         QRhiVertexInputLayout input_layout;
         input_layout.setBindings({QRhiVertexInputBinding(sizeof(Vertex))});
         input_layout.setAttributes({
@@ -175,8 +303,8 @@ class VideoPresenterRenderer final : public QQuickRhiItemRenderer {
         pipeline_.reset(rhi()->newGraphicsPipeline());
         pipeline_->setTopology(QRhiGraphicsPipeline::TriangleStrip);
         pipeline_->setShaderStages({
-            QRhiShaderStage(QRhiShaderStage::Vertex, vertex_shader),
-            QRhiShaderStage(QRhiShaderStage::Fragment, fragment_shader),
+            QRhiShaderStage(QRhiShaderStage::Vertex, vertex_shader_),
+            QRhiShaderStage(QRhiShaderStage::Fragment, fragment_shader_),
         });
         pipeline_->setVertexInputLayout(input_layout);
         pipeline_->setShaderResourceBindings(shader_resource_bindings_.get());
@@ -189,6 +317,9 @@ class VideoPresenterRenderer final : public QQuickRhiItemRenderer {
         shader_resource_bindings_.reset();
     }
 
+    VideoAspectRatioMode aspect_ratio_mode_ = VideoPresenterItem::PreserveAspectRatio;
+    QShader vertex_shader_;
+    QShader fragment_shader_;
     media::video::VideoFrame current_frame_;
     media::video::VideoFrame pending_frame_;
     bool has_pending_frame_ = false;
@@ -217,6 +348,19 @@ VideoPresenterItem::~VideoPresenterItem() {
 
 bool VideoPresenterItem::ready() const {
     return ready_;
+}
+
+VideoPresenterItem::VideoAspectRatioMode VideoPresenterItem::aspectRatioMode() const {
+    return aspect_ratio_mode_;
+}
+
+void VideoPresenterItem::setAspectRatioMode(VideoAspectRatioMode mode) {
+    if (aspect_ratio_mode_ == mode) {
+        return;
+    }
+    aspect_ratio_mode_ = mode;
+    emit aspectRatioModeChanged();
+    update();
 }
 
 void VideoPresenterItem::SetBackend(shatv::player::FfmpegPlayerBackend *backend) {
