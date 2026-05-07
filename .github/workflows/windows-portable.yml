@@ -15,7 +15,7 @@ jobs:
       PACKAGE_DIR: package-root/shatv-windows-x64
       QT_VERSION: 6.10.3
       # BtbN provides pre-built FFmpeg shared builds (GPL variant) for Windows.
-      FFMPEG_VERSION: 7.1
+      FFMPEG_VERSION: master-latest
       FFMPEG_URL: https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl-shared.zip
 
     steps:
@@ -33,7 +33,7 @@ jobs:
           host: windows
           target: desktop
           arch: win64_msvc2022_64
-          modules: qt5compat qtmultimedia
+          modules: qtmultimedia qtshadertools
           cache: true
 
       - name: Cache FFmpeg
