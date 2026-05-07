@@ -1,5 +1,12 @@
 cmake_minimum_required(VERSION 3.16)
 
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
+    message(FATAL_ERROR
+        "In-source builds are not supported. "
+        "Use an out-of-source build directory, for example: "
+        "cmake -S . -B build")
+endif()
+
 project(ShaTV VERSION 0.1.0 LANGUAGES CXX)
 
 # 为 clangd 等工具导出编译数据库，便于后续开发。

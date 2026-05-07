@@ -26,11 +26,19 @@ src/CTestTestfile.cmake
 src/Makefile
 src/cmake_install.cmake
 src/app/build_info.h
+src/*_autogen/
+src/*_autogen_timestamp_deps/
+src/libshatv_app.a
+src/shatv
+src/*.qm
 tests/CMakeCache.txt
 tests/CMakeFiles/
 tests/CTestTestfile.cmake
 tests/Makefile
 tests/cmake_install.cmake
+tests/*_test
+tests/*_test_autogen/
+tests/*_test_autogen_timestamp_deps/
 
 # local media fixtures
 docs/*.mp4
