@@ -7,6 +7,7 @@
 #include <vector>
 
 #include <QElapsedTimer>
+#include <QMutexLocker>
 #include <QThread>
 
 #include "domain/player_snapshot.h"
@@ -161,13 +162,13 @@ void FfmpegPlayerBackend::Stop() {
 void FfmpegPlayerBackend::SetVolume(int volume) {
     volume_ = std::clamp(volume, 0, 100);
     audio_output_.SetVolume(volume_.load());
-    EmitSnapshot(domain::PlaybackState::kIdle, tr("Volume %1").arg(volume_.load()));
+    EmitControlSnapshot(tr("Volume %1").arg(volume_.load()));
 }
 
 void FfmpegPlayerBackend::SetMuted(bool muted) {
     muted_ = muted;
     audio_output_.SetMuted(muted_.load());
-    EmitSnapshot(domain::PlaybackState::kIdle, muted_.load() ? tr("Muted") : tr("Unmuted"));
+    EmitControlSnapshot(muted_.load() ? tr("Muted") : tr("Unmuted"));
 }
 
 void FfmpegPlayerBackend::AttachVideoSink(VideoFrameSink *sink) {
@@ -606,6 +607,28 @@ void FfmpegPlayerBackend::EmitSnapshotForSource(const domain::MediaSourceDescrip
     snapshot.volume = volume_.load();
     snapshot.muted = muted_.load();
     snapshot.retry_count = retry_count;
+    {
+        QMutexLocker locker(&snapshot_mutex_);
+        last_snapshot_ = snapshot;
+    }
+    emit SnapshotChanged(snapshot);
+}
+
+void FfmpegPlayerBackend::EmitControlSnapshot(const QString &message) {
+    domain::PlayerSnapshot snapshot;
+    {
+        QMutexLocker locker(&snapshot_mutex_);
+        snapshot = last_snapshot_;
+    }
+
+    snapshot.message = message;
+    snapshot.volume = volume_.load();
+    snapshot.muted = muted_.load();
+
+    {
+        QMutexLocker locker(&snapshot_mutex_);
+        last_snapshot_ = snapshot;
+    }
     emit SnapshotChanged(snapshot);
 }
 

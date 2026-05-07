@@ -3,9 +3,11 @@
 #include <atomic>
 #include <memory>
 
+#include <QMutex>
 #include <QString>
 
 #include "domain/media_source.h"
+#include "domain/player_snapshot.h"
 #include "media/audio/audio_output.h"
 #include "media/video/video_frame_queue.h"
 #include "player/player_backend.h"
@@ -61,8 +63,12 @@ class FfmpegPlayerBackend final : public PlayerBackend {
                                domain::PlaybackState state,
                                const QString &message,
                                int retry_count = 0);
+    void EmitControlSnapshot(const QString &message);
 
     domain::MediaSourceDescriptor current_source_;
+    // 控制类操作复用最近一次播放快照，避免音量/静音把播放状态重置。
+    domain::PlayerSnapshot last_snapshot_;
+    mutable QMutex snapshot_mutex_;
     media::audio::AudioOutput audio_output_;
     media::video::VideoFrameQueue video_frame_queue_;
     std::unique_ptr<QThread> worker_thread_;

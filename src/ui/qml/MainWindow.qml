@@ -73,6 +73,8 @@ ApplicationWindow {
     property bool alwaysOnTop: false
     property bool sidebarVisible: true
     property bool logPanelVisible: false
+    property bool fullscreenVolumePopupOpen: false
+    property bool normalVolumePopupOpen: false
     property int savedNormalX: x
     property int savedNormalY: y
     property int savedNormalWidth: width
@@ -241,6 +243,20 @@ ApplicationWindow {
         onTriggered: root.closeRecentMenuIfIdle()
     }
 
+    Timer {
+        id: fullscreenVolumeCloseTimer
+        interval: 160
+        repeat: false
+        onTriggered: root.closeFullscreenVolumePopupIfIdle()
+    }
+
+    Timer {
+        id: normalVolumeCloseTimer
+        interval: 160
+        repeat: false
+        onTriggered: root.closeNormalVolumePopupIfIdle()
+    }
+
     function positionRecentMenu(button) {
         const overlay = Overlay.overlay
         const point = button.mapToItem(overlay, 0, button.height + Shell.Theme.spacingXs)
@@ -274,6 +290,48 @@ ApplicationWindow {
         }
 
         recentMenuPopup.close()
+    }
+
+    function openFullscreenVolumePopup() {
+        fullscreenVolumeCloseTimer.stop()
+        root.fullscreenVolumePopupOpen = true
+    }
+
+    function scheduleFullscreenVolumePopupClose() {
+        if (!root.fullscreenVolumePopupOpen) {
+            return
+        }
+
+        fullscreenVolumeCloseTimer.restart()
+    }
+
+    function closeFullscreenVolumePopupIfIdle() {
+        if (volumeHoverHandler.hovered || fullscreenVolumePopupHoverHandler.hovered || fullscreenVolumeSlider.pressed) {
+            return
+        }
+
+        root.fullscreenVolumePopupOpen = false
+    }
+
+    function openNormalVolumePopup() {
+        normalVolumeCloseTimer.stop()
+        root.normalVolumePopupOpen = true
+    }
+
+    function scheduleNormalVolumePopupClose() {
+        if (!root.normalVolumePopupOpen) {
+            return
+        }
+
+        normalVolumeCloseTimer.restart()
+    }
+
+    function closeNormalVolumePopupIfIdle() {
+        if (normalVolumeHoverHandler.hovered || normalVolumePopupHoverHandler.hovered || normalVolumeSlider.pressed) {
+            return
+        }
+
+        root.normalVolumePopupOpen = false
     }
 
     function setVideoAspectRatioMode(mode) {
@@ -1100,76 +1158,93 @@ ApplicationWindow {
                                         onClicked: bridge.requestStop()
                                     }
 
-                                    PlaybackIconButton {
-                                        text: bridge.muted ? qsTr("Unmute") : qsTr("Mute")
-                                        symbolName: bridge.muted ? "volume_off" : "volume_up"
-                                        onClicked: bridge.toggleMute()
-                                    }
-
                                     Item {
-                                        Layout.preferredWidth: fullscreenVolumeArea.width
+                                        id: fullscreenVolumeArea
+                                        Layout.preferredWidth: volumeIconBtn.implicitWidth
                                         Layout.preferredHeight: 38
 
-                                        MouseArea {
-                                            id: fullscreenVolumeArea
-                                            width: volumeIconBtn.implicitWidth
-                                            implicitHeight: 38
-                                            hoverEnabled: true
+                                        PlaybackIconButton {
+                                            id: volumeIconBtn
+                                            anchors.fill: parent
+                                            text: bridge.muted ? qsTr("Unmute") : qsTr("Mute")
+                                            symbolName: bridge.muted ? "volume_off" : "volume_up"
+                                            onClicked: bridge.toggleMute()
+                                        }
 
-                                            PlaybackIconButton {
-                                                id: volumeIconBtn
-                                                text: bridge.muted ? qsTr("Unmute") : qsTr("Mute")
-                                                symbolName: bridge.muted ? "volume_off" : "volume_up"
-                                                onClicked: bridge.toggleMute()
-                                            }
+                                        Rectangle {
+                                            id: fullscreenVolumePopup
+                                            visible: root.fullscreenVolumePopupOpen
+                                            z: 100
+                                            anchors.centerIn: parent
+                                            anchors.verticalCenterOffset: -parent.height / 2 - 28
+                                            implicitWidth: 200
+                                            implicitHeight: 36
+                                            width: implicitWidth
+                                            height: implicitHeight
+                                            radius: Shell.Theme.radiusSm
+                                            color: Shell.Theme.surfaceContainerHigh
+                                            border.width: 1
+                                            border.color: Shell.Theme.outline
 
-                                            Rectangle {
-                                                id: fullscreenVolumePopup
-                                                visible: volumeHoverHandler.hovered
-                                                z: 100
-                                                anchors.centerIn: parent
-                                                anchors.verticalCenterOffset: -parent.height / 2 - 28
-                                                implicitWidth: 200
-                                                implicitHeight: 36
-                                                radius: Shell.Theme.radiusSm
-                                                color: Shell.Theme.surfaceContainerHigh
-                                                border.width: 1
-                                                border.color: Shell.Theme.outline
+                                            RowLayout {
+                                                anchors.fill: parent
+                                                anchors.margins: Shell.Theme.spacingSm
+                                                spacing: Shell.Theme.spacingSm
 
-                                                RowLayout {
-                                                    anchors.fill: parent
-                                                    anchors.margins: Shell.Theme.spacingSm
-                                                    spacing: Shell.Theme.spacingSm
+                                                Label {
+                                                    Layout.preferredWidth: 24
+                                                    font.pixelSize: 12
+                                                    color: Shell.Theme.textSecondary
+                                                    horizontalAlignment: Text.AlignHCenter
+                                                    text: bridge.muted ? qsTr("X") : "🔊"
+                                                }
 
-                                                    Label {
-                                                        Layout.preferredWidth: 24
-                                                        font.pixelSize: 12
-                                                        color: Shell.Theme.textSecondary
-                                                        horizontalAlignment: Text.AlignHCenter
-                                                        text: bridge.muted ? qsTr("X") : "🔊"
+                                                Controls.ThemedSlider {
+                                                    id: fullscreenVolumeSlider
+                                                    Layout.fillWidth: true
+                                                    from: 0
+                                                    to: 100
+                                                    stepSize: 1
+                                                    value: bridge.volume
+                                                    onMoved: bridge.setVolume(Math.round(value))
+                                                    onPressedChanged: function() {
+                                                        if (!pressed) {
+                                                            root.scheduleFullscreenVolumePopupClose()
+                                                        }
                                                     }
+                                                }
 
-                                                    Controls.ThemedSlider {
-                                                        Layout.fillWidth: true
-                                                        from: 0
-                                                        to: 100
-                                                        stepSize: 1
-                                                        value: bridge.volume
-                                                        onMoved: bridge.setVolume(Math.round(value))
-                                                    }
-
-                                                    Label {
-                                                        Layout.preferredWidth: 28
-                                                        text: bridge.volume
-                                                        font.pixelSize: 12
-                                                        color: Shell.Theme.textSecondary
-                                                        horizontalAlignment: Text.AlignRight
-                                                    }
+                                                Label {
+                                                    Layout.preferredWidth: 28
+                                                    text: bridge.volume
+                                                    font.pixelSize: 12
+                                                    color: Shell.Theme.textSecondary
+                                                    horizontalAlignment: Text.AlignRight
                                                 }
                                             }
 
                                             HoverHandler {
-                                                id: volumeHoverHandler
+                                                id: fullscreenVolumePopupHoverHandler
+                                                onHoveredChanged: function() {
+                                                    if (hovered) {
+                                                        fullscreenVolumeCloseTimer.stop()
+                                                        return
+                                                    }
+
+                                                    root.scheduleFullscreenVolumePopupClose()
+                                                }
+                                            }
+                                        }
+
+                                        HoverHandler {
+                                            id: volumeHoverHandler
+                                            onHoveredChanged: function() {
+                                                if (hovered) {
+                                                    root.openFullscreenVolumePopup()
+                                                    return
+                                                }
+
+                                                root.scheduleFullscreenVolumePopupClose()
                                             }
                                         }
                                     }
@@ -1244,68 +1319,91 @@ ApplicationWindow {
                             }
 
                             Item {
-                                Layout.preferredWidth: normalVolumeArea.width
+                                id: normalVolumeArea
+                                Layout.preferredWidth: normalVolumeIconBtn.implicitWidth
                                 Layout.preferredHeight: 38
 
-                                MouseArea {
-                                    id: normalVolumeArea
-                                    width: normalVolumeIconBtn.implicitWidth
-                                    implicitHeight: 38
-                                    hoverEnabled: true
+                                PlaybackIconButton {
+                                    id: normalVolumeIconBtn
+                                    anchors.fill: parent
+                                    text: bridge.muted ? qsTr("Unmute") : qsTr("Mute")
+                                    symbolName: bridge.muted ? "volume_off" : "volume_up"
+                                    onClicked: bridge.toggleMute()
+                                }
 
-                                    PlaybackIconButton {
-                                        id: normalVolumeIconBtn
-                                        text: bridge.muted ? qsTr("Unmute") : qsTr("Mute")
-                                        symbolName: bridge.muted ? "volume_off" : "volume_up"
-                                        onClicked: bridge.toggleMute()
-                                    }
+                                Rectangle {
+                                    id: normalVolumePopup
+                                    visible: root.normalVolumePopupOpen
+                                    z: 100
+                                    anchors.centerIn: parent
+                                    anchors.verticalCenterOffset: -parent.height / 2 - 28
+                                    implicitWidth: 200
+                                    implicitHeight: 36
+                                    width: implicitWidth
+                                    height: implicitHeight
+                                    radius: Shell.Theme.radiusSm
+                                    color: Shell.Theme.surfaceContainerHigh
+                                    border.width: 1
+                                    border.color: Shell.Theme.outline
 
-                                    Rectangle {
-                                        id: normalVolumePopup
-                                        visible: normalVolumeHoverHandler.hovered
-                                        z: 100
-                                        anchors.centerIn: parent
-                                        anchors.verticalCenterOffset: -parent.height / 2 - 28
-                                        implicitWidth: 200
-                                        implicitHeight: 36
-                                        radius: Shell.Theme.radiusSm
-                                        color: Shell.Theme.surfaceContainerHigh
-                                        border.width: 1
-                                        border.color: Shell.Theme.outline
+                                    RowLayout {
+                                        anchors.fill: parent
+                                        anchors.margins: Shell.Theme.spacingSm
+                                        spacing: Shell.Theme.spacingSm
 
-                                        RowLayout {
-                                            anchors.fill: parent
-                                            anchors.margins: Shell.Theme.spacingSm
-                                            spacing: Shell.Theme.spacingSm
+                                        Label {
+                                            Layout.preferredWidth: 24
+                                            text: bridge.muted ? "🔇" : "🔊"
+                                            font.pixelSize: 14
+                                            horizontalAlignment: Text.AlignHCenter
+                                        }
 
-                                            Label {
-                                                Layout.preferredWidth: 24
-                                                text: bridge.muted ? "🔇" : "🔊"
-                                                font.pixelSize: 14
-                                                horizontalAlignment: Text.AlignHCenter
+                                        Controls.ThemedSlider {
+                                            id: normalVolumeSlider
+                                            Layout.fillWidth: true
+                                            from: 0
+                                            to: 100
+                                            stepSize: 1
+                                            value: bridge.volume
+                                            onMoved: bridge.setVolume(Math.round(value))
+                                            onPressedChanged: function() {
+                                                if (!pressed) {
+                                                    root.scheduleNormalVolumePopupClose()
+                                                }
                                             }
+                                        }
 
-                                            Controls.ThemedSlider {
-                                                Layout.fillWidth: true
-                                                from: 0
-                                                to: 100
-                                                stepSize: 1
-                                                value: bridge.volume
-                                                onMoved: bridge.setVolume(Math.round(value))
-                                            }
-
-                                            Label {
-                                                Layout.preferredWidth: 28
-                                                text: bridge.volume
-                                                font.pixelSize: 12
-                                                color: Shell.Theme.textSecondary
-                                                horizontalAlignment: Text.AlignRight
-                                            }
+                                        Label {
+                                            Layout.preferredWidth: 28
+                                            text: bridge.volume
+                                            font.pixelSize: 12
+                                            color: Shell.Theme.textSecondary
+                                            horizontalAlignment: Text.AlignRight
                                         }
                                     }
 
                                     HoverHandler {
-                                        id: normalVolumeHoverHandler
+                                        id: normalVolumePopupHoverHandler
+                                        onHoveredChanged: function() {
+                                            if (hovered) {
+                                                normalVolumeCloseTimer.stop()
+                                                return
+                                            }
+
+                                            root.scheduleNormalVolumePopupClose()
+                                        }
+                                    }
+                                }
+
+                                HoverHandler {
+                                    id: normalVolumeHoverHandler
+                                    onHoveredChanged: function() {
+                                        if (hovered) {
+                                            root.openNormalVolumePopup()
+                                            return
+                                        }
+
+                                        root.scheduleNormalVolumePopupClose()
                                     }
                                 }
                             }

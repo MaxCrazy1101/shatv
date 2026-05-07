@@ -304,6 +304,26 @@
       <source>Toggle Channel List</source>
       <translation>频道列表</translation>
     </message>
+    <message>
+      <source>Aspect Ratio</source>
+      <translation>画面比例</translation>
+    </message>
+    <message>
+      <source>Preserve (Fit)</source>
+      <translation>保持比例（适应）</translation>
+    </message>
+    <message>
+      <source>Stretch</source>
+      <translation>拉伸</translation>
+    </message>
+    <message>
+      <source>Fill (Crop)</source>
+      <translation>填充（裁剪）</translation>
+    </message>
+    <message>
+      <source>Native (1:1)</source>
+      <translation>原始尺寸（1:1）</translation>
+    </message>
   </context>
   <context>
     <name>AboutDialog</name>

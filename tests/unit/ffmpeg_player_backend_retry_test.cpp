@@ -73,6 +73,11 @@ bool HasState(const QSignalSpy &spy, PlaybackState state) {
     return false;
 }
 
+PlayerSnapshot LastSnapshotFromSpy(const QSignalSpy &spy) {
+    const QList<PlayerSnapshot> snapshots = SnapshotsFromSpy(spy);
+    return snapshots.last();
+}
+
 QList<int> RetryCountsFromSpy(const QSignalSpy &spy) {
     QList<int> retry_counts;
     for (const PlayerSnapshot &snapshot : SnapshotsFromSpy(spy)) {
@@ -95,6 +100,7 @@ class FfmpegPlayerBackendRetryTest final : public QObject {
     void playlist_live_policy_retries_until_max_attempts();
     void playlist_live_eof_reconnects_with_controllable_fixture();
     void video_only_playback_paces_frames_by_pts();
+    void volume_and_mute_keep_latest_playback_state();
 };
 
 void FfmpegPlayerBackendRetryTest::initTestCase() {
@@ -219,6 +225,38 @@ void FfmpegPlayerBackendRetryTest::video_only_playback_paces_frames_by_pts() {
     QTRY_VERIFY_WITH_TIMEOUT(HasState(spy, PlaybackState::kIdle), 4000);
     QVERIFY(HasState(spy, PlaybackState::kPlaying));
     QVERIFY2(elapsed_timer.elapsed() >= 800, qPrintable(QStringLiteral("elapsed=%1ms").arg(elapsed_timer.elapsed())));
+}
+
+void FfmpegPlayerBackendRetryTest::volume_and_mute_keep_latest_playback_state() {
+    FfmpegPlayerBackend backend;
+    QSignalSpy spy(&backend, &FfmpegPlayerBackend::SnapshotChanged);
+
+    backend.Play();
+    spy.clear();
+
+    backend.SetMuted(true);
+    QCOMPARE(spy.count(), 1);
+    PlayerSnapshot snapshot = LastSnapshotFromSpy(spy);
+    QCOMPARE(snapshot.state, PlaybackState::kPlaying);
+    QVERIFY(snapshot.muted);
+
+    spy.clear();
+    backend.SetVolume(25);
+    QCOMPARE(spy.count(), 1);
+    snapshot = LastSnapshotFromSpy(spy);
+    QCOMPARE(snapshot.state, PlaybackState::kPlaying);
+    QCOMPARE(snapshot.volume, 25);
+    QVERIFY(snapshot.muted);
+
+    backend.Pause();
+    spy.clear();
+
+    backend.SetMuted(false);
+    QCOMPARE(spy.count(), 1);
+    snapshot = LastSnapshotFromSpy(spy);
+    QCOMPARE(snapshot.state, PlaybackState::kPaused);
+    QVERIFY(!snapshot.muted);
+    QCOMPARE(snapshot.volume, 25);
 }
 
 }  // namespace
