@@ -50,6 +50,9 @@ QtObject {
     readonly property int videoMinHeight: 320
     readonly property int controlPanelHeight: 64
     readonly property int statusPanelHeight: 44
+    readonly property int statusProgrammeLabelWidth: 34
+    readonly property int statusProgrammeTimeWidth: 72
+    readonly property int statusProgrammeProgressHeight: 3
     readonly property int playbackBusyIndicatorSize: 44
     readonly property int playbackBusyTitlePixelSize: 18
     readonly property color playbackBusyOverlay: "#8A000000"

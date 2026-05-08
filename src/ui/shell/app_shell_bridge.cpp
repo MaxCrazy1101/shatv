@@ -46,12 +46,32 @@ QString AppShellBridge::CurrentChannelName() const {
     return current_channel_name_;
 }
 
-QString AppShellBridge::CurrentProgrammeText() const {
-    return current_programme_text_;
+bool AppShellBridge::HasProgrammeInfo() const {
+    return programme_presentation_.HasProgrammeInfo();
 }
 
-QString AppShellBridge::NextProgrammeText() const {
-    return next_programme_text_;
+QString AppShellBridge::CurrentProgrammeTitle() const {
+    return programme_presentation_.current.title;
+}
+
+QString AppShellBridge::CurrentProgrammeTimeText() const {
+    return programme_presentation_.current.time_text;
+}
+
+double AppShellBridge::CurrentProgrammeProgress() const {
+    return programme_presentation_.current.progress;
+}
+
+bool AppShellBridge::CurrentProgrammeProgressAvailable() const {
+    return programme_presentation_.current.progress_available;
+}
+
+QString AppShellBridge::NextProgrammeTitle() const {
+    return programme_presentation_.next.title;
+}
+
+QString AppShellBridge::NextProgrammeTimeText() const {
+    return programme_presentation_.next.time_text;
 }
 
 QString AppShellBridge::PlaybackStateText() const {
@@ -161,14 +181,45 @@ void AppShellBridge::SetStatusMessage(const QString &message) {
     emit StatusMessageChanged();
 }
 
-void AppShellBridge::SetProgrammeTexts(const QString &current_programme_text, const QString &next_programme_text) {
-    if (current_programme_text_ != current_programme_text) {
-        current_programme_text_ = current_programme_text;
-        emit CurrentProgrammeTextChanged();
+void AppShellBridge::SetProgrammePresentation(const app::EpgProgrammePresentation &presentation) {
+    const bool has_programme_info_changed =
+        programme_presentation_.HasProgrammeInfo() != presentation.HasProgrammeInfo();
+    const bool current_title_changed = programme_presentation_.current.title != presentation.current.title;
+    const bool current_time_text_changed = programme_presentation_.current.time_text != presentation.current.time_text;
+    const bool current_progress_changed = programme_presentation_.current.progress != presentation.current.progress;
+    const bool current_progress_available_changed =
+        programme_presentation_.current.progress_available != presentation.current.progress_available;
+    const bool next_title_changed = programme_presentation_.next.title != presentation.next.title;
+    const bool next_time_text_changed = programme_presentation_.next.time_text != presentation.next.time_text;
+
+    if (!has_programme_info_changed && !current_title_changed && !current_time_text_changed &&
+        !current_progress_changed && !current_progress_available_changed && !next_title_changed &&
+        !next_time_text_changed) {
+        return;
     }
-    if (next_programme_text_ != next_programme_text) {
-        next_programme_text_ = next_programme_text;
-        emit NextProgrammeTextChanged();
+
+    programme_presentation_ = presentation;
+
+    if (has_programme_info_changed) {
+        emit HasProgrammeInfoChanged();
+    }
+    if (current_title_changed) {
+        emit CurrentProgrammeTitleChanged();
+    }
+    if (current_time_text_changed) {
+        emit CurrentProgrammeTimeTextChanged();
+    }
+    if (current_progress_changed) {
+        emit CurrentProgrammeProgressChanged();
+    }
+    if (current_progress_available_changed) {
+        emit CurrentProgrammeProgressAvailableChanged();
+    }
+    if (next_title_changed) {
+        emit NextProgrammeTitleChanged();
+    }
+    if (next_time_text_changed) {
+        emit NextProgrammeTimeTextChanged();
     }
 }
 

@@ -10,6 +10,7 @@
 #include <QVariantList>
 
 #include "app/app_settings.h"
+#include "app/epg_programme_presentation.h"
 #include "domain/player_snapshot.h"
 
 namespace shatv::ui::models {
@@ -27,8 +28,13 @@ class AppShellBridge final : public QObject {
     Q_PROPERTY(QVariantList recentItems READ RecentItems NOTIFY RecentItemsChanged)
     Q_PROPERTY(QString statusMessage READ StatusMessage NOTIFY StatusMessageChanged)
     Q_PROPERTY(QString currentChannelName READ CurrentChannelName NOTIFY CurrentChannelNameChanged)
-    Q_PROPERTY(QString currentProgrammeText READ CurrentProgrammeText NOTIFY CurrentProgrammeTextChanged)
-    Q_PROPERTY(QString nextProgrammeText READ NextProgrammeText NOTIFY NextProgrammeTextChanged)
+    Q_PROPERTY(bool hasProgrammeInfo READ HasProgrammeInfo NOTIFY HasProgrammeInfoChanged)
+    Q_PROPERTY(QString currentProgrammeTitle READ CurrentProgrammeTitle NOTIFY CurrentProgrammeTitleChanged)
+    Q_PROPERTY(QString currentProgrammeTimeText READ CurrentProgrammeTimeText NOTIFY CurrentProgrammeTimeTextChanged)
+    Q_PROPERTY(double currentProgrammeProgress READ CurrentProgrammeProgress NOTIFY CurrentProgrammeProgressChanged)
+    Q_PROPERTY(bool currentProgrammeProgressAvailable READ CurrentProgrammeProgressAvailable NOTIFY CurrentProgrammeProgressAvailableChanged)
+    Q_PROPERTY(QString nextProgrammeTitle READ NextProgrammeTitle NOTIFY NextProgrammeTitleChanged)
+    Q_PROPERTY(QString nextProgrammeTimeText READ NextProgrammeTimeText NOTIFY NextProgrammeTimeTextChanged)
     Q_PROPERTY(QString playbackStateText READ PlaybackStateText NOTIFY PlaybackStateTextChanged)
     Q_PROPERTY(QString playbackStateToken READ PlaybackStateToken NOTIFY PlaybackStateTokenChanged)
     Q_PROPERTY(bool playing READ Playing NOTIFY PlayingChanged)
@@ -53,8 +59,13 @@ class AppShellBridge final : public QObject {
     QVariantList RecentItems() const;
     QString StatusMessage() const;
     QString CurrentChannelName() const;
-    QString CurrentProgrammeText() const;
-    QString NextProgrammeText() const;
+    bool HasProgrammeInfo() const;
+    QString CurrentProgrammeTitle() const;
+    QString CurrentProgrammeTimeText() const;
+    double CurrentProgrammeProgress() const;
+    bool CurrentProgrammeProgressAvailable() const;
+    QString NextProgrammeTitle() const;
+    QString NextProgrammeTimeText() const;
     QString PlaybackStateText() const;
     QString PlaybackStateToken() const;
     bool Playing() const;
@@ -74,7 +85,7 @@ class AppShellBridge final : public QObject {
     void SetSearchTextValue(const QString &search_text);
     void SetRecentItems(const std::vector<app::RecentOpenItem> &items);
     void SetStatusMessage(const QString &message);
-    void SetProgrammeTexts(const QString &current_programme_text, const QString &next_programme_text);
+    void SetProgrammePresentation(const app::EpgProgrammePresentation &presentation);
     void SetPlaybackSnapshot(const domain::PlayerSnapshot &snapshot);
     void SetConfiguredUserAgent(const QString &user_agent);
     void SetConfiguredEpgUrl(const QString &epg_url);
@@ -103,8 +114,13 @@ class AppShellBridge final : public QObject {
     void RecentItemsChanged();
     void StatusMessageChanged();
     void CurrentChannelNameChanged();
-    void CurrentProgrammeTextChanged();
-    void NextProgrammeTextChanged();
+    void HasProgrammeInfoChanged();
+    void CurrentProgrammeTitleChanged();
+    void CurrentProgrammeTimeTextChanged();
+    void CurrentProgrammeProgressChanged();
+    void CurrentProgrammeProgressAvailableChanged();
+    void NextProgrammeTitleChanged();
+    void NextProgrammeTimeTextChanged();
     void PlaybackStateTextChanged();
     void PlaybackStateTokenChanged();
     void PlayingChanged();
@@ -137,8 +153,7 @@ class AppShellBridge final : public QObject {
     QVariantList recent_items_;
     QString status_message_;
     QString current_channel_name_;
-    QString current_programme_text_;
-    QString next_programme_text_;
+    app::EpgProgrammePresentation programme_presentation_;
     QString playback_state_text_;
     QString playback_state_token_;
     bool playing_ = false;

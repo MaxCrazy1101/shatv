@@ -27,6 +27,7 @@
 #include <QWindow>
 
 #include "app/build_info.h"
+#include "app/epg_programme_presentation.h"
 #include "app/epg_service.h"
 #include "app/logging.h"
 #include "app/source_open_service.h"
@@ -51,16 +52,6 @@ std::vector<domain::Channel> ExtractChannels(const std::vector<domain::ResolvedC
         channels.push_back(resolved_channel.channel);
     }
     return channels;
-}
-
-QString FormatProgrammeText(const std::optional<XmltvProgramme> &programme) {
-    if (!programme.has_value()) {
-        return {};
-    }
-
-    const QDateTime local_start = programme->start_at.toLocalTime();
-    const QDateTime local_stop = programme->stop_at.toLocalTime();
-    return QString("%1-%2 %3").arg(local_start.toString("HH:mm"), local_stop.toString("HH:mm"), programme->title);
 }
 
 QString OpenTargetForLog(const OpenRequest &request) {
@@ -243,7 +234,7 @@ Application::Application(QGuiApplication *qt_app, LaunchOptions options)
     RefreshShellFilters();
     RefreshRecentItems();
     shell_bridge_->SetStatusMessage(QString());
-    shell_bridge_->SetProgrammeTexts(QString(), QString());
+    shell_bridge_->SetProgrammePresentation(EpgProgrammePresentation{});
     shell_bridge_->SetPlaybackSnapshot(controller_->CurrentSnapshot());
     shell_bridge_->SetConfiguredUserAgent(settings_.UserAgent());
     shell_bridge_->SetConfiguredEpgUrl(settings_.EpgUrl());
@@ -532,12 +523,13 @@ void Application::UpdateDisplayedEpg() {
         return;
     }
 
-    const ChannelEpgNowNext now_next = epg_service_.LookupNowNext(*channel, QDateTime::currentDateTime());
-    shell_bridge_->SetProgrammeTexts(FormatProgrammeText(now_next.current), FormatProgrammeText(now_next.next));
+    const QDateTime now = QDateTime::currentDateTime();
+    const ChannelEpgNowNext now_next = epg_service_.LookupNowNext(*channel, now);
+    shell_bridge_->SetProgrammePresentation(BuildEpgProgrammePresentation(now_next, now));
 }
 
 void Application::ClearDisplayedEpg() {
-    shell_bridge_->SetProgrammeTexts(QString(), QString());
+    shell_bridge_->SetProgrammePresentation(EpgProgrammePresentation{});
 }
 
 std::optional<domain::Channel> Application::FindChannelById(const QString &channel_id) const {

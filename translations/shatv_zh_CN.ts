@@ -301,6 +301,14 @@
       <translation>显示状态面板</translation>
     </message>
     <message>
+      <source>Now</source>
+      <translation>当前</translation>
+    </message>
+    <message>
+      <source>Next</source>
+      <translation>接下来</translation>
+    </message>
+    <message>
       <source>Toggle Channel List</source>
       <translation>频道列表</translation>
     </message>

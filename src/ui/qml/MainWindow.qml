@@ -32,8 +32,13 @@ ApplicationWindow {
         property var recentItems: []
         property string statusMessage: ""
         property string currentChannelName: ""
-        property string currentProgrammeText: ""
-        property string nextProgrammeText: ""
+        property bool hasProgrammeInfo: false
+        property string currentProgrammeTitle: ""
+        property string currentProgrammeTimeText: ""
+        property real currentProgrammeProgress: 0
+        property bool currentProgrammeProgressAvailable: false
+        property string nextProgrammeTitle: ""
+        property string nextProgrammeTimeText: ""
         property string playbackStateText: ""
         property string playbackStateToken: "idle"
         property bool playing: false
@@ -76,7 +81,7 @@ ApplicationWindow {
     property bool hasSavedNormalGeometry: false
     property bool alwaysOnTop: false
     property bool sidebarVisible: true
-    property bool logPanelVisible: false
+    property bool statusPanelVisible: false
     property bool fullscreenVolumePopupOpen: false
     property bool normalVolumePopupOpen: false
     property int savedNormalX: x
@@ -97,6 +102,10 @@ ApplicationWindow {
     readonly property string playbackBusyTitle: bridge.playbackStateToken === "retrying"
         ? qsTr("Reconnecting")
         : (bridge.playbackStateToken === "buffering" ? qsTr("Buffering") : qsTr("Loading"))
+    readonly property bool currentProgrammeVisible: bridge.currentProgrammeTitle.length > 0
+        || bridge.currentProgrammeTimeText.length > 0
+    readonly property bool nextProgrammeVisible: bridge.nextProgrammeTitle.length > 0
+        || bridge.nextProgrammeTimeText.length > 0
     readonly property int selectedGroupIndex: {
         if (bridge.currentGroupFilter.length === 0) {
             return 0
@@ -638,10 +647,10 @@ ApplicationWindow {
                 text: qsTr("Toggle Status Panel")
                 iconType: "info"
                 checkable: true
-                checked: root.logPanelVisible
+                checked: root.statusPanelVisible
                 ToolTip.visible: hovered
                 ToolTip.text: qsTr("Toggle Status Panel")
-                onClicked: root.logPanelVisible = !root.logPanelVisible
+                onClicked: root.statusPanelVisible = !root.statusPanelVisible
             }
 
             HeaderIconButton {
@@ -1037,24 +1046,24 @@ ApplicationWindow {
                             }
                         }
 
-                        // OSD log panel — semi-transparent overlay over video area
+                        // OSD status panel — semi-transparent overlay over video area
                         Rectangle {
-                            visible: root.logPanelVisible && !root.fullscreenActive
+                            visible: root.statusPanelVisible && !root.fullscreenActive
                             z: 15
                             anchors.left: parent.left
                             anchors.right: parent.right
                             anchors.bottom: parent.bottom
                             anchors.margins: Shell.Theme.spacingSm
-                            implicitHeight: osdLogContent.implicitHeight + Shell.Theme.spacingSm * 2
+                            implicitHeight: osdStatusContent.implicitHeight + Shell.Theme.spacingSm * 2
                             opacity: 0.82
                             radius: Shell.Theme.radiusSm
                             color: Shell.Theme.surfaceContainer
 
                             ColumnLayout {
-                                id: osdLogContent
+                                id: osdStatusContent
                                 anchors.fill: parent
                                 anchors.margins: Shell.Theme.spacingSm
-                                spacing: 2
+                                spacing: Shell.Theme.spacingXs
 
                                 Label {
                                     text: bridge.currentChannelName
@@ -1075,22 +1084,86 @@ ApplicationWindow {
                                     visible: !root.showPlaybackBusyOverlay
                                 }
 
-                                Label {
-                                    text: bridge.currentProgrammeText
-                                    color: Shell.Theme.textSecondary
-                                    font.pixelSize: 11
-                                    visible: bridge.currentProgrammeText.length > 0
+                                RowLayout {
+                                    visible: root.currentProgrammeVisible
                                     Layout.fillWidth: true
-                                    elide: Text.ElideRight
+                                    spacing: Shell.Theme.spacingSm
+
+                                    Label {
+                                        text: qsTr("Now")
+                                        color: Shell.Theme.textPrimary
+                                        font.pixelSize: 11
+                                        font.bold: true
+                                        Layout.preferredWidth: Shell.Theme.statusProgrammeLabelWidth
+                                    }
+
+                                    Label {
+                                        text: bridge.currentProgrammeTimeText
+                                        color: Shell.Theme.textSecondary
+                                        font.pixelSize: 11
+                                        Layout.preferredWidth: Shell.Theme.statusProgrammeTimeWidth
+                                        elide: Text.ElideRight
+                                        visible: bridge.currentProgrammeTimeText.length > 0
+                                    }
+
+                                    Label {
+                                        text: bridge.currentProgrammeTitle
+                                        color: Shell.Theme.textSecondary
+                                        font.pixelSize: 11
+                                        Layout.fillWidth: true
+                                        elide: Text.ElideRight
+                                        visible: bridge.currentProgrammeTitle.length > 0
+                                    }
                                 }
 
-                                Label {
-                                    text: bridge.nextProgrammeText
-                                    color: Shell.Theme.textDisabled
-                                    font.pixelSize: 11
-                                    visible: bridge.nextProgrammeText.length > 0
+                                Rectangle {
+                                    visible: bridge.currentProgrammeProgressAvailable
                                     Layout.fillWidth: true
-                                    elide: Text.ElideRight
+                                    Layout.leftMargin: Shell.Theme.statusProgrammeLabelWidth + Shell.Theme.spacingSm
+                                    implicitHeight: Shell.Theme.statusProgrammeProgressHeight
+                                    radius: Shell.Theme.statusProgrammeProgressHeight / 2
+                                    color: Shell.Theme.outline
+
+                                    Rectangle {
+                                        anchors.left: parent.left
+                                        anchors.top: parent.top
+                                        anchors.bottom: parent.bottom
+                                        width: parent.width * Math.max(0, Math.min(1, bridge.currentProgrammeProgress))
+                                        radius: parent.radius
+                                        color: Shell.Theme.focusRing
+                                    }
+                                }
+
+                                RowLayout {
+                                    visible: root.nextProgrammeVisible
+                                    Layout.fillWidth: true
+                                    spacing: Shell.Theme.spacingSm
+
+                                    Label {
+                                        text: qsTr("Next")
+                                        color: Shell.Theme.textDisabled
+                                        font.pixelSize: 11
+                                        font.bold: true
+                                        Layout.preferredWidth: Shell.Theme.statusProgrammeLabelWidth
+                                    }
+
+                                    Label {
+                                        text: bridge.nextProgrammeTimeText
+                                        color: Shell.Theme.textDisabled
+                                        font.pixelSize: 11
+                                        Layout.preferredWidth: Shell.Theme.statusProgrammeTimeWidth
+                                        elide: Text.ElideRight
+                                        visible: bridge.nextProgrammeTimeText.length > 0
+                                    }
+
+                                    Label {
+                                        text: bridge.nextProgrammeTitle
+                                        color: Shell.Theme.textDisabled
+                                        font.pixelSize: 11
+                                        Layout.fillWidth: true
+                                        elide: Text.ElideRight
+                                        visible: bridge.nextProgrammeTitle.length > 0
+                                    }
                                 }
                             }
                         }
@@ -1282,20 +1355,62 @@ ApplicationWindow {
                                         elide: Text.ElideRight
                                     }
 
-                                    Label {
-                                        text: bridge.currentProgrammeText
-                                        color: Shell.Theme.textPrimary
-                                        visible: bridge.currentProgrammeText.length > 0
+                                    RowLayout {
+                                        visible: root.currentProgrammeVisible
                                         Layout.fillWidth: true
-                                        elide: Text.ElideRight
+                                        spacing: Shell.Theme.spacingSm
+
+                                        Label {
+                                            text: qsTr("Now")
+                                            color: Shell.Theme.textPrimary
+                                            font.bold: true
+                                            Layout.preferredWidth: Shell.Theme.statusProgrammeLabelWidth
+                                        }
+
+                                        Label {
+                                            text: bridge.currentProgrammeTimeText
+                                            color: Shell.Theme.textSecondary
+                                            Layout.preferredWidth: Shell.Theme.statusProgrammeTimeWidth
+                                            elide: Text.ElideRight
+                                            visible: bridge.currentProgrammeTimeText.length > 0
+                                        }
+
+                                        Label {
+                                            text: bridge.currentProgrammeTitle
+                                            color: Shell.Theme.textPrimary
+                                            Layout.fillWidth: true
+                                            elide: Text.ElideRight
+                                            visible: bridge.currentProgrammeTitle.length > 0
+                                        }
                                     }
 
-                                    Label {
-                                        text: bridge.nextProgrammeText
-                                        color: Shell.Theme.textSecondary
-                                        visible: bridge.nextProgrammeText.length > 0
+                                    RowLayout {
+                                        visible: root.nextProgrammeVisible
                                         Layout.fillWidth: true
-                                        elide: Text.ElideRight
+                                        spacing: Shell.Theme.spacingSm
+
+                                        Label {
+                                            text: qsTr("Next")
+                                            color: Shell.Theme.textSecondary
+                                            font.bold: true
+                                            Layout.preferredWidth: Shell.Theme.statusProgrammeLabelWidth
+                                        }
+
+                                        Label {
+                                            text: bridge.nextProgrammeTimeText
+                                            color: Shell.Theme.textSecondary
+                                            Layout.preferredWidth: Shell.Theme.statusProgrammeTimeWidth
+                                            elide: Text.ElideRight
+                                            visible: bridge.nextProgrammeTimeText.length > 0
+                                        }
+
+                                        Label {
+                                            text: bridge.nextProgrammeTitle
+                                            color: Shell.Theme.textSecondary
+                                            Layout.fillWidth: true
+                                            elide: Text.ElideRight
+                                            visible: bridge.nextProgrammeTitle.length > 0
+                                        }
                                     }
                                 }
                             }

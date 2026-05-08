@@ -7,6 +7,7 @@ configure_file(
 add_library(shatv_app
     app/application.cpp
     app/app_settings.cpp
+    app/epg_programme_presentation.cpp
     app/epg_service.cpp
     app/launch_options.cpp
     app/logging.cpp

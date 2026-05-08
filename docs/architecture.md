@@ -205,8 +205,9 @@ Application
         -> DecodeXmltvPayload()
             -> EpgService::LoadXmltv()
                 -> LookupNowNext()
-                    -> AppShellBridge::SetProgrammeTexts(...)
-                        -> MainWindow.qml
+                    -> BuildEpgProgrammePresentation(...)
+                        -> AppShellBridge::SetProgrammePresentation(...)
+                            -> MainWindow.qml
 ```
 
 ## 关键调用链
