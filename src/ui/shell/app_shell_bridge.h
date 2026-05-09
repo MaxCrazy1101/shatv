@@ -6,6 +6,7 @@
 #include <QModelIndex>
 #include <QObject>
 #include <QStringList>
+#include <QtGlobal>
 #include <QUrl>
 #include <QVariantList>
 
@@ -48,6 +49,11 @@ class AppShellBridge final : public QObject {
     Q_PROPERTY(QString logsDirectoryPath READ LogsDirectoryPath NOTIFY LogsDirectoryPathChanged)
     Q_PROPERTY(QString alertMessage READ AlertMessage NOTIFY AlertMessageChanged)
     Q_PROPERTY(bool alertVisible READ AlertVisible NOTIFY AlertVisibleChanged)
+    Q_PROPERTY(QString speechSubtitleText READ SpeechSubtitleText NOTIFY SpeechSubtitleTextChanged)
+    Q_PROPERTY(bool speechSubtitleActive READ SpeechSubtitleActive NOTIFY SpeechSubtitleActiveChanged)
+    Q_PROPERTY(bool speechSubtitleFinal READ SpeechSubtitleFinal NOTIFY SpeechSubtitleFinalChanged)
+    Q_PROPERTY(qint64 speechSubtitleLatencyMs READ SpeechSubtitleLatencyMs NOTIFY SpeechSubtitleLatencyMsChanged)
+    Q_PROPERTY(QString speechSubtitleStatusText READ SpeechSubtitleStatusText NOTIFY SpeechSubtitleStatusTextChanged)
 
    public:
     explicit AppShellBridge(ui::models::ChannelFilterModel *channel_model, QObject *parent = nullptr);
@@ -79,6 +85,11 @@ class AppShellBridge final : public QObject {
     QString LogsDirectoryPath() const;
     QString AlertMessage() const;
     bool AlertVisible() const;
+    QString SpeechSubtitleText() const;
+    bool SpeechSubtitleActive() const;
+    bool SpeechSubtitleFinal() const;
+    qint64 SpeechSubtitleLatencyMs() const;
+    QString SpeechSubtitleStatusText() const;
 
     void SetAvailableGroups(QStringList groups);
     void SetCurrentGroupFilter(const QString &group);
@@ -91,6 +102,8 @@ class AppShellBridge final : public QObject {
     void SetConfiguredEpgUrl(const QString &epg_url);
     void SetLogPaths(const QString &log_file_path, const QString &logs_directory_path);
     void SetAlertMessage(const QString &message);
+    void SetSpeechSubtitle(const QString &text, bool is_final, qint64 latency_ms);
+    void ClearSpeechSubtitle();
 
     Q_INVOKABLE void activateChannelRow(int row);
     Q_INVOKABLE void setSearchText(const QString &search_text);
@@ -132,6 +145,11 @@ class AppShellBridge final : public QObject {
     void LogsDirectoryPathChanged();
     void AlertMessageChanged();
     void AlertVisibleChanged();
+    void SpeechSubtitleTextChanged();
+    void SpeechSubtitleActiveChanged();
+    void SpeechSubtitleFinalChanged();
+    void SpeechSubtitleLatencyMsChanged();
+    void SpeechSubtitleStatusTextChanged();
 
     void ActivateChannelRequested(const QModelIndex &index);
     void PlayPauseRequested();
@@ -165,6 +183,11 @@ class AppShellBridge final : public QObject {
     QString logs_directory_path_;
     QString alert_message_;
     bool alert_visible_ = false;
+    QString speech_subtitle_text_;
+    bool speech_subtitle_active_ = false;
+    bool speech_subtitle_final_ = false;
+    qint64 speech_subtitle_latency_ms_ = -1;
+    QString speech_subtitle_status_text_;
 };
 
 }  // namespace shatv::ui::shell

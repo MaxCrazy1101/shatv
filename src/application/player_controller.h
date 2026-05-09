@@ -27,6 +27,8 @@ class PlayerController final : public QObject {
     void PlaybackSnapshotChanged(const shatv::domain::PlayerSnapshot &snapshot);
     void CurrentChannelChanged(const QString &channel_id);
     void TransientMessageChanged(const QString &message);
+    void SpeechSubtitleChanged(const QString &text, bool is_final, qint64 latency_ms);
+    void SpeechSubtitleCleared();
 
    private slots:
     void OnBackendSnapshotChanged(const shatv::domain::PlayerSnapshot &snapshot);

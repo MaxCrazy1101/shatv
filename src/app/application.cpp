@@ -221,6 +221,12 @@ Application::Application(QGuiApplication *qt_app, LaunchOptions options)
                          }
                          UpdateDisplayedEpg();
                      });
+    QObject::connect(controller_.get(), &application::PlayerController::SpeechSubtitleChanged, qt_app_,
+                     [this](const QString &text, bool is_final, qint64 latency_ms) {
+                         shell_bridge_->SetSpeechSubtitle(text, is_final, latency_ms);
+                     });
+    QObject::connect(controller_.get(), &application::PlayerController::SpeechSubtitleCleared, qt_app_,
+                     [this]() { shell_bridge_->ClearSpeechSubtitle(); });
     QObject::connect(controller_.get(), &application::PlayerController::CurrentChannelChanged, qt_app_,
                      [this](const QString &) { UpdateDisplayedEpg(); });
 
@@ -236,6 +242,7 @@ Application::Application(QGuiApplication *qt_app, LaunchOptions options)
     shell_bridge_->SetStatusMessage(QString());
     shell_bridge_->SetProgrammePresentation(EpgProgrammePresentation{});
     shell_bridge_->SetPlaybackSnapshot(controller_->CurrentSnapshot());
+    shell_bridge_->ClearSpeechSubtitle();
     shell_bridge_->SetConfiguredUserAgent(settings_.UserAgent());
     shell_bridge_->SetConfiguredEpgUrl(settings_.EpgUrl());
 

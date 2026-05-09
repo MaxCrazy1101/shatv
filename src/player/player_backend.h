@@ -1,6 +1,8 @@
 #pragma once
 
 #include <QObject>
+#include <QString>
+#include <QtGlobal>
 
 #include "domain/media_source.h"
 #include "domain/player_snapshot.h"
@@ -23,6 +25,8 @@ class PlayerBackend : public QObject {
 
    signals:
     void SnapshotChanged(const shatv::domain::PlayerSnapshot &snapshot);
+    void SpeechSubtitleChanged(const QString &text, bool is_final, qint64 latency_ms);
+    void SpeechSubtitleCleared();
 };
 
 }  // namespace shatv::player

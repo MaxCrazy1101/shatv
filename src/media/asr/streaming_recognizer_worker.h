@@ -4,6 +4,7 @@
 #include <memory>
 
 #include <QString>
+#include <QtGlobal>
 
 #include "media/asr/pcm_converter.h"
 
@@ -12,6 +13,7 @@ namespace shatv::media::asr {
 struct StreamingRecognitionResult {
     QString text;
     bool is_final = false;
+    qint64 latency_ms = -1;
 };
 
 struct StreamingRecognizerConfig {

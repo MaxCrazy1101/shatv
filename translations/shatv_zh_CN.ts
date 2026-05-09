@@ -627,6 +627,21 @@
     </message>
   </context>
   <context>
+    <name>AppShellBridge</name>
+    <message>
+      <source>Delay %1 ms</source>
+      <translation>延迟 %1 毫秒</translation>
+    </message>
+    <message>
+      <source>Final</source>
+      <translation>已确认</translation>
+    </message>
+    <message>
+      <source>Recognizing</source>
+      <translation>识别中</translation>
+    </message>
+  </context>
+  <context>
     <name>Application</name>
     <message>
       <source>Demo News</source>

@@ -6,6 +6,8 @@ PlayerController::PlayerController(player::PlayerBackend *backend, QObject *pare
     : QObject(parent), backend_(backend) {
     Q_ASSERT(backend_ != nullptr);
     connect(backend_, &player::PlayerBackend::SnapshotChanged, this, &PlayerController::OnBackendSnapshotChanged);
+    connect(backend_, &player::PlayerBackend::SpeechSubtitleChanged, this, &PlayerController::SpeechSubtitleChanged);
+    connect(backend_, &player::PlayerBackend::SpeechSubtitleCleared, this, &PlayerController::SpeechSubtitleCleared);
 }
 
 void PlayerController::PlayResolvedChannel(const domain::ResolvedChannel &resolved_channel) {

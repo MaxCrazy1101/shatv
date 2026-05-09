@@ -178,6 +178,21 @@ add_test(
     COMMAND $<TARGET_FILE:epg_programme_presentation_test>
 )
 
+add_executable(app_shell_bridge_test
+    unit/app_shell_bridge_test.cpp
+)
+
+target_link_libraries(app_shell_bridge_test
+    PRIVATE
+        shatv_app
+        Qt6::Test
+)
+
+add_test(
+    NAME app_shell_bridge_test
+    COMMAND $<TARGET_FILE:app_shell_bridge_test>
+)
+
 add_executable(xmltv_epg_payload_test
     unit/xmltv_epg_payload_test.cpp
 )

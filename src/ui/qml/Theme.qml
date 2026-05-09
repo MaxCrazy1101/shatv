@@ -56,6 +56,9 @@ QtObject {
     readonly property int playbackBusyIndicatorSize: 44
     readonly property int playbackBusyTitlePixelSize: 18
     readonly property color playbackBusyOverlay: "#8A000000"
+    readonly property int speechSubtitleMaxWidth: 860
+    readonly property int speechSubtitleMinHeight: 42
+    readonly property int speechSubtitleMaxHeight: 104
 
     // Title bar
     readonly property color titleBarCloseHover: "#c94f4f"

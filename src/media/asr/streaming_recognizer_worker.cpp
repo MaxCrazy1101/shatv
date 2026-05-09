@@ -1,5 +1,6 @@
 #include "media/asr/streaming_recognizer_worker.h"
 
+#include <chrono>
 #include <condition_variable>
 #include <deque>
 #include <memory>
@@ -51,6 +52,11 @@ bool ValidateProvider(const QString &provider, QString *error_message) {
 }  // namespace
 
 class StreamingRecognizerWorker::Impl final {
+    struct QueuedPcmChunk {
+        PcmChunk chunk;
+        std::chrono::steady_clock::time_point queued_at;
+    };
+
    public:
     ~Impl() {
         Stop();
@@ -97,6 +103,7 @@ class StreamingRecognizerWorker::Impl final {
         max_queued_chunks_ = config.max_queued_chunks;
         result_callback_ = config.result_callback;
         last_text_.clear();
+        last_decoded_chunk_queued_at_ = {};
 
         SherpaOnnxOnlineRecognizerConfig recognizer_config{};
         recognizer_config.feat_config.sample_rate = kAsrFeatureSampleRate;
@@ -171,7 +178,10 @@ class StreamingRecognizerWorker::Impl final {
             return false;
         }
 
-        queue_.push_back(std::move(chunk));
+        queue_.push_back(QueuedPcmChunk{
+            .chunk = std::move(chunk),
+            .queued_at = std::chrono::steady_clock::now(),
+        });
         condition_.notify_one();
         return true;
     }
@@ -248,7 +258,7 @@ class StreamingRecognizerWorker::Impl final {
 
     void Run() {
         while (true) {
-            PcmChunk chunk;
+            QueuedPcmChunk queued_chunk;
             bool should_finish = false;
             {
                 std::unique_lock<std::mutex> lock(mutex_);
@@ -263,7 +273,7 @@ class StreamingRecognizerWorker::Impl final {
                 if (queue_.empty() && input_finished_) {
                     should_finish = true;
                 } else if (!queue_.empty()) {
-                    chunk = std::move(queue_.front());
+                    queued_chunk = std::move(queue_.front());
                     queue_.pop_front();
                 }
             }
@@ -275,20 +285,22 @@ class StreamingRecognizerWorker::Impl final {
                 return;
             }
 
-            DecodeChunk(chunk);
+            DecodeChunk(queued_chunk);
         }
     }
 
-    void DecodeChunk(const PcmChunk &chunk) {
+    void DecodeChunk(const QueuedPcmChunk &queued_chunk) {
         if (!recognizer_ || !stream_) {
             SetWorkerError(QStringLiteral("ASR recognizer session is not initialized"));
             return;
         }
 
+        const PcmChunk &chunk = queued_chunk.chunk;
         SherpaOnnxOnlineStreamAcceptWaveform(stream_.get(),
                                             chunk.sample_rate,
                                             chunk.samples.data(),
                                             static_cast<int32_t>(chunk.samples.size()));
+        last_decoded_chunk_queued_at_ = queued_chunk.queued_at;
         DecodeReady();
         EmitResult(false);
     }
@@ -324,9 +336,16 @@ class StreamingRecognizerWorker::Impl final {
         last_text_ = text;
 
         if (result_callback_) {
+            qint64 latency_ms = -1;
+            if (last_decoded_chunk_queued_at_.time_since_epoch().count() > 0) {
+                latency_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                 std::chrono::steady_clock::now() - last_decoded_chunk_queued_at_)
+                                 .count();
+            }
             result_callback_(StreamingRecognitionResult{
                 .text = text,
                 .is_final = is_final,
+                .latency_ms = latency_ms,
             });
         }
     }
@@ -356,6 +375,7 @@ class StreamingRecognizerWorker::Impl final {
         recognizer_.reset();
         result_callback_ = {};
         last_text_.clear();
+        last_decoded_chunk_queued_at_ = {};
         std::lock_guard<std::mutex> lock(mutex_);
         queue_.clear();
         running_ = false;
@@ -365,7 +385,7 @@ class StreamingRecognizerWorker::Impl final {
 
     mutable std::mutex mutex_;
     std::condition_variable condition_;
-    std::deque<PcmChunk> queue_;
+    std::deque<QueuedPcmChunk> queue_;
     std::thread worker_thread_;
     bool running_ = false;
     bool stop_requested_ = false;
@@ -377,6 +397,7 @@ class StreamingRecognizerWorker::Impl final {
     StreamPtr stream_;
     std::function<void(const StreamingRecognitionResult &result)> result_callback_;
     QString last_text_;
+    std::chrono::steady_clock::time_point last_decoded_chunk_queued_at_;
     QString encoder_path_;
     QString decoder_path_;
     QString tokens_path_;

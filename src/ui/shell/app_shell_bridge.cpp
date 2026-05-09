@@ -126,6 +126,26 @@ bool AppShellBridge::AlertVisible() const {
     return alert_visible_;
 }
 
+QString AppShellBridge::SpeechSubtitleText() const {
+    return speech_subtitle_text_;
+}
+
+bool AppShellBridge::SpeechSubtitleActive() const {
+    return speech_subtitle_active_;
+}
+
+bool AppShellBridge::SpeechSubtitleFinal() const {
+    return speech_subtitle_final_;
+}
+
+qint64 AppShellBridge::SpeechSubtitleLatencyMs() const {
+    return speech_subtitle_latency_ms_;
+}
+
+QString AppShellBridge::SpeechSubtitleStatusText() const {
+    return speech_subtitle_status_text_;
+}
+
 void AppShellBridge::SetAvailableGroups(QStringList groups) {
     if (available_groups_ == groups) {
         return;
@@ -298,6 +318,39 @@ void AppShellBridge::SetAlertMessage(const QString &message) {
         alert_visible_ = visible;
         emit AlertVisibleChanged();
     }
+}
+
+void AppShellBridge::SetSpeechSubtitle(const QString &text, bool is_final, qint64 latency_ms) {
+    const bool active = !text.isEmpty();
+    const QString status_text = !active
+                                    ? QString()
+                                    : (latency_ms >= 0 ? tr("Delay %1 ms").arg(latency_ms)
+                                                       : (is_final ? tr("Final") : tr("Recognizing")));
+
+    if (speech_subtitle_text_ != text) {
+        speech_subtitle_text_ = text;
+        emit SpeechSubtitleTextChanged();
+    }
+    if (speech_subtitle_active_ != active) {
+        speech_subtitle_active_ = active;
+        emit SpeechSubtitleActiveChanged();
+    }
+    if (speech_subtitle_final_ != is_final) {
+        speech_subtitle_final_ = is_final;
+        emit SpeechSubtitleFinalChanged();
+    }
+    if (speech_subtitle_latency_ms_ != latency_ms) {
+        speech_subtitle_latency_ms_ = latency_ms;
+        emit SpeechSubtitleLatencyMsChanged();
+    }
+    if (speech_subtitle_status_text_ != status_text) {
+        speech_subtitle_status_text_ = status_text;
+        emit SpeechSubtitleStatusTextChanged();
+    }
+}
+
+void AppShellBridge::ClearSpeechSubtitle() {
+    SetSpeechSubtitle(QString(), false, -1);
 }
 
 void AppShellBridge::activateChannelRow(int row) {

@@ -69,6 +69,8 @@ class FfmpegPlayerBackend final : public PlayerBackend {
                           qint64 *first_video_pts_usecs);
     void SleepBeforeRetry(int delay_ms);
     void StopWorker();
+    void EmitSpeechSubtitleResult(QString text, bool is_final, qint64 latency_ms);
+    void ClearSpeechSubtitle();
     void EmitSnapshot(domain::PlaybackState state, const QString &message, int retry_count = 0);
     void EmitSnapshotForSource(const domain::MediaSourceDescriptor &source,
                                domain::PlaybackState state,

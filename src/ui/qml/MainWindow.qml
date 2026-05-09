@@ -52,6 +52,11 @@ ApplicationWindow {
         property string logsDirectoryPath: ""
         property string alertMessage: ""
         property bool alertVisible: false
+        property string speechSubtitleText: ""
+        property bool speechSubtitleActive: false
+        property bool speechSubtitleFinal: false
+        property int speechSubtitleLatencyMs: -1
+        property string speechSubtitleStatusText: ""
 
         function activateChannelRow(row) {}
         function setSearchText(text) {}
@@ -106,6 +111,8 @@ ApplicationWindow {
         || bridge.currentProgrammeTimeText.length > 0
     readonly property bool nextProgrammeVisible: bridge.nextProgrammeTitle.length > 0
         || bridge.nextProgrammeTimeText.length > 0
+    readonly property bool speechSubtitleVisible: bridge.speechSubtitleActive
+        && bridge.speechSubtitleText.length > 0
     readonly property int selectedGroupIndex: {
         if (bridge.currentGroupFilter.length === 0) {
             return 0
@@ -1048,6 +1055,7 @@ ApplicationWindow {
 
                         // OSD status panel — semi-transparent overlay over video area
                         Rectangle {
+                            id: osdStatusPanel
                             visible: root.statusPanelVisible && !root.fullscreenActive
                             z: 15
                             anchors.left: parent.left
@@ -1169,6 +1177,63 @@ ApplicationWindow {
                         }
 
                         Rectangle {
+                            id: speechSubtitleOverlay
+                            visible: root.speechSubtitleVisible
+                            z: 18
+                            width: Math.min(parent.width - Shell.Theme.spacingMd * 4,
+                                            Shell.Theme.speechSubtitleMaxWidth)
+                            height: Math.max(Shell.Theme.speechSubtitleMinHeight,
+                                             Math.min(speechSubtitleContent.implicitHeight + Shell.Theme.spacingSm * 2,
+                                                      Shell.Theme.speechSubtitleMaxHeight))
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            anchors.bottom: parent.bottom
+                            anchors.bottomMargin: {
+                                if (root.fullscreenActive && fullscreenPlaybackOverlay.visible) {
+                                    return fullscreenPlaybackOverlay.height + Shell.Theme.spacingMd * 2
+                                }
+                                if (osdStatusPanel.visible) {
+                                    return osdStatusPanel.height + Shell.Theme.spacingMd
+                                }
+                                return Shell.Theme.spacingMd
+                            }
+                            radius: Shell.Theme.radiusSm
+                            color: Shell.Theme.surfaceContainer
+                            opacity: bridge.speechSubtitleFinal ? 0.88 : 0.78
+                            border.width: bridge.speechSubtitleFinal ? 1 : 0
+                            border.color: Shell.Theme.outline
+                            clip: true
+
+                            ColumnLayout {
+                                id: speechSubtitleContent
+                                anchors.fill: parent
+                                anchors.margins: Shell.Theme.spacingSm
+                                spacing: Shell.Theme.spacingXs
+
+                                Label {
+                                    Layout.fillWidth: true
+                                    text: bridge.speechSubtitleText
+                                    color: Shell.Theme.textPrimary
+                                    font.pixelSize: root.fullscreenActive ? 24 : 18
+                                    font.bold: true
+                                    horizontalAlignment: Text.AlignHCenter
+                                    wrapMode: Text.Wrap
+                                    maximumLineCount: root.fullscreenActive ? 2 : 3
+                                    elide: Text.ElideRight
+                                }
+
+                                Label {
+                                    Layout.fillWidth: true
+                                    visible: bridge.speechSubtitleStatusText.length > 0
+                                    text: bridge.speechSubtitleStatusText
+                                    color: Shell.Theme.textSecondary
+                                    font.pixelSize: 11
+                                    horizontalAlignment: Text.AlignRight
+                                    elide: Text.ElideRight
+                                }
+                            }
+                        }
+
+                        Rectangle {
                             id: playbackBusyOverlay
                             anchors.fill: parent
                             visible: opacity > 0
@@ -1205,6 +1270,7 @@ ApplicationWindow {
                         }
 
                         Rectangle {
+                            id: fullscreenPlaybackOverlay
                             visible: root.fullscreenActive
                             z: 20
                             anchors.left: parent.left

@@ -7,6 +7,7 @@
 #include <vector>
 
 #include <QElapsedTimer>
+#include <QMetaObject>
 #include <QMutexLocker>
 #include <QThread>
 #include <QtGlobal>
@@ -174,6 +175,7 @@ void FfmpegPlayerBackend::Load(const domain::MediaSourceDescriptor &source) {
         << "url=" << app::RedactUrlForLog(source.url);
     StopWorker();
     audio_output_.Stop();
+    ClearSpeechSubtitle();
 #if defined(SHATV_ENABLE_ASR)
     StopAsrSession();
 #endif
@@ -211,6 +213,7 @@ void FfmpegPlayerBackend::Pause() {
 void FfmpegPlayerBackend::Stop() {
     StopWorker();
     audio_output_.Stop();
+    ClearSpeechSubtitle();
 #if defined(SHATV_ENABLE_ASR)
     StopAsrSession();
 #endif
@@ -280,7 +283,14 @@ bool FfmpegPlayerBackend::TapAsrAudioFrame(const AVFrame &frame, QString *error_
         return true;
     }
 
-    return asr_worker_.Enqueue(std::move(chunk), error_message);
+    QString enqueue_error;
+    if (!asr_worker_.Enqueue(std::move(chunk), &enqueue_error)) {
+        qCWarning(app::log_ffmpeg).noquote()
+            << "ASR audio tap stopped"
+            << "reason=" << enqueue_error;
+        StopAsrSession();
+    }
+    return true;
 }
 
 bool FfmpegPlayerBackend::StartAsrSession(const domain::MediaSourceDescriptor &source, QString *error_message) {
@@ -322,12 +332,14 @@ bool FfmpegPlayerBackend::StartAsrSession(const domain::MediaSourceDescriptor &s
     if (config.max_queued_chunks <= 0) {
         return false;
     }
-    config.result_callback = [source_name = source.name](const media::asr::StreamingRecognitionResult &result) {
+    config.result_callback = [this, source_name = source.name](const media::asr::StreamingRecognitionResult &result) {
         qCInfo(app::log_ffmpeg).noquote()
             << "ASR recognition result"
             << "name=" << source_name
             << "final=" << result.is_final
+            << "latencyMs=" << result.latency_ms
             << "text=" << result.text;
+        EmitSpeechSubtitleResult(result.text, result.is_final, result.latency_ms);
     };
 
     if (!asr_worker_.StartSession(config, error_message)) {
@@ -359,6 +371,7 @@ void FfmpegPlayerBackend::StopAsrSession() {
     asr_session_active_ = false;
     asr_worker_.Stop();
     asr_pcm_converter_.Reset();
+    ClearSpeechSubtitle();
 }
 #endif
 
@@ -813,6 +826,19 @@ void FfmpegPlayerBackend::StopWorker() {
         worker_thread_->wait();
         worker_thread_.reset();
     }
+}
+
+void FfmpegPlayerBackend::EmitSpeechSubtitleResult(QString text, bool is_final, qint64 latency_ms) {
+    QMetaObject::invokeMethod(
+        this,
+        [this, text = std::move(text), is_final, latency_ms]() {
+            emit SpeechSubtitleChanged(text, is_final, latency_ms);
+        },
+        Qt::QueuedConnection);
+}
+
+void FfmpegPlayerBackend::ClearSpeechSubtitle() {
+    QMetaObject::invokeMethod(this, [this]() { emit SpeechSubtitleCleared(); }, Qt::QueuedConnection);
 }
 
 void FfmpegPlayerBackend::EmitSnapshot(domain::PlaybackState state, const QString &message, int retry_count) {
