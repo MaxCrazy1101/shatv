@@ -185,13 +185,9 @@ if(SHATV_ENABLE_ASR)
 
     add_test(
         NAME shatv_asr_probe_missing_args
-        COMMAND $<TARGET_FILE:shatv_asr_probe>
-    )
-    set_tests_properties(
-        shatv_asr_probe_missing_args
-        PROPERTIES
-            WILL_FAIL TRUE
-            PASS_REGULAR_EXPRESSION "missing required --model-dir"
+        COMMAND ${CMAKE_COMMAND}
+            -DSHATV_ASR_PROBE=$<TARGET_FILE:shatv_asr_probe>
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/expect_asr_probe_missing_args.cmake
     )
 
     if(SHATV_ASR_PROBE_MODEL_DIR AND SHATV_ASR_PROBE_AUDIO_FILE)

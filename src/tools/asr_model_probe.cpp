@@ -1,7 +1,10 @@
 #include <sherpa-onnx/c-api/cxx-api.h>
 
+#include <array>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <limits>
 #include <string>
@@ -17,6 +20,11 @@ struct ProbeOptions {
     std::string tokens_name = "tokens.txt";
     std::string provider = "cpu";
     int32_t num_threads = 1;
+};
+
+struct WaveFixture {
+    std::vector<float> samples;
+    int32_t sample_rate = 0;
 };
 
 void PrintUsage(const char *program_name) {
@@ -125,6 +133,167 @@ bool RequireRegularFile(const std::filesystem::path &path, std::string *error_me
     return true;
 }
 
+uint16_t ReadU16Le(const std::array<char, 2> &bytes) {
+    return static_cast<uint16_t>(static_cast<unsigned char>(bytes[0])) |
+           static_cast<uint16_t>(static_cast<unsigned char>(bytes[1]) << 8);
+}
+
+uint32_t ReadU32Le(const std::array<char, 4> &bytes) {
+    return static_cast<uint32_t>(static_cast<unsigned char>(bytes[0])) |
+           (static_cast<uint32_t>(static_cast<unsigned char>(bytes[1])) << 8) |
+           (static_cast<uint32_t>(static_cast<unsigned char>(bytes[2])) << 16) |
+           (static_cast<uint32_t>(static_cast<unsigned char>(bytes[3])) << 24);
+}
+
+bool ReadExact(std::ifstream *stream, char *data, std::streamsize size) {
+    stream->read(data, size);
+    return stream->gcount() == size;
+}
+
+bool SkipBytes(std::ifstream *stream, uint32_t size) {
+    stream->seekg(static_cast<std::streamoff>(size), std::ios::cur);
+    return stream->good();
+}
+
+bool ReadPcm16Wave(const std::filesystem::path &path, WaveFixture *wave, std::string *error_message) {
+    std::ifstream stream(path, std::ios::binary);
+    if (!stream.is_open()) {
+        *error_message = "failed to open WAV fixture: " + path.string();
+        return false;
+    }
+
+    std::array<char, 4> riff_id{};
+    std::array<char, 4> riff_size{};
+    std::array<char, 4> wave_id{};
+    if (!ReadExact(&stream, riff_id.data(), riff_id.size()) ||
+        !ReadExact(&stream, riff_size.data(), riff_size.size()) ||
+        !ReadExact(&stream, wave_id.data(), wave_id.size()) ||
+        std::string(riff_id.data(), riff_id.size()) != "RIFF" ||
+        std::string(wave_id.data(), wave_id.size()) != "WAVE") {
+        *error_message = "fixture is not a RIFF/WAVE file: " + path.string();
+        return false;
+    }
+
+    bool saw_format = false;
+    bool saw_data = false;
+    uint16_t audio_format = 0;
+    uint16_t channel_count = 0;
+    uint32_t sample_rate = 0;
+    uint16_t bits_per_sample = 0;
+    std::vector<char> pcm_bytes;
+
+    while (stream.good() && !saw_data) {
+        std::array<char, 4> chunk_id{};
+        std::array<char, 4> chunk_size_bytes{};
+        if (!ReadExact(&stream, chunk_id.data(), chunk_id.size())) {
+            break;
+        }
+        if (!ReadExact(&stream, chunk_size_bytes.data(), chunk_size_bytes.size())) {
+            *error_message = "truncated WAV chunk header: " + path.string();
+            return false;
+        }
+
+        const uint32_t chunk_size = ReadU32Le(chunk_size_bytes);
+        const std::string chunk_name(chunk_id.data(), chunk_id.size());
+        if (chunk_name == "fmt ") {
+            if (chunk_size < 16) {
+                *error_message = "WAV fmt chunk is too small: " + path.string();
+                return false;
+            }
+
+            std::array<char, 2> u16{};
+            std::array<char, 4> u32{};
+            if (!ReadExact(&stream, u16.data(), u16.size())) {
+                *error_message = "truncated WAV audio format: " + path.string();
+                return false;
+            }
+            audio_format = ReadU16Le(u16);
+            if (!ReadExact(&stream, u16.data(), u16.size())) {
+                *error_message = "truncated WAV channel count: " + path.string();
+                return false;
+            }
+            channel_count = ReadU16Le(u16);
+            if (!ReadExact(&stream, u32.data(), u32.size())) {
+                *error_message = "truncated WAV sample rate: " + path.string();
+                return false;
+            }
+            sample_rate = ReadU32Le(u32);
+
+            constexpr uint32_t kRemainingCoreFormatBytes = 6;
+            if (!SkipBytes(&stream, kRemainingCoreFormatBytes)) {
+                *error_message = "truncated WAV byte-rate/block-align fields: " + path.string();
+                return false;
+            }
+            if (!ReadExact(&stream, u16.data(), u16.size())) {
+                *error_message = "truncated WAV bits-per-sample field: " + path.string();
+                return false;
+            }
+            bits_per_sample = ReadU16Le(u16);
+            if (chunk_size > 16 && !SkipBytes(&stream, chunk_size - 16)) {
+                *error_message = "truncated extended WAV fmt chunk: " + path.string();
+                return false;
+            }
+            saw_format = true;
+        } else if (chunk_name == "data") {
+            pcm_bytes.resize(chunk_size);
+            if (!ReadExact(&stream, pcm_bytes.data(), static_cast<std::streamsize>(pcm_bytes.size()))) {
+                *error_message = "truncated WAV data chunk: " + path.string();
+                return false;
+            }
+            saw_data = true;
+        } else if (!SkipBytes(&stream, chunk_size)) {
+            *error_message = "failed to skip WAV chunk: " + chunk_name;
+            return false;
+        }
+
+        if (chunk_size % 2 == 1 && !SkipBytes(&stream, 1)) {
+            *error_message = "failed to skip WAV padding byte: " + path.string();
+            return false;
+        }
+    }
+
+    if (!saw_format || !saw_data) {
+        *error_message = "WAV fixture is missing fmt or data chunk: " + path.string();
+        return false;
+    }
+    if (audio_format != 1 || bits_per_sample != 16 || channel_count == 0 || sample_rate == 0) {
+        *error_message = "WAV fixture must be PCM signed 16-bit with at least one channel: " + path.string();
+        return false;
+    }
+
+    const std::size_t bytes_per_frame = static_cast<std::size_t>(channel_count) * sizeof(int16_t);
+    if (bytes_per_frame == 0 || pcm_bytes.size() % bytes_per_frame != 0) {
+        *error_message = "WAV data size is not aligned to frame size: " + path.string();
+        return false;
+    }
+
+    wave->sample_rate = static_cast<int32_t>(sample_rate);
+    wave->samples.clear();
+    wave->samples.reserve(pcm_bytes.size() / bytes_per_frame);
+
+    for (std::size_t offset = 0; offset < pcm_bytes.size(); offset += bytes_per_frame) {
+        int32_t mixed_sample = 0;
+        for (uint16_t channel = 0; channel < channel_count; ++channel) {
+            const std::size_t sample_offset = offset + static_cast<std::size_t>(channel) * sizeof(int16_t);
+            const auto lo = static_cast<unsigned char>(pcm_bytes[sample_offset]);
+            const auto hi = static_cast<unsigned char>(pcm_bytes[sample_offset + 1]);
+            const int16_t sample = static_cast<int16_t>(static_cast<uint16_t>(lo) |
+                                                        static_cast<uint16_t>(hi << 8));
+            mixed_sample += sample;
+        }
+        const float mono_sample = static_cast<float>(mixed_sample) /
+                                  static_cast<float>(channel_count) /
+                                  32768.0F;
+        wave->samples.push_back(mono_sample);
+    }
+
+    if (wave->samples.empty()) {
+        *error_message = "WAV fixture contains no samples: " + path.string();
+        return false;
+    }
+    return true;
+}
+
 }  // namespace
 
 int main(int argc, char **argv) {
@@ -165,10 +334,11 @@ int main(int argc, char **argv) {
     config.enable_endpoint = true;
 
     // M3.1 探针只验证真实 recognizer 链路，不提供 mock 或静默成功路径。
-    const auto wave = sherpa::ReadWave(options.audio_file.string());
-    if (wave.samples.empty() || wave.sample_rate <= 0) {
-        std::cerr << "ShaTV ASR probe error: failed to read mono WAV fixture: "
-                  << options.audio_file << '\n';
+    // sherpa-onnx 的 ReadWave helper 在部分 shared SDK 中声明但不导出；这里直接读取
+    // 简单 PCM16 WAV fixture，避免 probe 依赖示例 I/O 符号。
+    WaveFixture wave;
+    if (!ReadPcm16Wave(options.audio_file, &wave, &error_message)) {
+        std::cerr << "ShaTV ASR probe error: " << error_message << '\n';
         return EXIT_FAILURE;
     }
     if (wave.samples.size() > static_cast<size_t>(std::numeric_limits<int32_t>::max())) {
