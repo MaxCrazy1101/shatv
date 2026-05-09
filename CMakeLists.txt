@@ -16,6 +16,7 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
 option(BUILD_TESTING "Build ShaTV tests" OFF)
+option(SHATV_ENABLE_ASR "Build optional sherpa-onnx ASR development probes" OFF)
 include(CTest)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -48,6 +49,8 @@ endif()
 
 set(SHATV_FFMPEG_INCLUDE_DIR "" CACHE PATH "Path to FFmpeg headers for Windows builds")
 set(SHATV_FFMPEG_LIBRARY_DIR "" CACHE PATH "Path to FFmpeg import libraries for Windows builds")
+set(SHATV_SHERPA_ONNX_ROOT "" CACHE PATH "Path to an extracted sherpa-onnx SDK for ASR-enabled builds")
+set(SHATV_ONNXRUNTIME_ROOT "" CACHE PATH "Optional path to an ONNX Runtime SDK when it is not bundled with sherpa-onnx")
 
 if(WIN32)
     find_package(Qt6 REQUIRED COMPONENTS Core Network Qml Quick QuickControls2 QuickDialogs2 Multimedia ShaderTools ShaderToolsPrivate)
@@ -108,6 +111,11 @@ endif()
 
 include(FindFfmpeg)
 shatv_configure_ffmpeg_target(SHATV_FFMPEG_TARGET)
+
+if(SHATV_ENABLE_ASR)
+    include(FindSherpaOnnx)
+    shatv_configure_sherpa_onnx_target(SHATV_SHERPA_ONNX_TARGET)
+endif()
 
 add_subdirectory(src)
 

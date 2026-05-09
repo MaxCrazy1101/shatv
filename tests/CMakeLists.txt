@@ -178,3 +178,36 @@ add_test(
     NAME xmltv_epg_payload_test
     COMMAND $<TARGET_FILE:xmltv_epg_payload_test>
 )
+
+if(SHATV_ENABLE_ASR)
+    set(SHATV_ASR_PROBE_MODEL_DIR "" CACHE PATH "Model directory for the optional ASR probe CTest")
+    set(SHATV_ASR_PROBE_AUDIO_FILE "" CACHE FILEPATH "Speech WAV fixture for the optional ASR probe CTest")
+
+    add_test(
+        NAME shatv_asr_probe_missing_args
+        COMMAND $<TARGET_FILE:shatv_asr_probe>
+    )
+    set_tests_properties(
+        shatv_asr_probe_missing_args
+        PROPERTIES
+            WILL_FAIL TRUE
+            PASS_REGULAR_EXPRESSION "missing required --model-dir"
+    )
+
+    if(SHATV_ASR_PROBE_MODEL_DIR AND SHATV_ASR_PROBE_AUDIO_FILE)
+        add_test(
+            NAME shatv_asr_probe
+            COMMAND $<TARGET_FILE:shatv_asr_probe>
+                --model-dir "${SHATV_ASR_PROBE_MODEL_DIR}"
+                --audio-file "${SHATV_ASR_PROBE_AUDIO_FILE}"
+        )
+        set_tests_properties(
+            shatv_asr_probe
+            PROPERTIES PASS_REGULAR_EXPRESSION "ShaTV ASR probe ok text="
+        )
+    else()
+        message(STATUS
+            "ASR probe CTest is not registered because SHATV_ASR_PROBE_MODEL_DIR "
+            "or SHATV_ASR_PROBE_AUDIO_FILE is unset.")
+    endif()
+endif()

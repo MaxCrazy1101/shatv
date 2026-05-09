@@ -64,6 +64,22 @@ target_link_libraries(shatv
         shatv_app
 )
 
+if(SHATV_ENABLE_ASR)
+    add_executable(shatv_asr_probe
+        tools/asr_model_probe.cpp
+    )
+
+    target_link_libraries(shatv_asr_probe
+        PRIVATE
+            ${SHATV_SHERPA_ONNX_TARGET}
+    )
+
+    set_target_properties(shatv_asr_probe
+        PROPERTIES
+            BUILD_RPATH "${SHATV_ASR_RUNTIME_LIBRARY_DIRS}"
+    )
+endif()
+
 if(TARGET Qt6::lrelease)
     qt_add_translations(shatv_app
         IMMEDIATE_CALL
