@@ -8,12 +8,14 @@
 
 #include "domain/media_source.h"
 #include "domain/player_snapshot.h"
+#include "media/asr/pcm_converter.h"
 #include "media/audio/audio_output.h"
 #include "media/video/video_frame_queue.h"
 #include "player/player_backend.h"
 #include "player/video_frame_sink.h"
 
 class QThread;
+struct AVFrame;
 
 namespace shatv::player {
 
@@ -52,6 +54,9 @@ class FfmpegPlayerBackend final : public PlayerBackend {
     PlaybackPipelineResult RunMediaPipeline(domain::MediaSourceDescriptor source);
     PlaybackPipelineResult RunAudioPipeline(domain::MediaSourceDescriptor source);
     PlaybackPipelineResult RunVideoPipeline(domain::MediaSourceDescriptor source);
+#if defined(SHATV_ENABLE_ASR)
+    bool TapAsrAudioFrame(const AVFrame &frame, QString *error_message);
+#endif
     void DrainVideoFrames(const domain::MediaSourceDescriptor &source,
                           bool *emitted_playing,
                           bool wait_for_due_frame,
@@ -70,6 +75,9 @@ class FfmpegPlayerBackend final : public PlayerBackend {
     domain::PlayerSnapshot last_snapshot_;
     mutable QMutex snapshot_mutex_;
     media::audio::AudioOutput audio_output_;
+#if defined(SHATV_ENABLE_ASR)
+    media::asr::PcmConverter asr_pcm_converter_;
+#endif
     media::video::VideoFrameQueue video_frame_queue_;
     std::unique_ptr<QThread> worker_thread_;
     std::atomic_bool abort_requested_ = false;

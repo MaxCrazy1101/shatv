@@ -18,6 +18,7 @@ add_library(shatv_app
     app/xmltv_epg_parser.cpp
     application/player_controller.cpp
     domain/media_source.cpp
+    media/asr/pcm_converter.cpp
     media/audio/audio_output.cpp
     media/decode/audio_decoder.cpp
     media/decode/video_decoder.cpp
@@ -54,6 +55,13 @@ target_link_libraries(shatv_app
         toml11::toml11
         ZLIB::ZLIB
 )
+
+if(SHATV_ENABLE_ASR)
+    target_compile_definitions(shatv_app
+        PUBLIC
+            SHATV_ENABLE_ASR=1
+    )
+endif()
 
 add_executable(shatv
     app/main.cpp

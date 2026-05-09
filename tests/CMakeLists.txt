@@ -88,6 +88,21 @@ add_test(
     COMMAND $<TARGET_FILE:logging_test>
 )
 
+add_executable(asr_pcm_converter_test
+    unit/asr_pcm_converter_test.cpp
+)
+
+target_link_libraries(asr_pcm_converter_test
+    PRIVATE
+        shatv_app
+        Qt6::Test
+)
+
+add_test(
+    NAME asr_pcm_converter_test
+    COMMAND $<TARGET_FILE:asr_pcm_converter_test>
+)
+
 add_executable(app_settings_recent_test
     unit/app_settings_recent_test.cpp
 )

@@ -142,6 +142,9 @@ void FfmpegPlayerBackend::Load(const domain::MediaSourceDescriptor &source) {
         << "url=" << app::RedactUrlForLog(source.url);
     StopWorker();
     audio_output_.Stop();
+#if defined(SHATV_ENABLE_ASR)
+    asr_pcm_converter_.Reset();
+#endif
     video_frame_queue_.Clear();
 
     current_source_ = source;
@@ -176,6 +179,9 @@ void FfmpegPlayerBackend::Pause() {
 void FfmpegPlayerBackend::Stop() {
     StopWorker();
     audio_output_.Stop();
+#if defined(SHATV_ENABLE_ASR)
+    asr_pcm_converter_.Reset();
+#endif
     current_source_ = {};
     EmitSnapshot(domain::PlaybackState::kIdle, tr("Stopped"));
 }
@@ -231,6 +237,19 @@ bool PresentVideoOnlyFrame(std::atomic<VideoFrameSink *> *sink,
 void FfmpegPlayerBackend::SetVideoOnlyMode(bool video_only) {
     video_only_mode_ = video_only;
 }
+
+#if defined(SHATV_ENABLE_ASR)
+bool FfmpegPlayerBackend::TapAsrAudioFrame(const AVFrame &frame, QString *error_message) {
+    media::asr::PcmChunk chunk;
+    if (!asr_pcm_converter_.ConvertFrame(frame, &chunk, error_message)) {
+        return false;
+    }
+
+    // M3.2 establishes the decoded-audio tap and conversion boundary only.
+    // M3.3 will feed this chunk into the bounded recognizer worker queue.
+    return true;
+}
+#endif
 
 void FfmpegPlayerBackend::RunPlaybackSession(domain::MediaSourceDescriptor source) {
     int attempt = 1;
@@ -364,6 +383,11 @@ PlaybackPipelineResult FfmpegPlayerBackend::RunMediaPipeline(domain::MediaSource
                 if (abort_requested_) {
                     return PipelineAborted();
                 }
+#if defined(SHATV_ENABLE_ASR)
+                if (!TapAsrAudioFrame(*frame, &error_message)) {
+                    return PipelineFailed(tr("FFmpeg ASR PCM conversion failed: %1").arg(error_message));
+                }
+#endif
                 if (!audio_output_.WriteFrame(*frame, &error_message)) {
                     return PipelineFailed(tr("FFmpeg audio output failed: %1").arg(error_message));
                 }
@@ -403,6 +427,11 @@ PlaybackPipelineResult FfmpegPlayerBackend::RunMediaPipeline(domain::MediaSource
             return PipelineFailed(tr("FFmpeg audio flush failed: %1").arg(error_message));
         }
         for (const auto &frame : audio_frames) {
+#if defined(SHATV_ENABLE_ASR)
+            if (!TapAsrAudioFrame(*frame, &error_message)) {
+                return PipelineFailed(tr("FFmpeg ASR PCM conversion failed: %1").arg(error_message));
+            }
+#endif
             if (!audio_output_.WriteFrame(*frame, &error_message)) {
                 return PipelineFailed(tr("FFmpeg audio output failed: %1").arg(error_message));
             }
@@ -461,6 +490,11 @@ PlaybackPipelineResult FfmpegPlayerBackend::RunAudioPipeline(domain::MediaSource
             if (abort_requested_) {
                 return PipelineAborted();
             }
+#if defined(SHATV_ENABLE_ASR)
+            if (!TapAsrAudioFrame(*frame, &error_message)) {
+                return PipelineFailed(tr("FFmpeg ASR PCM conversion failed: %1").arg(error_message));
+            }
+#endif
             if (!audio_output_.WriteFrame(*frame, &error_message)) {
                 return PipelineFailed(tr("FFmpeg audio output failed: %1").arg(error_message));
             }
@@ -477,6 +511,11 @@ PlaybackPipelineResult FfmpegPlayerBackend::RunAudioPipeline(domain::MediaSource
             return PipelineFailed(tr("FFmpeg audio flush failed: %1").arg(error_message));
         }
         for (const auto &frame : frames) {
+#if defined(SHATV_ENABLE_ASR)
+            if (!TapAsrAudioFrame(*frame, &error_message)) {
+                return PipelineFailed(tr("FFmpeg ASR PCM conversion failed: %1").arg(error_message));
+            }
+#endif
             if (!audio_output_.WriteFrame(*frame, &error_message)) {
                 return PipelineFailed(tr("FFmpeg audio output failed: %1").arg(error_message));
             }
