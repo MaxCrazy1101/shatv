@@ -198,6 +198,34 @@ if(SHATV_ENABLE_ASR)
     set(SHATV_ASR_PROBE_MODEL_DIR "" CACHE PATH "Model directory for the optional ASR probe CTest")
     set(SHATV_ASR_PROBE_AUDIO_FILE "" CACHE FILEPATH "Speech WAV fixture for the optional ASR probe CTest")
 
+    add_executable(asr_streaming_recognizer_worker_test
+        unit/asr_streaming_recognizer_worker_test.cpp
+    )
+
+    target_link_libraries(asr_streaming_recognizer_worker_test
+        PRIVATE
+            shatv_app
+            Qt6::Test
+    )
+
+    set_target_properties(asr_streaming_recognizer_worker_test
+        PROPERTIES
+            BUILD_RPATH "${SHATV_ASR_RUNTIME_LIBRARY_DIRS}"
+    )
+
+    if(SHATV_ASR_PROBE_MODEL_DIR AND SHATV_ASR_PROBE_AUDIO_FILE)
+        target_compile_definitions(asr_streaming_recognizer_worker_test
+            PRIVATE
+                SHATV_ASR_WORKER_MODEL_DIR="${SHATV_ASR_PROBE_MODEL_DIR}"
+                SHATV_ASR_WORKER_AUDIO_FILE="${SHATV_ASR_PROBE_AUDIO_FILE}"
+        )
+    endif()
+
+    add_test(
+        NAME asr_streaming_recognizer_worker_test
+        COMMAND $<TARGET_FILE:asr_streaming_recognizer_worker_test>
+    )
+
     add_test(
         NAME shatv_asr_probe_missing_args
         COMMAND ${CMAKE_COMMAND}

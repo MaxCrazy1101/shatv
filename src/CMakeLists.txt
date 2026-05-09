@@ -57,9 +57,19 @@ target_link_libraries(shatv_app
 )
 
 if(SHATV_ENABLE_ASR)
+    target_sources(shatv_app
+        PRIVATE
+            media/asr/streaming_recognizer_worker.cpp
+    )
+
     target_compile_definitions(shatv_app
         PUBLIC
             SHATV_ENABLE_ASR=1
+    )
+
+    target_link_libraries(shatv_app
+        PRIVATE
+            ${SHATV_SHERPA_ONNX_TARGET}
     )
 endif()
 
@@ -71,6 +81,13 @@ target_link_libraries(shatv
     PRIVATE
         shatv_app
 )
+
+if(SHATV_ENABLE_ASR)
+    set_target_properties(shatv
+        PROPERTIES
+            BUILD_RPATH "${SHATV_ASR_RUNTIME_LIBRARY_DIRS}"
+    )
+endif()
 
 if(SHATV_ENABLE_ASR)
     add_executable(shatv_asr_probe

@@ -9,6 +9,9 @@
 #include "domain/media_source.h"
 #include "domain/player_snapshot.h"
 #include "media/asr/pcm_converter.h"
+#if defined(SHATV_ENABLE_ASR)
+#include "media/asr/streaming_recognizer_worker.h"
+#endif
 #include "media/audio/audio_output.h"
 #include "media/video/video_frame_queue.h"
 #include "player/player_backend.h"
@@ -56,6 +59,9 @@ class FfmpegPlayerBackend final : public PlayerBackend {
     PlaybackPipelineResult RunVideoPipeline(domain::MediaSourceDescriptor source);
 #if defined(SHATV_ENABLE_ASR)
     bool TapAsrAudioFrame(const AVFrame &frame, QString *error_message);
+    bool StartAsrSession(const domain::MediaSourceDescriptor &source, QString *error_message);
+    bool FinishAsrSession(QString *error_message);
+    void StopAsrSession();
 #endif
     void DrainVideoFrames(const domain::MediaSourceDescriptor &source,
                           bool *emitted_playing,
@@ -77,6 +83,8 @@ class FfmpegPlayerBackend final : public PlayerBackend {
     media::audio::AudioOutput audio_output_;
 #if defined(SHATV_ENABLE_ASR)
     media::asr::PcmConverter asr_pcm_converter_;
+    media::asr::StreamingRecognizerWorker asr_worker_;
+    std::atomic_bool asr_session_active_ = false;
 #endif
     media::video::VideoFrameQueue video_frame_queue_;
     std::unique_ptr<QThread> worker_thread_;

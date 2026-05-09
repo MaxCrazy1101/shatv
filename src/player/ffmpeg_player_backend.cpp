@@ -9,6 +9,7 @@
 #include <QElapsedTimer>
 #include <QMutexLocker>
 #include <QThread>
+#include <QtGlobal>
 
 #include "app/logging.h"
 #include "domain/player_snapshot.h"
@@ -28,6 +29,10 @@ namespace {
 constexpr qint64 kVideoEarlyToleranceUsecs = 25000;
 constexpr qint64 kVideoLateDropUsecs = 100000;
 constexpr unsigned long kVideoDrainSleepMillis = 5;
+#if defined(SHATV_ENABLE_ASR)
+constexpr int kDefaultAsrNumThreads = 1;
+constexpr int kDefaultAsrMaxQueuedChunks = 64;
+#endif
 
 struct AvPacketDeleter {
     void operator()(AVPacket *packet) const {
@@ -75,6 +80,33 @@ QString SourceKindName(domain::SourceKind source_kind) {
     }
     return QStringLiteral("unknown");
 }
+
+#if defined(SHATV_ENABLE_ASR)
+QString EnvironmentValue(const char *name) {
+    return qEnvironmentVariable(name).trimmed();
+}
+
+int PositiveEnvironmentInt(const char *name, int default_value, QString *error_message) {
+    if (!qEnvironmentVariableIsSet(name)) {
+        return default_value;
+    }
+    bool ok = false;
+    const int value = qEnvironmentVariableIntValue(name, &ok);
+    if (!ok) {
+        if (error_message != nullptr) {
+            *error_message = QStringLiteral("%1 must be an integer").arg(QString::fromUtf8(name));
+        }
+        return -1;
+    }
+    if (value <= 0) {
+        if (error_message != nullptr) {
+            *error_message = QStringLiteral("%1 must be greater than zero").arg(QString::fromUtf8(name));
+        }
+        return -1;
+    }
+    return value;
+}
+#endif
 
 domain::RetryPolicy BackendRetryPolicy(const domain::MediaSourceDescriptor &source) {
     if (source.source_kind == domain::SourceKind::kRemotePlaylistFetch) {
@@ -143,7 +175,7 @@ void FfmpegPlayerBackend::Load(const domain::MediaSourceDescriptor &source) {
     StopWorker();
     audio_output_.Stop();
 #if defined(SHATV_ENABLE_ASR)
-    asr_pcm_converter_.Reset();
+    StopAsrSession();
 #endif
     video_frame_queue_.Clear();
 
@@ -180,7 +212,7 @@ void FfmpegPlayerBackend::Stop() {
     StopWorker();
     audio_output_.Stop();
 #if defined(SHATV_ENABLE_ASR)
-    asr_pcm_converter_.Reset();
+    StopAsrSession();
 #endif
     current_source_ = {};
     EmitSnapshot(domain::PlaybackState::kIdle, tr("Stopped"));
@@ -244,10 +276,89 @@ bool FfmpegPlayerBackend::TapAsrAudioFrame(const AVFrame &frame, QString *error_
     if (!asr_pcm_converter_.ConvertFrame(frame, &chunk, error_message)) {
         return false;
     }
+    if (chunk.samples.empty() || !asr_session_active_.load()) {
+        return true;
+    }
 
-    // M3.2 establishes the decoded-audio tap and conversion boundary only.
-    // M3.3 will feed this chunk into the bounded recognizer worker queue.
+    return asr_worker_.Enqueue(std::move(chunk), error_message);
+}
+
+bool FfmpegPlayerBackend::StartAsrSession(const domain::MediaSourceDescriptor &source, QString *error_message) {
+    StopAsrSession();
+
+    const QString model_dir = EnvironmentValue("SHATV_ASR_MODEL_DIR");
+    if (model_dir.isEmpty()) {
+        qCInfo(app::log_ffmpeg).noquote()
+            << "ASR worker not started"
+            << "name=" << source.name
+            << "reason=SHATV_ASR_MODEL_DIR unset";
+        return true;
+    }
+
+    media::asr::StreamingRecognizerConfig config;
+    config.model_dir = model_dir;
+    const QString encoder_name = EnvironmentValue("SHATV_ASR_ENCODER_NAME");
+    const QString decoder_name = EnvironmentValue("SHATV_ASR_DECODER_NAME");
+    const QString tokens_name = EnvironmentValue("SHATV_ASR_TOKENS_NAME");
+    const QString provider = EnvironmentValue("SHATV_ASR_PROVIDER");
+    if (!encoder_name.isEmpty()) {
+        config.encoder_name = encoder_name;
+    }
+    if (!decoder_name.isEmpty()) {
+        config.decoder_name = decoder_name;
+    }
+    if (!tokens_name.isEmpty()) {
+        config.tokens_name = tokens_name;
+    }
+    if (!provider.isEmpty()) {
+        config.provider = provider;
+    }
+    config.num_threads = PositiveEnvironmentInt("SHATV_ASR_NUM_THREADS", kDefaultAsrNumThreads, error_message);
+    if (config.num_threads <= 0) {
+        return false;
+    }
+    config.max_queued_chunks =
+        PositiveEnvironmentInt("SHATV_ASR_MAX_QUEUED_CHUNKS", kDefaultAsrMaxQueuedChunks, error_message);
+    if (config.max_queued_chunks <= 0) {
+        return false;
+    }
+    config.result_callback = [source_name = source.name](const media::asr::StreamingRecognitionResult &result) {
+        qCInfo(app::log_ffmpeg).noquote()
+            << "ASR recognition result"
+            << "name=" << source_name
+            << "final=" << result.is_final
+            << "text=" << result.text;
+    };
+
+    if (!asr_worker_.StartSession(config, error_message)) {
+        asr_session_active_ = false;
+        return false;
+    }
+
+    asr_session_active_ = true;
+    qCInfo(app::log_ffmpeg).noquote()
+        << "ASR worker started"
+        << "name=" << source.name
+        << "modelDir=" << model_dir
+        << "provider=" << config.provider
+        << "maxQueuedChunks=" << config.max_queued_chunks;
     return true;
+}
+
+bool FfmpegPlayerBackend::FinishAsrSession(QString *error_message) {
+    if (!asr_session_active_.load()) {
+        return true;
+    }
+    asr_session_active_ = false;
+    const bool ok = asr_worker_.FinishSession(error_message);
+    asr_pcm_converter_.Reset();
+    return ok;
+}
+
+void FfmpegPlayerBackend::StopAsrSession() {
+    asr_session_active_ = false;
+    asr_worker_.Stop();
+    asr_pcm_converter_.Reset();
 }
 #endif
 
@@ -263,6 +374,9 @@ void FfmpegPlayerBackend::RunPlaybackSession(domain::MediaSourceDescriptor sourc
         video_frame_queue_.Clear();
         const PlaybackPipelineResult result =
             video_only_mode_.load() ? RunVideoPipeline(source) : RunMediaPipeline(source);
+#if defined(SHATV_ENABLE_ASR)
+        StopAsrSession();
+#endif
         if (result.status == PlaybackPipelineStatus::kAborted || abort_requested_) {
             qCInfo(app::log_ffmpeg).noquote() << "FFmpeg playback aborted name=" << source.name;
             return;
@@ -357,6 +471,12 @@ PlaybackPipelineResult FfmpegPlayerBackend::RunMediaPipeline(domain::MediaSource
         return PipelineFailed(tr("FFmpeg video decoder failed: %1").arg(error_message));
     }
 
+#if defined(SHATV_ENABLE_ASR)
+    if (!StartAsrSession(source, &error_message)) {
+        return PipelineFailed(tr("FFmpeg ASR worker failed: %1").arg(error_message));
+    }
+#endif
+
     AvPacketPtr packet(av_packet_alloc());
     if (packet == nullptr) {
         return PipelineFailed(tr("FFmpeg packet allocation failed"));
@@ -385,7 +505,7 @@ PlaybackPipelineResult FfmpegPlayerBackend::RunMediaPipeline(domain::MediaSource
                 }
 #if defined(SHATV_ENABLE_ASR)
                 if (!TapAsrAudioFrame(*frame, &error_message)) {
-                    return PipelineFailed(tr("FFmpeg ASR PCM conversion failed: %1").arg(error_message));
+                    return PipelineFailed(tr("FFmpeg ASR audio tap failed: %1").arg(error_message));
                 }
 #endif
                 if (!audio_output_.WriteFrame(*frame, &error_message)) {
@@ -429,7 +549,7 @@ PlaybackPipelineResult FfmpegPlayerBackend::RunMediaPipeline(domain::MediaSource
         for (const auto &frame : audio_frames) {
 #if defined(SHATV_ENABLE_ASR)
             if (!TapAsrAudioFrame(*frame, &error_message)) {
-                return PipelineFailed(tr("FFmpeg ASR PCM conversion failed: %1").arg(error_message));
+                return PipelineFailed(tr("FFmpeg ASR audio tap failed: %1").arg(error_message));
             }
 #endif
             if (!audio_output_.WriteFrame(*frame, &error_message)) {
@@ -437,6 +557,11 @@ PlaybackPipelineResult FfmpegPlayerBackend::RunMediaPipeline(domain::MediaSource
             }
         }
         audio_output_.FinishStartupPrebuffer();
+#if defined(SHATV_ENABLE_ASR)
+        if (!FinishAsrSession(&error_message)) {
+            return PipelineFailed(tr("FFmpeg ASR worker failed: %1").arg(error_message));
+        }
+#endif
 
         std::vector<media::video::VideoFrame> video_frames;
         if (!video_decoder.Flush(&video_frames, &error_message)) {
@@ -466,6 +591,12 @@ PlaybackPipelineResult FfmpegPlayerBackend::RunAudioPipeline(domain::MediaSource
         return PipelineFailed(tr("FFmpeg audio decoder failed: %1").arg(error_message));
     }
 
+#if defined(SHATV_ENABLE_ASR)
+    if (!StartAsrSession(source, &error_message)) {
+        return PipelineFailed(tr("FFmpeg ASR worker failed: %1").arg(error_message));
+    }
+#endif
+
     AvPacketPtr packet(av_packet_alloc());
     if (packet == nullptr) {
         return PipelineFailed(tr("FFmpeg packet allocation failed"));
@@ -492,7 +623,7 @@ PlaybackPipelineResult FfmpegPlayerBackend::RunAudioPipeline(domain::MediaSource
             }
 #if defined(SHATV_ENABLE_ASR)
             if (!TapAsrAudioFrame(*frame, &error_message)) {
-                return PipelineFailed(tr("FFmpeg ASR PCM conversion failed: %1").arg(error_message));
+                return PipelineFailed(tr("FFmpeg ASR audio tap failed: %1").arg(error_message));
             }
 #endif
             if (!audio_output_.WriteFrame(*frame, &error_message)) {
@@ -513,7 +644,7 @@ PlaybackPipelineResult FfmpegPlayerBackend::RunAudioPipeline(domain::MediaSource
         for (const auto &frame : frames) {
 #if defined(SHATV_ENABLE_ASR)
             if (!TapAsrAudioFrame(*frame, &error_message)) {
-                return PipelineFailed(tr("FFmpeg ASR PCM conversion failed: %1").arg(error_message));
+                return PipelineFailed(tr("FFmpeg ASR audio tap failed: %1").arg(error_message));
             }
 #endif
             if (!audio_output_.WriteFrame(*frame, &error_message)) {
@@ -525,6 +656,11 @@ PlaybackPipelineResult FfmpegPlayerBackend::RunAudioPipeline(domain::MediaSource
             }
         }
         audio_output_.FinishStartupPrebuffer();
+#if defined(SHATV_ENABLE_ASR)
+        if (!FinishAsrSession(&error_message)) {
+            return PipelineFailed(tr("FFmpeg ASR worker failed: %1").arg(error_message));
+        }
+#endif
     }
 
     return abort_requested_ ? PipelineAborted() : PipelineFinished();

@@ -84,6 +84,31 @@ cmake -B build-asr \
 ctest --test-dir build-asr -R shatv_asr_probe --output-on-failure
 ```
 
+## Playback Worker Probe
+
+M3.3 adds a playback-side worker boundary, but it still does not expose subtitles
+in QML. When `SHATV_ENABLE_ASR=ON`, playback starts one ASR worker session per
+source attempt only if the runtime model directory is provided:
+
+```bash
+SHATV_ASR_MODEL_DIR=/path/to/sherpa-onnx-streaming-paraformer-bilingual-zh-en \
+./build-asr/src/shatv --open-media /path/to/media-with-speech.mp4
+```
+
+Optional runtime overrides:
+
+- `SHATV_ASR_ENCODER_NAME` defaults to `encoder.int8.onnx`
+- `SHATV_ASR_DECODER_NAME` defaults to `decoder.int8.onnx`
+- `SHATV_ASR_TOKENS_NAME` defaults to `tokens.txt`
+- `SHATV_ASR_PROVIDER` defaults to `cpu`
+- `SHATV_ASR_NUM_THREADS` defaults to `1`
+- `SHATV_ASR_MAX_QUEUED_CHUNKS` defaults to `64`
+
+The worker queue is bounded and non-blocking. Queue overflow returns an explicit
+playback error instead of blocking FFmpeg decode or silently dropping stale ASR
+input. Recognition results are logged during M3.3; subtitle bridge and overlay
+state are M3.4 work.
+
 ## Future Online Model Service
 
 Before ASR reaches the UI, model acquisition needs an explicit manifest and app-managed cache flow.
