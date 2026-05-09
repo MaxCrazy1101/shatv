@@ -7,7 +7,7 @@ M3.1 keeps speech recognition out of the playback path. The normal ShaTV build d
 ## Native Dependency Policy
 
 - Configure ASR builds with `-DSHATV_ENABLE_ASR=ON`.
-- Set `SHATV_SHERPA_ONNX_ROOT` to an extracted sherpa-onnx SDK that contains `include/sherpa-onnx/c-api/cxx-api.h` and the C++/C API libraries.
+- Set `SHATV_SHERPA_ONNX_ROOT` to an extracted sherpa-onnx SDK that contains `include/sherpa-onnx/c-api/c-api.h` and the C API library.
 - Set `SHATV_ONNXRUNTIME_ROOT` only when ONNX Runtime is supplied separately from the sherpa-onnx SDK.
 - ShaTV does not require AUR packages as the development path.
 - ShaTV does not use `FetchContent` to build sherpa-onnx or ONNX Runtime.
@@ -41,9 +41,15 @@ Candidate package notes:
 
 - Source: `csukuangfj/sherpa-onnx-streaming-paraformer-bilingual-zh-en`.
 - Upstream page: <https://k2-fsa.github.io/sherpa/onnx/pretrained_models/online-paraformer/paraformer-models.html#csukuangfj-sherpa-onnx-streaming-paraformer-bilingual-zh-en-chinese-english>.
+- Tested archive name: `sherpa-onnx-streaming-paraformer-bilingual-zh-en.tar.bz2`.
+- Tested archive SHA-256: `5462a1fce42693deae572af1e8c4687124b12aa85fe61ff4d3168bb5280e205f`.
 - Documented ONNX payload sizes: `encoder.int8.onnx` is about `158M`, and `decoder.int8.onnx` is about `68M`.
 - The first probe uses CPU provider and 16 kHz feature extraction.
 - The model package license and attribution requirements still need final review before bundling or offering an in-app download.
+
+The probe calls sherpa-onnx through the C API. The C++ wrapper and example I/O
+helpers are not part of ShaTV's ASR runtime boundary because some shared SDK
+packages may not export every C++ helper symbol consistently.
 
 Run the probe against a manually downloaded model directory and a local mono speech WAV fixture:
 
@@ -116,7 +122,6 @@ Service responsibilities:
 
 The first Windows ASR probe should use a release x64 shared CPU sherpa-onnx package that matches the MSVC runtime strategy used by the app build. Runtime DLLs must be deployed next to `shatv_asr_probe.exe` or otherwise be discoverable by the Windows loader:
 
-- sherpa-onnx C++ API DLL
 - sherpa-onnx C API DLL
 - ONNX Runtime DLL
 - any package-specific dependent DLLs

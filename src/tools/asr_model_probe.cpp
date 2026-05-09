@@ -1,4 +1,4 @@
-#include <sherpa-onnx/c-api/cxx-api.h>
+#include <sherpa-onnx/c-api/c-api.h>
 
 #include <array>
 #include <cstdint>
@@ -7,6 +7,7 @@
 #include <fstream>
 #include <iostream>
 #include <limits>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -310,6 +311,9 @@ int main(int argc, char **argv) {
     const std::filesystem::path encoder_path = options.model_dir / options.encoder_name;
     const std::filesystem::path decoder_path = options.model_dir / options.decoder_name;
     const std::filesystem::path tokens_path = options.model_dir / options.tokens_name;
+    const std::string encoder_path_text = encoder_path.string();
+    const std::string decoder_path_text = decoder_path.string();
+    const std::string tokens_path_text = tokens_path.string();
 
     // 先验证模型和音频夹具存在，避免 sherpa-onnx 初始化阶段给出含混的底层错误。
     if (!RequireRegularFile(encoder_path, &error_message) ||
@@ -320,22 +324,26 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
-    namespace sherpa = sherpa_onnx::cxx;
-
-    sherpa::OnlineRecognizerConfig config;
+    SherpaOnnxOnlineRecognizerConfig config{};
     config.feat_config.sample_rate = 16000;
     config.feat_config.feature_dim = 80;
-    config.model_config.paraformer.encoder = encoder_path.string();
-    config.model_config.paraformer.decoder = decoder_path.string();
-    config.model_config.tokens = tokens_path.string();
-    config.model_config.provider = options.provider;
+    config.model_config.paraformer.encoder = encoder_path_text.c_str();
+    config.model_config.paraformer.decoder = decoder_path_text.c_str();
+    config.model_config.tokens = tokens_path_text.c_str();
+    config.model_config.provider = options.provider.c_str();
     config.model_config.num_threads = options.num_threads;
+    config.model_config.modeling_unit = "cjkchar";
     config.decoding_method = "greedy_search";
-    config.enable_endpoint = true;
+    config.max_active_paths = 4;
+    config.enable_endpoint = 1;
+    config.rule1_min_trailing_silence = 2.4F;
+    config.rule2_min_trailing_silence = 1.2F;
+    config.rule3_min_utterance_length = 20.0F;
+    config.hotwords_score = 1.5F;
 
     // M3.1 探针只验证真实 recognizer 链路，不提供 mock 或静默成功路径。
-    // sherpa-onnx 的 ReadWave helper 在部分 shared SDK 中声明但不导出；这里直接读取
-    // 简单 PCM16 WAV fixture，避免 probe 依赖示例 I/O 符号。
+    // shared SDK 的 C ABI 是更稳定的边界；C++ wrapper/示例 I/O 符号在部分包中
+    // 可能和导出实现不一致。这里直接读取简单 PCM16 WAV fixture，并只调用 C API。
     WaveFixture wave;
     if (!ReadPcm16Wave(options.audio_file, &wave, &error_message)) {
         std::cerr << "ShaTV ASR probe error: " << error_message << '\n';
@@ -346,35 +354,52 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
-    auto recognizer = sherpa::OnlineRecognizer::Create(config);
-    if (!recognizer.Get()) {
+    using OnlineRecognizerPtr = std::unique_ptr<
+        const SherpaOnnxOnlineRecognizer,
+        decltype(&SherpaOnnxDestroyOnlineRecognizer)>;
+    OnlineRecognizerPtr recognizer(
+        SherpaOnnxCreateOnlineRecognizer(&config),
+        SherpaOnnxDestroyOnlineRecognizer);
+    if (!recognizer) {
         std::cerr << "ShaTV ASR probe error: failed to create sherpa-onnx online recognizer\n";
         return EXIT_FAILURE;
     }
 
-    auto stream = recognizer.CreateStream();
-    if (!stream.Get()) {
+    using OnlineStreamPtr = std::unique_ptr<
+        const SherpaOnnxOnlineStream,
+        decltype(&SherpaOnnxDestroyOnlineStream)>;
+    OnlineStreamPtr stream(
+        SherpaOnnxCreateOnlineStream(recognizer.get()),
+        SherpaOnnxDestroyOnlineStream);
+    if (!stream) {
         std::cerr << "ShaTV ASR probe error: failed to create sherpa-onnx online stream\n";
         return EXIT_FAILURE;
     }
 
-    stream.AcceptWaveform(
+    SherpaOnnxOnlineStreamAcceptWaveform(
+        stream.get(),
         wave.sample_rate,
         wave.samples.data(),
         static_cast<int32_t>(wave.samples.size()));
-    stream.InputFinished();
+    SherpaOnnxOnlineStreamSetOption(stream.get(), "is_final", "1");
+    SherpaOnnxOnlineStreamInputFinished(stream.get());
 
-    while (recognizer.IsReady(&stream)) {
-        recognizer.Decode(&stream);
+    while (SherpaOnnxIsOnlineStreamReady(recognizer.get(), stream.get()) != 0) {
+        SherpaOnnxDecodeOnlineStream(recognizer.get(), stream.get());
     }
 
-    const sherpa::OnlineRecognizerResult result = recognizer.GetResult(&stream);
-    if (result.text.empty()) {
+    using OnlineResultPtr = std::unique_ptr<
+        const SherpaOnnxOnlineRecognizerResult,
+        decltype(&SherpaOnnxDestroyOnlineRecognizerResult)>;
+    OnlineResultPtr result(
+        SherpaOnnxGetOnlineStreamResult(recognizer.get(), stream.get()),
+        SherpaOnnxDestroyOnlineRecognizerResult);
+    if (!result || result->text == nullptr || result->text[0] == '\0') {
         std::cerr << "ShaTV ASR probe error: recognizer returned empty text for fixture: "
                   << options.audio_file << '\n';
         return EXIT_FAILURE;
     }
 
-    std::cout << "ShaTV ASR probe ok text=" << result.text << '\n';
+    std::cout << "ShaTV ASR probe ok text=" << result->text << '\n';
     return EXIT_SUCCESS;
 }

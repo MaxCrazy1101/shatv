@@ -18,14 +18,8 @@ function(shatv_configure_sherpa_onnx_target out_target)
     )
 
     find_path(SHATV_SHERPA_ONNX_INCLUDE_DIR
-        NAMES sherpa-onnx/c-api/cxx-api.h
+        NAMES sherpa-onnx/c-api/c-api.h
         HINTS ${_sherpa_include_hints}
-        NO_DEFAULT_PATH
-    )
-
-    find_library(SHATV_SHERPA_ONNX_CXX_API_LIBRARY
-        NAMES sherpa-onnx-cxx-api libsherpa-onnx-cxx-api
-        HINTS ${_sherpa_library_hints}
         NO_DEFAULT_PATH
     )
 
@@ -53,10 +47,7 @@ function(shatv_configure_sherpa_onnx_target out_target)
 
     set(_missing_items "")
     if(NOT SHATV_SHERPA_ONNX_INCLUDE_DIR)
-        list(APPEND _missing_items "sherpa-onnx/c-api/cxx-api.h under SHATV_SHERPA_ONNX_ROOT/include")
-    endif()
-    if(NOT SHATV_SHERPA_ONNX_CXX_API_LIBRARY)
-        list(APPEND _missing_items "sherpa-onnx C++ API library under SHATV_SHERPA_ONNX_ROOT/lib or bin")
+        list(APPEND _missing_items "sherpa-onnx/c-api/c-api.h under SHATV_SHERPA_ONNX_ROOT/include")
     endif()
     if(NOT SHATV_SHERPA_ONNX_C_API_LIBRARY)
         list(APPEND _missing_items "sherpa-onnx C API library under SHATV_SHERPA_ONNX_ROOT/lib or bin")
@@ -78,16 +69,13 @@ function(shatv_configure_sherpa_onnx_target out_target)
     add_library(shatv_sherpa_onnx INTERFACE)
     target_include_directories(shatv_sherpa_onnx INTERFACE "${SHATV_SHERPA_ONNX_INCLUDE_DIR}")
     target_link_libraries(shatv_sherpa_onnx INTERFACE
-        "${SHATV_SHERPA_ONNX_CXX_API_LIBRARY}"
         "${SHATV_SHERPA_ONNX_C_API_LIBRARY}"
         "${SHATV_ONNXRUNTIME_LIBRARY}"
     )
 
-    get_filename_component(_sherpa_cxx_dir "${SHATV_SHERPA_ONNX_CXX_API_LIBRARY}" DIRECTORY)
     get_filename_component(_sherpa_c_dir "${SHATV_SHERPA_ONNX_C_API_LIBRARY}" DIRECTORY)
     get_filename_component(_onnxruntime_dir "${SHATV_ONNXRUNTIME_LIBRARY}" DIRECTORY)
     set(SHATV_ASR_RUNTIME_LIBRARY_DIRS
-        "${_sherpa_cxx_dir}"
         "${_sherpa_c_dir}"
         "${_onnxruntime_dir}"
         CACHE INTERNAL "Runtime library directories needed by ASR probe targets"
