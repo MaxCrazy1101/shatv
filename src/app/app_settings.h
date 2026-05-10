@@ -20,12 +20,14 @@ class AppSettings final {
     int OsdAutoHideSeconds() const;
     int Volume() const;
     bool Muted() const;
+    bool SpeechSubtitleEnabled() const;
     const std::vector<RecentOpenItem> &RecentItems() const;
     void SetEpgUrl(const QString &epg_url);
     void SetUserAgent(const QString &user_agent);
     void SetOsdAutoHideSeconds(int seconds);
     void SetVolume(int volume);
     void SetMuted(bool muted);
+    void SetSpeechSubtitleEnabled(bool enabled);
     void RememberRecentItem(RecentOpenItem item);
 
     bool Load();
@@ -38,6 +40,7 @@ class AppSettings final {
     int osd_auto_hide_seconds_ = 3;
     int volume_ = 50;
     bool muted_ = false;
+    bool speech_subtitle_enabled_ = false;
     std::vector<RecentOpenItem> recent_items_;
 };
 

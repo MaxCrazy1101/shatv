@@ -205,6 +205,18 @@
       <translation>停止</translation>
     </message>
     <message>
+      <source>Enable Speech Recognition Subtitles</source>
+      <translation>开启语音识别字幕</translation>
+    </message>
+    <message>
+      <source>Disable Speech Recognition Subtitles</source>
+      <translation>关闭语音识别字幕</translation>
+    </message>
+    <message>
+      <source>Speech recognition subtitles unavailable</source>
+      <translation>语音识别字幕不可用</translation>
+    </message>
+    <message>
       <source>Unmute</source>
       <translation>取消静音</translation>
     </message>
@@ -710,6 +722,34 @@
     <message>
       <source>Failed to save network settings to %1</source>
       <translation>保存网络设置到 %1 失败。</translation>
+    </message>
+    <message>
+      <source>Speech recognition model directory is not configured</source>
+      <translation>未配置语音识别模型目录</translation>
+    </message>
+    <message>
+      <source>Required ASR model file is missing: %1</source>
+      <translation>缺少必需的语音识别模型文件：%1</translation>
+    </message>
+    <message>
+      <source>Unsupported ASR provider: %1</source>
+      <translation>不支持的语音识别后端：%1</translation>
+    </message>
+    <message>
+      <source>This build does not include speech recognition subtitles</source>
+      <translation>当前构建未启用语音识别字幕</translation>
+    </message>
+    <message>
+      <source>Failed to save speech subtitle setting</source>
+      <translation>保存语音识别字幕设置失败。</translation>
+    </message>
+    <message>
+      <source>Speech recognition subtitles enabled</source>
+      <translation>语音识别字幕已开启</translation>
+    </message>
+    <message>
+      <source>Speech recognition subtitles disabled</source>
+      <translation>语音识别字幕已关闭</translation>
     </message>
     <message>
       <source>Log folder is not available</source>

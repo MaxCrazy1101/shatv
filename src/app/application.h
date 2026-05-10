@@ -68,6 +68,9 @@ class Application final {
     void RefreshShellFilters();
     void ShowStatusMessage(const QString &message, int timeout_ms = 3000);
     void OpenRecentItem(const QString &request_kind, const QString &target);
+    bool SpeechSubtitleAvailable(QString *unavailable_reason) const;
+    void RefreshSpeechSubtitleControl();
+    void UpdateSpeechSubtitleEnabled(bool enabled);
     void StartInitialPlayback();
     void SetupFfmpegAudioSmokeScenario();
     void SetupFfmpegSmokeScenario();

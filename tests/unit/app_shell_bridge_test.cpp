@@ -15,6 +15,7 @@ class AppShellBridgeTest : public QObject {
 
    private slots:
     void speech_subtitle_state_tracks_result_and_clear();
+    void speech_subtitle_control_state_tracks_toggle_request();
 };
 
 void AppShellBridgeTest::speech_subtitle_state_tracks_result_and_clear() {
@@ -73,6 +74,48 @@ void AppShellBridgeTest::speech_subtitle_state_tracks_result_and_clear() {
     QCOMPARE(final_spy.size(), 2);
     QCOMPARE(latency_spy.size(), 3);
     QCOMPARE(status_spy.size(), 3);
+}
+
+void AppShellBridgeTest::speech_subtitle_control_state_tracks_toggle_request() {
+    ChannelListModel channel_model;
+    ChannelFilterModel filter_model;
+    filter_model.setSourceModel(&channel_model);
+    AppShellBridge bridge(&filter_model);
+
+    QVERIFY(!bridge.SpeechSubtitleEnabled());
+    QVERIFY(!bridge.SpeechSubtitleAvailable());
+    QCOMPARE(bridge.SpeechSubtitleUnavailableReason(), QString());
+
+    QSignalSpy enabled_spy(&bridge, &AppShellBridge::SpeechSubtitleEnabledChanged);
+    QSignalSpy available_spy(&bridge, &AppShellBridge::SpeechSubtitleAvailableChanged);
+    QSignalSpy reason_spy(&bridge, &AppShellBridge::SpeechSubtitleUnavailableReasonChanged);
+    QSignalSpy request_spy(&bridge, &AppShellBridge::SpeechSubtitleEnabledRequested);
+
+    bridge.SetSpeechSubtitleControlState(false, false, QStringLiteral("missing model"));
+
+    QVERIFY(!bridge.SpeechSubtitleEnabled());
+    QVERIFY(!bridge.SpeechSubtitleAvailable());
+    QCOMPARE(bridge.SpeechSubtitleUnavailableReason(), QStringLiteral("missing model"));
+    QCOMPARE(enabled_spy.size(), 0);
+    QCOMPARE(available_spy.size(), 0);
+    QCOMPARE(reason_spy.size(), 1);
+
+    bridge.toggleSpeechSubtitleEnabled();
+    QCOMPARE(request_spy.size(), 1);
+    QCOMPARE(request_spy.takeFirst().at(0).toBool(), true);
+
+    bridge.SetSpeechSubtitleControlState(true, true, QString());
+
+    QVERIFY(bridge.SpeechSubtitleEnabled());
+    QVERIFY(bridge.SpeechSubtitleAvailable());
+    QCOMPARE(bridge.SpeechSubtitleUnavailableReason(), QString());
+    QCOMPARE(enabled_spy.size(), 1);
+    QCOMPARE(available_spy.size(), 1);
+    QCOMPARE(reason_spy.size(), 2);
+
+    bridge.toggleSpeechSubtitleEnabled();
+    QCOMPARE(request_spy.size(), 1);
+    QCOMPARE(request_spy.takeFirst().at(0).toBool(), false);
 }
 
 }  // namespace

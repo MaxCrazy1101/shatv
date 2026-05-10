@@ -24,6 +24,7 @@ constexpr std::size_t kMaxRecentItems = 5;
 constexpr int kDefaultOsdAutoHideSeconds = 3;
 constexpr int kDefaultVolume = 50;
 constexpr bool kDefaultMuted = false;
+constexpr bool kDefaultSpeechSubtitleEnabled = false;
 
 bool IsSameRecentItem(const RecentOpenItem &lhs, const RecentOpenItem &rhs) {
     return lhs.request_kind == rhs.request_kind && lhs.target == rhs.target;
@@ -118,6 +119,25 @@ std::pair<int, bool> NormalizePlaybackState(const toml::value &config, const QSt
     return {volume, muted};
 }
 
+bool NormalizeSpeechSubtitleEnabled(const toml::value &config, const QString &config_path) {
+    if (!config.contains("playback")) {
+        return kDefaultSpeechSubtitleEnabled;
+    }
+
+    const auto &playback = config.at("playback");
+    if (!playback.is_table()) {
+        return kDefaultSpeechSubtitleEnabled;
+    }
+
+    try {
+        return toml::find_or<bool>(playback, "speech_subtitle_enabled", kDefaultSpeechSubtitleEnabled);
+    } catch (const std::exception &) {
+        qCWarning(log_config).noquote()
+            << "Config invalid playback.speech_subtitle_enabled path=" << QDir::toNativeSeparators(config_path);
+        return kDefaultSpeechSubtitleEnabled;
+    }
+}
+
 }  // namespace
 
 AppSettings::AppSettings(QString config_path) : config_path_(std::move(config_path)) {}
@@ -151,6 +171,10 @@ bool AppSettings::Muted() const {
     return muted_;
 }
 
+bool AppSettings::SpeechSubtitleEnabled() const {
+    return speech_subtitle_enabled_;
+}
+
 const std::vector<RecentOpenItem> &AppSettings::RecentItems() const {
     return recent_items_;
 }
@@ -177,6 +201,10 @@ void AppSettings::SetVolume(int volume) {
 
 void AppSettings::SetMuted(bool muted) {
     muted_ = muted;
+}
+
+void AppSettings::SetSpeechSubtitleEnabled(bool enabled) {
+    speech_subtitle_enabled_ = enabled;
 }
 
 void AppSettings::RememberRecentItem(RecentOpenItem item) {
@@ -207,6 +235,7 @@ bool AppSettings::Load() {
         osd_auto_hide_seconds_ = kDefaultOsdAutoHideSeconds;
         volume_ = kDefaultVolume;
         muted_ = kDefaultMuted;
+        speech_subtitle_enabled_ = kDefaultSpeechSubtitleEnabled;
         recent_items_.clear();
         return true;
     }
@@ -220,6 +249,7 @@ bool AppSettings::Load() {
             toml::find_or<std::string>(config, "network", "user_agent", std::string()));
         osd_auto_hide_seconds_ = NormalizeOsdAutoHideSeconds(config, config_path_);
         std::tie(volume_, muted_) = NormalizePlaybackState(config, config_path_);
+        speech_subtitle_enabled_ = NormalizeSpeechSubtitleEnabled(config, config_path_);
         recent_items_.clear();
 
         if (config.contains("history")) {
@@ -291,6 +321,7 @@ bool AppSettings::Save() const {
         config["ui"]["osd"]["auto_hide_seconds"] = toml::value(osd_auto_hide_seconds_);
         config["playback"]["volume"] = toml::value(volume_);
         config["playback"]["muted"] = toml::value(muted_);
+        config["playback"]["speech_subtitle_enabled"] = toml::value(speech_subtitle_enabled_);
         toml::array recent_entries;
         for (const auto &item : recent_items_) {
             toml::value entry;

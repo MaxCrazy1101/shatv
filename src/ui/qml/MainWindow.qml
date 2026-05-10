@@ -53,6 +53,9 @@ ApplicationWindow {
         property string alertMessage: ""
         property bool alertVisible: false
         property string speechSubtitleText: ""
+        property bool speechSubtitleEnabled: false
+        property bool speechSubtitleAvailable: false
+        property string speechSubtitleUnavailableReason: ""
         property bool speechSubtitleActive: false
         property bool speechSubtitleFinal: false
         property int speechSubtitleLatencyMs: -1
@@ -72,6 +75,7 @@ ApplicationWindow {
         function copyDiagnosticsToClipboard() {}
         function openRecentAt(index) {}
         function dismissAlert() {}
+        function toggleSpeechSubtitleEnabled() {}
     }
 
     readonly property var bridge: (typeof appShellBridge !== "undefined" && appShellBridge !== null)
@@ -113,6 +117,14 @@ ApplicationWindow {
         || bridge.nextProgrammeTimeText.length > 0
     readonly property bool speechSubtitleVisible: bridge.speechSubtitleActive
         && bridge.speechSubtitleText.length > 0
+    readonly property string speechSubtitleToggleText: bridge.speechSubtitleEnabled
+        ? qsTr("Disable Speech Recognition Subtitles")
+        : qsTr("Enable Speech Recognition Subtitles")
+    readonly property string speechSubtitleToggleToolTip: bridge.speechSubtitleAvailable
+        ? root.speechSubtitleToggleText
+        : (bridge.speechSubtitleUnavailableReason.length > 0
+            ? bridge.speechSubtitleUnavailableReason
+            : qsTr("Speech recognition subtitles unavailable"))
     readonly property int selectedGroupIndex: {
         if (bridge.currentGroupFilter.length === 0) {
             return 0
@@ -496,6 +508,7 @@ ApplicationWindow {
         required property string symbolName
         property bool symbolFilled: false
         property string toolTipText: control.text
+        property bool dimmed: false
 
         implicitWidth: 38
         implicitHeight: 38
@@ -512,6 +525,20 @@ ApplicationWindow {
             symbolName: control.symbolName
             filled: control.symbolFilled
             iconSize: 22
+        }
+
+        background: Rectangle {
+            radius: Shell.Theme.radiusSm
+            color: control.down
+                ? Shell.Theme.controlSurfacePressed
+                : (control.checked
+                    ? Shell.Theme.controlSurfacePressed
+                    : (control.hovered ? Shell.Theme.controlSurfaceHover : Shell.Theme.controlSurface))
+            border.width: 1
+            border.color: (control.visualFocus || control.checked)
+                ? Shell.Theme.controlBorderStrong
+                : Shell.Theme.controlBorder
+            opacity: (control.enabled && !control.dimmed) ? 1.0 : 0.6
         }
     }
 
@@ -1305,6 +1332,17 @@ ApplicationWindow {
                                         onClicked: bridge.requestStop()
                                     }
 
+                                    PlaybackIconButton {
+                                        text: root.speechSubtitleToggleText
+                                        toolTipText: root.speechSubtitleToggleToolTip
+                                        symbolName: "closed_caption"
+                                        symbolFilled: bridge.speechSubtitleEnabled
+                                        checkable: true
+                                        checked: bridge.speechSubtitleEnabled
+                                        dimmed: !bridge.speechSubtitleAvailable
+                                        onClicked: bridge.toggleSpeechSubtitleEnabled()
+                                    }
+
                                     Item {
                                         id: fullscreenVolumeArea
                                         Layout.preferredWidth: volumeIconBtn.implicitWidth
@@ -1505,6 +1543,17 @@ ApplicationWindow {
                                 text: qsTr("Stop")
                                 symbolName: "stop"
                                 onClicked: bridge.requestStop()
+                            }
+
+                            PlaybackIconButton {
+                                text: root.speechSubtitleToggleText
+                                toolTipText: root.speechSubtitleToggleToolTip
+                                symbolName: "closed_caption"
+                                symbolFilled: bridge.speechSubtitleEnabled
+                                checkable: true
+                                checked: bridge.speechSubtitleEnabled
+                                dimmed: !bridge.speechSubtitleAvailable
+                                onClicked: bridge.toggleSpeechSubtitleEnabled()
                             }
 
                             Item {

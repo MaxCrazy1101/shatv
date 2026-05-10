@@ -41,6 +41,10 @@ void PlayerController::SetMuted(bool muted) {
     backend_->SetMuted(muted);
 }
 
+void PlayerController::SetSpeechSubtitleEnabled(bool enabled) {
+    backend_->SetSpeechSubtitleEnabled(enabled);
+}
+
 const domain::PlayerSnapshot &PlayerController::CurrentSnapshot() const {
     return current_snapshot_;
 }

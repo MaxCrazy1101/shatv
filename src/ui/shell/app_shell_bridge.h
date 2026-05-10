@@ -50,6 +50,9 @@ class AppShellBridge final : public QObject {
     Q_PROPERTY(QString alertMessage READ AlertMessage NOTIFY AlertMessageChanged)
     Q_PROPERTY(bool alertVisible READ AlertVisible NOTIFY AlertVisibleChanged)
     Q_PROPERTY(QString speechSubtitleText READ SpeechSubtitleText NOTIFY SpeechSubtitleTextChanged)
+    Q_PROPERTY(bool speechSubtitleEnabled READ SpeechSubtitleEnabled NOTIFY SpeechSubtitleEnabledChanged)
+    Q_PROPERTY(bool speechSubtitleAvailable READ SpeechSubtitleAvailable NOTIFY SpeechSubtitleAvailableChanged)
+    Q_PROPERTY(QString speechSubtitleUnavailableReason READ SpeechSubtitleUnavailableReason NOTIFY SpeechSubtitleUnavailableReasonChanged)
     Q_PROPERTY(bool speechSubtitleActive READ SpeechSubtitleActive NOTIFY SpeechSubtitleActiveChanged)
     Q_PROPERTY(bool speechSubtitleFinal READ SpeechSubtitleFinal NOTIFY SpeechSubtitleFinalChanged)
     Q_PROPERTY(qint64 speechSubtitleLatencyMs READ SpeechSubtitleLatencyMs NOTIFY SpeechSubtitleLatencyMsChanged)
@@ -86,6 +89,9 @@ class AppShellBridge final : public QObject {
     QString AlertMessage() const;
     bool AlertVisible() const;
     QString SpeechSubtitleText() const;
+    bool SpeechSubtitleEnabled() const;
+    bool SpeechSubtitleAvailable() const;
+    QString SpeechSubtitleUnavailableReason() const;
     bool SpeechSubtitleActive() const;
     bool SpeechSubtitleFinal() const;
     qint64 SpeechSubtitleLatencyMs() const;
@@ -102,6 +108,7 @@ class AppShellBridge final : public QObject {
     void SetConfiguredEpgUrl(const QString &epg_url);
     void SetLogPaths(const QString &log_file_path, const QString &logs_directory_path);
     void SetAlertMessage(const QString &message);
+    void SetSpeechSubtitleControlState(bool enabled, bool available, const QString &unavailable_reason);
     void SetSpeechSubtitle(const QString &text, bool is_final, qint64 latency_ms);
     void ClearSpeechSubtitle();
 
@@ -119,6 +126,7 @@ class AppShellBridge final : public QObject {
     Q_INVOKABLE void copyDiagnosticsToClipboard();
     Q_INVOKABLE void dismissAlert();
     Q_INVOKABLE void openRecentAt(int index);
+    Q_INVOKABLE void toggleSpeechSubtitleEnabled();
 
    signals:
     void AvailableGroupsChanged();
@@ -146,6 +154,9 @@ class AppShellBridge final : public QObject {
     void AlertMessageChanged();
     void AlertVisibleChanged();
     void SpeechSubtitleTextChanged();
+    void SpeechSubtitleEnabledChanged();
+    void SpeechSubtitleAvailableChanged();
+    void SpeechSubtitleUnavailableReasonChanged();
     void SpeechSubtitleActiveChanged();
     void SpeechSubtitleFinalChanged();
     void SpeechSubtitleLatencyMsChanged();
@@ -162,6 +173,7 @@ class AppShellBridge final : public QObject {
     void OpenLogsFolderRequested();
     void CopyDiagnosticsRequested();
     void RecentOpenRequested(const QString &request_kind, const QString &target);
+    void SpeechSubtitleEnabledRequested(bool enabled);
 
    private:
     ui::models::ChannelFilterModel *channel_model_ = nullptr;
@@ -184,6 +196,9 @@ class AppShellBridge final : public QObject {
     QString alert_message_;
     bool alert_visible_ = false;
     QString speech_subtitle_text_;
+    bool speech_subtitle_enabled_ = false;
+    bool speech_subtitle_available_ = false;
+    QString speech_subtitle_unavailable_reason_;
     bool speech_subtitle_active_ = false;
     bool speech_subtitle_final_ = false;
     qint64 speech_subtitle_latency_ms_ = -1;

@@ -20,6 +20,7 @@ class PlayerController final : public QObject {
     void Stop();
     void SetVolume(int volume);
     void SetMuted(bool muted);
+    void SetSpeechSubtitleEnabled(bool enabled);
 
     const domain::PlayerSnapshot &CurrentSnapshot() const;
 

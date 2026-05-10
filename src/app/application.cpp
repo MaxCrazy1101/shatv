@@ -88,6 +88,55 @@ QString FfmpegSmokeMediaPath() {
     return {};
 }
 
+#if defined(SHATV_ENABLE_ASR)
+QString SpeechSubtitleEnvironmentValue(const char *name) {
+    return qEnvironmentVariable(name).trimmed();
+}
+
+QString SpeechSubtitleModelDirectory() {
+    return SpeechSubtitleEnvironmentValue("SHATV_ASR_MODEL_DIR");
+}
+
+QString SpeechSubtitleModelFileName(const char *environment_name, const QString &default_file_name) {
+    const QString override_file_name = SpeechSubtitleEnvironmentValue(environment_name);
+    if (!override_file_name.isEmpty()) {
+        return override_file_name;
+    }
+    return default_file_name;
+}
+
+bool ValidateSpeechSubtitleModelFile(const QString &model_dir,
+                                     const QString &file_name,
+                                     QString *unavailable_reason) {
+    const QString path = QDir(model_dir).filePath(file_name);
+    if (QFileInfo(path).isFile()) {
+        return true;
+    }
+
+    if (unavailable_reason != nullptr) {
+        *unavailable_reason =
+            QCoreApplication::translate("Application", "Required ASR model file is missing: %1").arg(path);
+    }
+    return false;
+}
+
+bool ValidateSpeechSubtitleProvider(QString *unavailable_reason) {
+    const QString provider = SpeechSubtitleEnvironmentValue("SHATV_ASR_PROVIDER");
+    if (provider.isEmpty() ||
+        provider == QStringLiteral("cpu") ||
+        provider == QStringLiteral("cuda") ||
+        provider == QStringLiteral("coreml")) {
+        return true;
+    }
+
+    if (unavailable_reason != nullptr) {
+        *unavailable_reason =
+            QCoreApplication::translate("Application", "Unsupported ASR provider: %1").arg(provider);
+    }
+    return false;
+}
+#endif
+
 }  // namespace
 
 Application::Application(QGuiApplication *qt_app, LaunchOptions options)
@@ -129,6 +178,7 @@ Application::Application(QGuiApplication *qt_app, LaunchOptions options)
 
     controller_->SetVolume(settings_.Volume());
     controller_->SetMuted(settings_.Muted());
+    RefreshSpeechSubtitleControl();
 
     qml_engine_->rootContext()->setContextProperty(QStringLiteral("appShellBridge"), shell_bridge_.get());
     ui::video::RegisterQmlVideoTypes();
@@ -175,6 +225,8 @@ Application::Application(QGuiApplication *qt_app, LaunchOptions options)
                      &application::PlayerController::SetMuted);
     QObject::connect(shell_bridge_.get(), &ui::shell::AppShellBridge::VolumeRequested, controller_.get(),
                      &application::PlayerController::SetVolume);
+    QObject::connect(shell_bridge_.get(), &ui::shell::AppShellBridge::SpeechSubtitleEnabledRequested, qt_app_,
+                     [this](bool enabled) { UpdateSpeechSubtitleEnabled(enabled); });
     QObject::connect(shell_bridge_.get(), &ui::shell::AppShellBridge::OpenFileRequested, qt_app_,
                      [this](const QString &path) {
                          ResolveOpenRequest(OpenRequest{
@@ -606,6 +658,93 @@ void Application::OpenRecentItem(const QString &request_kind, const QString &tar
         .label = {},
         .replay_request_kind = *parsed_request_kind,
     });
+}
+
+bool Application::SpeechSubtitleAvailable(QString *unavailable_reason) const {
+#if defined(SHATV_ENABLE_ASR)
+    const QString model_dir = SpeechSubtitleModelDirectory();
+    if (model_dir.isEmpty()) {
+        if (unavailable_reason != nullptr) {
+            *unavailable_reason =
+                QCoreApplication::translate("Application", "Speech recognition model directory is not configured");
+        }
+        return false;
+    }
+    const QString encoder_name =
+        SpeechSubtitleModelFileName("SHATV_ASR_ENCODER_NAME", QStringLiteral("encoder.int8.onnx"));
+    const QString decoder_name =
+        SpeechSubtitleModelFileName("SHATV_ASR_DECODER_NAME", QStringLiteral("decoder.int8.onnx"));
+    const QString tokens_name =
+        SpeechSubtitleModelFileName("SHATV_ASR_TOKENS_NAME", QStringLiteral("tokens.txt"));
+    if (!ValidateSpeechSubtitleModelFile(model_dir, encoder_name, unavailable_reason) ||
+        !ValidateSpeechSubtitleModelFile(model_dir, decoder_name, unavailable_reason) ||
+        !ValidateSpeechSubtitleModelFile(model_dir, tokens_name, unavailable_reason) ||
+        !ValidateSpeechSubtitleProvider(unavailable_reason)) {
+        return false;
+    }
+    if (unavailable_reason != nullptr) {
+        unavailable_reason->clear();
+    }
+    return true;
+#else
+    if (unavailable_reason != nullptr) {
+        *unavailable_reason =
+            QCoreApplication::translate("Application", "This build does not include speech recognition subtitles");
+    }
+    return false;
+#endif
+}
+
+void Application::RefreshSpeechSubtitleControl() {
+    QString unavailable_reason;
+    const bool available = SpeechSubtitleAvailable(&unavailable_reason);
+    const bool effective_enabled = settings_.SpeechSubtitleEnabled() && available;
+
+    shell_bridge_->SetSpeechSubtitleControlState(effective_enabled, available, unavailable_reason);
+    controller_->SetSpeechSubtitleEnabled(effective_enabled);
+    if (!effective_enabled) {
+        shell_bridge_->ClearSpeechSubtitle();
+    }
+}
+
+void Application::UpdateSpeechSubtitleEnabled(bool enabled) {
+    QString unavailable_reason;
+    const bool available = SpeechSubtitleAvailable(&unavailable_reason);
+    if (enabled && !available) {
+        shell_bridge_->SetSpeechSubtitleControlState(false, false, unavailable_reason);
+        controller_->SetSpeechSubtitleEnabled(false);
+        shell_bridge_->ClearSpeechSubtitle();
+        ShowStatusMessage(unavailable_reason, 3000);
+        return;
+    }
+
+    const bool previous_enabled = settings_.SpeechSubtitleEnabled();
+    settings_.SetSpeechSubtitleEnabled(enabled);
+    if (!options_.smoke_test && !options_.ffmpeg_audio_smoke && !options_.ffmpeg_smoke && !settings_.Save()) {
+        settings_.SetSpeechSubtitleEnabled(previous_enabled);
+        qCWarning(log_config).noquote()
+            << "Speech subtitle preference save failed path="
+            << QDir::toNativeSeparators(settings_.ConfigPath());
+        RefreshSpeechSubtitleControl();
+        ShowAlert(QCoreApplication::translate("Application", "Failed to save speech subtitle setting"));
+        return;
+    }
+
+    const bool effective_enabled = enabled && available;
+    shell_bridge_->SetSpeechSubtitleControlState(effective_enabled, available, unavailable_reason);
+    controller_->SetSpeechSubtitleEnabled(effective_enabled);
+    if (!effective_enabled) {
+        shell_bridge_->ClearSpeechSubtitle();
+    }
+
+    qCInfo(log_config)
+        << "Speech subtitle preference saved"
+        << "enabled=" << enabled
+        << "effectiveEnabled=" << effective_enabled;
+    ShowStatusMessage(enabled
+                          ? QCoreApplication::translate("Application", "Speech recognition subtitles enabled")
+                          : QCoreApplication::translate("Application", "Speech recognition subtitles disabled"),
+                      3000);
 }
 
 void Application::StartInitialPlayback() {

@@ -22,6 +22,7 @@ class PlayerBackend : public QObject {
     virtual void Stop() = 0;
     virtual void SetVolume(int volume) = 0;
     virtual void SetMuted(bool muted) = 0;
+    virtual void SetSpeechSubtitleEnabled(bool enabled) = 0;
 
    signals:
     void SnapshotChanged(const shatv::domain::PlayerSnapshot &snapshot);

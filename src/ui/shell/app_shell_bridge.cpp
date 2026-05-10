@@ -130,6 +130,18 @@ QString AppShellBridge::SpeechSubtitleText() const {
     return speech_subtitle_text_;
 }
 
+bool AppShellBridge::SpeechSubtitleEnabled() const {
+    return speech_subtitle_enabled_;
+}
+
+bool AppShellBridge::SpeechSubtitleAvailable() const {
+    return speech_subtitle_available_;
+}
+
+QString AppShellBridge::SpeechSubtitleUnavailableReason() const {
+    return speech_subtitle_unavailable_reason_;
+}
+
 bool AppShellBridge::SpeechSubtitleActive() const {
     return speech_subtitle_active_;
 }
@@ -320,6 +332,23 @@ void AppShellBridge::SetAlertMessage(const QString &message) {
     }
 }
 
+void AppShellBridge::SetSpeechSubtitleControlState(bool enabled,
+                                                   bool available,
+                                                   const QString &unavailable_reason) {
+    if (speech_subtitle_enabled_ != enabled) {
+        speech_subtitle_enabled_ = enabled;
+        emit SpeechSubtitleEnabledChanged();
+    }
+    if (speech_subtitle_available_ != available) {
+        speech_subtitle_available_ = available;
+        emit SpeechSubtitleAvailableChanged();
+    }
+    if (speech_subtitle_unavailable_reason_ != unavailable_reason) {
+        speech_subtitle_unavailable_reason_ = unavailable_reason;
+        emit SpeechSubtitleUnavailableReasonChanged();
+    }
+}
+
 void AppShellBridge::SetSpeechSubtitle(const QString &text, bool is_final, qint64 latency_ms) {
     const bool active = !text.isEmpty();
     const QString status_text = !active
@@ -400,6 +429,10 @@ void AppShellBridge::setVolume(int volume) {
     }
 
     emit VolumeRequested(clamped_volume);
+}
+
+void AppShellBridge::toggleSpeechSubtitleEnabled() {
+    emit SpeechSubtitleEnabledRequested(!speech_subtitle_enabled_);
 }
 
 void AppShellBridge::submitOpenFile(const QUrl &file_url) {

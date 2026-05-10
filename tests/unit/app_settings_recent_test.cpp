@@ -25,6 +25,7 @@ class AppSettingsRecentTest final : public QObject {
    private slots:
     void migrates_legacy_kind_entries_to_request_kind();
     void persists_request_kind_target_label_round_trip();
+    void persists_speech_subtitle_enabled_round_trip();
     void rejects_unknown_kind_token_on_load();
 };
 
@@ -87,6 +88,24 @@ void AppSettingsRecentTest::persists_request_kind_target_label_round_trip() {
     QCOMPARE(EnumValue(items.at(1).request_kind), EnumValue(OpenRequestKind::kUrlText));
     QCOMPARE(items.at(1).target, QString("https://example.com/live.m3u8"));
     QCOMPARE(items.at(1).label, QString("Live"));
+}
+
+void AppSettingsRecentTest::persists_speech_subtitle_enabled_round_trip() {
+    QTemporaryDir temp_dir;
+    QVERIFY(temp_dir.isValid());
+    const QString config_path = temp_dir.filePath("config.toml");
+
+    {
+        AppSettings writer(config_path);
+        QVERIFY(writer.Load());
+        QVERIFY(!writer.SpeechSubtitleEnabled());
+        writer.SetSpeechSubtitleEnabled(true);
+        QVERIFY(writer.Save());
+    }
+
+    AppSettings reader(config_path);
+    QVERIFY(reader.Load());
+    QVERIFY(reader.SpeechSubtitleEnabled());
 }
 
 void AppSettingsRecentTest::rejects_unknown_kind_token_on_load() {

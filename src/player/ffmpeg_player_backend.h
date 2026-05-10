@@ -48,6 +48,7 @@ class FfmpegPlayerBackend final : public PlayerBackend {
     void Stop() override;
     void SetVolume(int volume) override;
     void SetMuted(bool muted) override;
+    void SetSpeechSubtitleEnabled(bool enabled) override;
     void AttachVideoSink(VideoFrameSink *sink);
     void DetachVideoSink(VideoFrameSink *sink);
     void SetVideoOnlyMode(bool video_only);
@@ -58,10 +59,15 @@ class FfmpegPlayerBackend final : public PlayerBackend {
     PlaybackPipelineResult RunAudioPipeline(domain::MediaSourceDescriptor source);
     PlaybackPipelineResult RunVideoPipeline(domain::MediaSourceDescriptor source);
 #if defined(SHATV_ENABLE_ASR)
-    bool TapAsrAudioFrame(const AVFrame &frame, QString *error_message);
+    bool TapAsrAudioFrame(const AVFrame &frame,
+                          const domain::MediaSourceDescriptor &source,
+                          QString *error_message);
     bool StartAsrSession(const domain::MediaSourceDescriptor &source, QString *error_message);
+    bool StartAsrSessionLocked(const domain::MediaSourceDescriptor &source, QString *error_message);
     bool FinishAsrSession(QString *error_message);
+    bool FinishAsrSessionLocked(QString *error_message);
     void StopAsrSession();
+    void StopAsrSessionLocked();
 #endif
     void DrainVideoFrames(const domain::MediaSourceDescriptor &source,
                           bool *emitted_playing,
@@ -84,6 +90,7 @@ class FfmpegPlayerBackend final : public PlayerBackend {
     mutable QMutex snapshot_mutex_;
     media::audio::AudioOutput audio_output_;
 #if defined(SHATV_ENABLE_ASR)
+    mutable QMutex asr_mutex_;
     media::asr::PcmConverter asr_pcm_converter_;
     media::asr::StreamingRecognizerWorker asr_worker_;
     std::atomic_bool asr_session_active_ = false;
@@ -93,6 +100,7 @@ class FfmpegPlayerBackend final : public PlayerBackend {
     std::atomic_bool abort_requested_ = false;
     std::atomic_int volume_ = 50;
     std::atomic_bool muted_ = false;
+    std::atomic_bool speech_subtitle_enabled_ = false;
     std::atomic_bool video_only_mode_ = false;
     std::atomic<VideoFrameSink *> video_sink_ = nullptr;
 };
