@@ -91,6 +91,25 @@ bool ReadPcm16MonoWave(const QString &path, WaveFixture *wave, QString *error_me
     return true;
 }
 
+bool EnqueueSamples(StreamingRecognizerWorker *worker,
+                    const std::vector<float> &samples,
+                    int sample_rate,
+                    QString *error_message) {
+    constexpr std::size_t kChunkSamples = 3200;
+    for (std::size_t offset = 0; offset < samples.size(); offset += kChunkSamples) {
+        const std::size_t end = std::min(offset + kChunkSamples, samples.size());
+        PcmChunk chunk;
+        chunk.sample_rate = sample_rate;
+        chunk.channel_count = 1;
+        chunk.samples.assign(samples.begin() + static_cast<std::ptrdiff_t>(offset),
+                             samples.begin() + static_cast<std::ptrdiff_t>(end));
+        if (!worker->Enqueue(std::move(chunk), error_message)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 class AsrStreamingRecognizerWorkerTest : public QObject {
     Q_OBJECT
 
@@ -98,6 +117,7 @@ class AsrStreamingRecognizerWorkerTest : public QObject {
     void rejects_missing_model_files();
     void rejects_unsupported_provider();
     void recognizes_fixture_when_configured();
+    void finalizes_endpoint_before_finish_when_silence_is_enqueued();
 };
 
 void AsrStreamingRecognizerWorkerTest::rejects_missing_model_files() {
@@ -130,13 +150,19 @@ void AsrStreamingRecognizerWorkerTest::recognizes_fixture_when_configured() {
 
     QString last_text;
     QString final_text;
+    QString emitted_texts;
     std::mutex result_mutex;
     StreamingRecognizerConfig config;
     config.model_dir = QString::fromUtf8(SHATV_ASR_WORKER_MODEL_DIR);
     config.max_queued_chunks = 128;
-    config.result_callback = [&last_text, &final_text, &result_mutex](const StreamingRecognitionResult &result) {
+    config.result_callback = [&last_text,
+                              &final_text,
+                              &emitted_texts,
+                              &result_mutex](const StreamingRecognitionResult &result) {
         std::lock_guard<std::mutex> lock(result_mutex);
         last_text = result.text;
+        emitted_texts += result.text;
+        emitted_texts += QLatin1Char('\n');
         if (result.is_final) {
             final_text = result.text;
         }
@@ -145,23 +171,57 @@ void AsrStreamingRecognizerWorkerTest::recognizes_fixture_when_configured() {
     StreamingRecognizerWorker worker;
     QVERIFY2(worker.StartSession(config, &error_message), qPrintable(error_message));
 
-    constexpr std::size_t kChunkSamples = 3200;
-    for (std::size_t offset = 0; offset < wave.samples.size(); offset += kChunkSamples) {
-        const std::size_t end = std::min(offset + kChunkSamples, wave.samples.size());
-        PcmChunk chunk;
-        chunk.sample_rate = wave.sample_rate;
-        chunk.channel_count = 1;
-        chunk.samples.assign(wave.samples.begin() + static_cast<std::ptrdiff_t>(offset),
-                             wave.samples.begin() + static_cast<std::ptrdiff_t>(end));
-        QVERIFY2(worker.Enqueue(std::move(chunk), &error_message), qPrintable(error_message));
-    }
+    QVERIFY2(EnqueueSamples(&worker, wave.samples, wave.sample_rate, &error_message), qPrintable(error_message));
 
     QVERIFY2(worker.FinishSession(&error_message), qPrintable(error_message));
     {
         std::lock_guard<std::mutex> lock(result_mutex);
         QVERIFY(!last_text.isEmpty());
         QVERIFY(!final_text.isEmpty());
-        QVERIFY(final_text.contains(QStringLiteral("昨天")));
+        QVERIFY2(emitted_texts.contains(QStringLiteral("昨天")), qPrintable(emitted_texts));
+    }
+#else
+    QSKIP("SHATV_ASR_WORKER_MODEL_DIR and SHATV_ASR_WORKER_AUDIO_FILE are not configured");
+#endif
+}
+
+void AsrStreamingRecognizerWorkerTest::finalizes_endpoint_before_finish_when_silence_is_enqueued() {
+#if defined(SHATV_ASR_WORKER_MODEL_DIR) && defined(SHATV_ASR_WORKER_AUDIO_FILE)
+    WaveFixture wave;
+    QString error_message;
+    QVERIFY2(ReadPcm16MonoWave(QString::fromUtf8(SHATV_ASR_WORKER_AUDIO_FILE), &wave, &error_message),
+             qPrintable(error_message));
+
+    QString endpoint_final_text;
+    std::mutex result_mutex;
+    StreamingRecognizerConfig config;
+    config.model_dir = QString::fromUtf8(SHATV_ASR_WORKER_MODEL_DIR);
+    config.max_queued_chunks = 256;
+    config.result_callback = [&endpoint_final_text, &result_mutex](const StreamingRecognitionResult &result) {
+        if (!result.is_final) {
+            return;
+        }
+        std::lock_guard<std::mutex> lock(result_mutex);
+        endpoint_final_text = result.text;
+    };
+
+    StreamingRecognizerWorker worker;
+    QVERIFY2(worker.StartSession(config, &error_message), qPrintable(error_message));
+    QVERIFY2(EnqueueSamples(&worker, wave.samples, wave.sample_rate, &error_message), qPrintable(error_message));
+
+    const std::size_t silence_samples = static_cast<std::size_t>(wave.sample_rate * 4);
+    const std::vector<float> silence(silence_samples, 0.0F);
+    QVERIFY2(EnqueueSamples(&worker, silence, wave.sample_rate, &error_message), qPrintable(error_message));
+
+    auto endpoint_final_seen = [&endpoint_final_text, &result_mutex]() {
+        std::lock_guard<std::mutex> lock(result_mutex);
+        return !endpoint_final_text.isEmpty();
+    };
+    QTRY_VERIFY_WITH_TIMEOUT(endpoint_final_seen(), 20000);
+    QVERIFY2(worker.FinishSession(&error_message), qPrintable(error_message));
+    {
+        std::lock_guard<std::mutex> lock(result_mutex);
+        QVERIFY(!endpoint_final_text.isEmpty());
     }
 #else
     QSKIP("SHATV_ASR_WORKER_MODEL_DIR and SHATV_ASR_WORKER_AUDIO_FILE are not configured");

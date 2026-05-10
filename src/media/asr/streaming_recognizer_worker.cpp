@@ -10,6 +10,7 @@
 
 #include <QDir>
 #include <QFileInfo>
+#include <QLoggingCategory>
 
 extern "C" {
 #include <sherpa-onnx/c-api/c-api.h>
@@ -21,6 +22,8 @@ namespace {
 
 constexpr int kAsrFeatureSampleRate = 16000;
 constexpr int kAsrFeatureDim = 80;
+
+Q_LOGGING_CATEGORY(log_asr, "shatv.asr")
 
 QString ModelFilePath(const StreamingRecognizerConfig &config, const QString &file_name) {
     return QDir(config.model_dir).filePath(file_name);
@@ -302,7 +305,8 @@ class StreamingRecognizerWorker::Impl final {
                                             static_cast<int32_t>(chunk.samples.size()));
         last_decoded_chunk_queued_at_ = queued_chunk.queued_at;
         DecodeReady();
-        EmitResult(false);
+        EmitCurrentResult(false);
+        FinalizeSegmentIfEndpoint();
     }
 
     void DecodeFinal() {
@@ -314,7 +318,7 @@ class StreamingRecognizerWorker::Impl final {
         SherpaOnnxOnlineStreamSetOption(stream_.get(), "is_final", "1");
         SherpaOnnxOnlineStreamInputFinished(stream_.get());
         DecodeReady();
-        EmitResult(true);
+        EmitCurrentResult(true);
     }
 
     void DecodeReady() {
@@ -323,31 +327,67 @@ class StreamingRecognizerWorker::Impl final {
         }
     }
 
-    void EmitResult(bool is_final) {
+    QString CurrentResultText() const {
         ResultPtr result(SherpaOnnxGetOnlineStreamResult(recognizer_.get(), stream_.get()));
         if (!result || result->text == nullptr || result->text[0] == '\0') {
-            return;
+            return {};
         }
 
-        const QString text = QString::fromUtf8(result->text);
+        return QString::fromUtf8(result->text);
+    }
+
+    qint64 CurrentLatencyMs() const {
+        if (last_decoded_chunk_queued_at_.time_since_epoch().count() <= 0) {
+            return -1;
+        }
+        return std::chrono::duration_cast<std::chrono::milliseconds>(
+                   std::chrono::steady_clock::now() - last_decoded_chunk_queued_at_)
+            .count();
+    }
+
+    bool EmitResult(QString text, bool is_final, qint64 latency_ms) {
+        if (text.isEmpty()) {
+            return false;
+        }
         if (!is_final && text == last_text_) {
-            return;
+            return false;
         }
         last_text_ = text;
 
         if (result_callback_) {
-            qint64 latency_ms = -1;
-            if (last_decoded_chunk_queued_at_.time_since_epoch().count() > 0) {
-                latency_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                 std::chrono::steady_clock::now() - last_decoded_chunk_queued_at_)
-                                 .count();
-            }
             result_callback_(StreamingRecognitionResult{
                 .text = text,
                 .is_final = is_final,
                 .latency_ms = latency_ms,
             });
         }
+        return true;
+    }
+
+    bool EmitCurrentResult(bool is_final) {
+        return EmitResult(CurrentResultText(), is_final, CurrentLatencyMs());
+    }
+
+    void FinalizeSegmentIfEndpoint() {
+        if (SherpaOnnxOnlineStreamIsEndpoint(recognizer_.get(), stream_.get()) == 0) {
+            return;
+        }
+
+        QString final_text = CurrentResultText();
+        if (final_text.isEmpty()) {
+            final_text = last_text_;
+        }
+        const qint64 latency_ms = CurrentLatencyMs();
+        const bool emitted = EmitResult(final_text, true, latency_ms);
+
+        qCInfo(log_asr).noquote()
+            << "ASR segment finalized"
+            << "textLength=" << final_text.size()
+            << "latencyMs=" << latency_ms
+            << "emitted=" << emitted;
+        SherpaOnnxOnlineStreamReset(recognizer_.get(), stream_.get());
+        last_text_.clear();
+        last_decoded_chunk_queued_at_ = {};
     }
 
     void SetWorkerError(QString error_message) {
