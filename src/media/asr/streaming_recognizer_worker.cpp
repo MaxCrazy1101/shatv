@@ -104,9 +104,11 @@ class StreamingRecognizerWorker::Impl final {
         tokens_path_text_ = tokens_path_.toStdString();
         provider_text_ = config.provider.toStdString();
         max_queued_chunks_ = config.max_queued_chunks;
+        benchmark_logging_ = config.benchmark_logging;
         result_callback_ = config.result_callback;
         last_text_.clear();
         last_decoded_chunk_queued_at_ = {};
+        ResetBenchmarkStats();
 
         SherpaOnnxOnlineRecognizerConfig recognizer_config{};
         recognizer_config.feat_config.sample_rate = kAsrFeatureSampleRate;
@@ -174,6 +176,7 @@ class StreamingRecognizerWorker::Impl final {
             return false;
         }
         if (queue_.size() >= static_cast<std::size_t>(max_queued_chunks_)) {
+            ++queue_overflow_count_;
             if (error_message != nullptr) {
                 *error_message = QStringLiteral("ASR PCM queue overflow: %1 queued chunks")
                                      .arg(static_cast<int>(queue_.size()));
@@ -299,12 +302,18 @@ class StreamingRecognizerWorker::Impl final {
         }
 
         const PcmChunk &chunk = queued_chunk.chunk;
+        const auto decode_started_at = std::chrono::steady_clock::now();
         SherpaOnnxOnlineStreamAcceptWaveform(stream_.get(),
                                             chunk.sample_rate,
                                             chunk.samples.data(),
                                             static_cast<int32_t>(chunk.samples.size()));
         last_decoded_chunk_queued_at_ = queued_chunk.queued_at;
         DecodeReady();
+        const qint64 decode_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                     std::chrono::steady_clock::now() - decode_started_at)
+                                     .count();
+        const qint64 audio_ms = AudioDurationMs(chunk);
+        RecordBenchmarkChunk(audio_ms, decode_ms, CurrentLatencyMs());
         EmitCurrentResult(false);
         FinalizeSegmentIfEndpoint();
     }
@@ -361,6 +370,15 @@ class StreamingRecognizerWorker::Impl final {
                 .latency_ms = latency_ms,
             });
         }
+        if (benchmark_logging_) {
+            ++emitted_result_count_;
+            if (is_final) {
+                ++final_result_count_;
+            }
+            if (latency_ms > max_latency_ms_) {
+                max_latency_ms_ = latency_ms;
+            }
+        }
         return true;
     }
 
@@ -411,16 +429,79 @@ class StreamingRecognizerWorker::Impl final {
     }
 
     void StopHandles() {
+        LogBenchmarkSummary();
         stream_.reset();
         recognizer_.reset();
         result_callback_ = {};
         last_text_.clear();
         last_decoded_chunk_queued_at_ = {};
+        ResetBenchmarkStats();
         std::lock_guard<std::mutex> lock(mutex_);
         queue_.clear();
         running_ = false;
         stop_requested_ = false;
         input_finished_ = false;
+    }
+
+    static qint64 AudioDurationMs(const PcmChunk &chunk) {
+        if (chunk.sample_rate <= 0) {
+            return 0;
+        }
+        return static_cast<qint64>(chunk.samples.size()) * 1000 / chunk.sample_rate;
+    }
+
+    void RecordBenchmarkChunk(qint64 audio_ms, qint64 decode_ms, qint64 latency_ms) {
+        if (!benchmark_logging_) {
+            return;
+        }
+        ++decoded_chunk_count_;
+        total_audio_ms_ += audio_ms;
+        total_decode_ms_ += decode_ms;
+        if (decode_ms > max_decode_ms_) {
+            max_decode_ms_ = decode_ms;
+        }
+        if (latency_ms > max_latency_ms_) {
+            max_latency_ms_ = latency_ms;
+        }
+        const double rtf = audio_ms > 0 ? static_cast<double>(decode_ms) / static_cast<double>(audio_ms) : 0.0;
+        qCInfo(log_asr).noquote()
+            << "ASR benchmark chunk"
+            << "chunk=" << decoded_chunk_count_
+            << "audioMs=" << audio_ms
+            << "decodeMs=" << decode_ms
+            << "rtf=" << rtf
+            << "latencyMs=" << latency_ms;
+    }
+
+    void LogBenchmarkSummary() const {
+        if (!benchmark_logging_ || decoded_chunk_count_ <= 0) {
+            return;
+        }
+        const double average_rtf = total_audio_ms_ > 0
+                                       ? static_cast<double>(total_decode_ms_) / static_cast<double>(total_audio_ms_)
+                                       : 0.0;
+        qCInfo(log_asr).noquote()
+            << "ASR benchmark summary"
+            << "chunks=" << decoded_chunk_count_
+            << "audioMs=" << total_audio_ms_
+            << "decodeMs=" << total_decode_ms_
+            << "averageRtf=" << average_rtf
+            << "maxDecodeMs=" << max_decode_ms_
+            << "maxLatencyMs=" << max_latency_ms_
+            << "results=" << emitted_result_count_
+            << "finalResults=" << final_result_count_
+            << "queueOverflows=" << queue_overflow_count_;
+    }
+
+    void ResetBenchmarkStats() {
+        decoded_chunk_count_ = 0;
+        emitted_result_count_ = 0;
+        final_result_count_ = 0;
+        queue_overflow_count_ = 0;
+        total_audio_ms_ = 0;
+        total_decode_ms_ = 0;
+        max_decode_ms_ = 0;
+        max_latency_ms_ = -1;
     }
 
     mutable std::mutex mutex_;
@@ -431,6 +512,15 @@ class StreamingRecognizerWorker::Impl final {
     bool stop_requested_ = false;
     bool input_finished_ = false;
     int max_queued_chunks_ = 64;
+    bool benchmark_logging_ = false;
+    int decoded_chunk_count_ = 0;
+    int emitted_result_count_ = 0;
+    int final_result_count_ = 0;
+    int queue_overflow_count_ = 0;
+    qint64 total_audio_ms_ = 0;
+    qint64 total_decode_ms_ = 0;
+    qint64 max_decode_ms_ = 0;
+    qint64 max_latency_ms_ = -1;
     QString worker_error_;
 
     RecognizerPtr recognizer_;

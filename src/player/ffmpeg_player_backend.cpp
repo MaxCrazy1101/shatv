@@ -107,6 +107,37 @@ int PositiveEnvironmentInt(const char *name, int default_value, QString *error_m
     }
     return value;
 }
+
+bool EnvironmentBool(const char *name, bool default_value, bool *value, QString *error_message) {
+    if (value == nullptr) {
+        if (error_message != nullptr) {
+            *error_message = QStringLiteral("missing boolean output for %1").arg(QString::fromLatin1(name));
+        }
+        return false;
+    }
+    if (!qEnvironmentVariableIsSet(name)) {
+        *value = default_value;
+        return true;
+    }
+
+    const QString text = qEnvironmentVariable(name).trimmed().toLower();
+    if (text == QStringLiteral("1") || text == QStringLiteral("true") ||
+        text == QStringLiteral("yes") || text == QStringLiteral("on")) {
+        *value = true;
+        return true;
+    }
+    if (text == QStringLiteral("0") || text == QStringLiteral("false") ||
+        text == QStringLiteral("no") || text == QStringLiteral("off")) {
+        *value = false;
+        return true;
+    }
+
+    if (error_message != nullptr) {
+        *error_message = QStringLiteral("%1 must be one of 1/0/true/false/on/off/yes/no")
+                             .arg(QString::fromLatin1(name));
+    }
+    return false;
+}
 #endif
 
 domain::RetryPolicy BackendRetryPolicy(const domain::MediaSourceDescriptor &source) {
@@ -459,6 +490,9 @@ bool FfmpegPlayerBackend::BuildAsrConfig(const domain::MediaSourceDescriptor &so
     config->max_queued_chunks =
         PositiveEnvironmentInt("SHATV_ASR_MAX_QUEUED_CHUNKS", kDefaultAsrMaxQueuedChunks, error_message);
     if (config->max_queued_chunks <= 0) {
+        return false;
+    }
+    if (!EnvironmentBool("SHATV_ASR_BENCHMARK_LOG", false, &config->benchmark_logging, error_message)) {
         return false;
     }
     config->result_callback = [this, generation, source_name = source.name](

@@ -103,11 +103,41 @@ Optional runtime overrides:
 - `SHATV_ASR_PROVIDER` defaults to `cpu`
 - `SHATV_ASR_NUM_THREADS` defaults to `1`
 - `SHATV_ASR_MAX_QUEUED_CHUNKS` defaults to `64`
+- `SHATV_ASR_BENCHMARK_LOG` defaults to `0`; set to `1` to log ASR benchmark metrics
 
 The worker queue is bounded and non-blocking. Queue overflow returns an explicit
-playback error instead of blocking FFmpeg decode or silently dropping stale ASR
-input. Recognition results are logged during M3.3; subtitle bridge and overlay
-state are M3.4 work.
+ASR error, stops the current ASR session, and clears subtitle state instead of
+blocking FFmpeg decode or silently dropping stale ASR input.
+
+## M3.5 Benchmark Run
+
+Use the ASR-enabled application build and a real media source with speech. The
+base app package still does not include model files.
+
+```bash
+env \
+  SHATV_ASR_MODEL_DIR=/path/to/sherpa-onnx-streaming-paraformer-bilingual-zh-en \
+  SHATV_ASR_BENCHMARK_LOG=1 \
+  /usr/bin/time -v ./build-asr/src/shatv --open-media /path/to/media-with-speech.mp4 \
+  2>&1 | tee build/asr-playback-benchmark.log
+```
+
+Collect at least these values from the run:
+
+- process CPU and maximum RSS from `/usr/bin/time -v`;
+- `ASR async startup completed elapsedMs=...`;
+- `ASR benchmark chunk ... audioMs=... decodeMs=... rtf=... latencyMs=...`;
+- `ASR benchmark summary ... averageRtf=... maxLatencyMs=... queueOverflows=...`;
+- visible subtitle behavior during playback, especially whether lag is readable.
+
+Interpretation for the first CPU/int8 Paraformer slice:
+
+- `averageRtf < 1.0` means ASR can keep up with realtime audio on that machine.
+- `queueOverflows=0` is required before treating a run as successful.
+- Subtitle latency can be visibly delayed, but it must not stall playback or keep
+  growing across endpoint resets.
+- Benchmark `SHATV_ASR_NUM_THREADS=1` first. Test `2` only if `averageRtf` or
+  visible latency is unacceptable.
 
 ## Future Online Model Service
 

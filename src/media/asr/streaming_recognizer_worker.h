@@ -24,6 +24,7 @@ struct StreamingRecognizerConfig {
     QString provider = QStringLiteral("cpu");
     int num_threads = 1;
     int max_queued_chunks = 64;
+    bool benchmark_logging = false;
     std::function<void(const StreamingRecognitionResult &result)> result_callback;
 };
 

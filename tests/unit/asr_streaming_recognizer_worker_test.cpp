@@ -155,6 +155,7 @@ void AsrStreamingRecognizerWorkerTest::recognizes_fixture_when_configured() {
     StreamingRecognizerConfig config;
     config.model_dir = QString::fromUtf8(SHATV_ASR_WORKER_MODEL_DIR);
     config.max_queued_chunks = 128;
+    config.benchmark_logging = true;
     config.result_callback = [&last_text,
                               &final_text,
                               &emitted_texts,
@@ -197,6 +198,7 @@ void AsrStreamingRecognizerWorkerTest::finalizes_endpoint_before_finish_when_sil
     StreamingRecognizerConfig config;
     config.model_dir = QString::fromUtf8(SHATV_ASR_WORKER_MODEL_DIR);
     config.max_queued_chunks = 256;
+    config.benchmark_logging = true;
     config.result_callback = [&endpoint_final_text, &result_mutex](const StreamingRecognitionResult &result) {
         if (!result.is_final) {
             return;
