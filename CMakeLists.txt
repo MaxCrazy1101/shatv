@@ -17,6 +17,7 @@ set(CMAKE_AUTORCC ON)
 
 option(BUILD_TESTING "Build ShaTV tests" OFF)
 option(SHATV_ENABLE_ASR "Build optional sherpa-onnx ASR development probes" OFF)
+option(SHATV_REQUIRE_LIBARCHIVE "Require libarchive for app-managed ASR model archive extraction" OFF)
 include(CTest)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -88,6 +89,13 @@ if(NOT ZLIB_FOUND)
     else()
         message(FATAL_ERROR "Fetched zlib, but no usable library target was exported.")
     endif()
+endif()
+
+find_package(LibArchive QUIET)
+if(NOT LibArchive_FOUND AND SHATV_REQUIRE_LIBARCHIVE)
+    message(FATAL_ERROR
+        "LibArchive not found. Install libarchive or re-run with "
+        "-DSHATV_REQUIRE_LIBARCHIVE=OFF to build without app-managed model extraction.")
 endif()
 
 qt_policy(SET QTP0001 NEW)

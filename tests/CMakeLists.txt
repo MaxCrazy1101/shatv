@@ -133,6 +133,21 @@ add_test(
     COMMAND $<TARGET_FILE:asr_model_service_test>
 )
 
+add_executable(asr_model_archive_installer_test
+    unit/asr_model_archive_installer_test.cpp
+)
+
+target_link_libraries(asr_model_archive_installer_test
+    PRIVATE
+        shatv_app
+        Qt6::Test
+)
+
+add_test(
+    NAME asr_model_archive_installer_test
+    COMMAND $<TARGET_FILE:asr_model_archive_installer_test>
+)
+
 add_executable(app_settings_recent_test
     unit/app_settings_recent_test.cpp
 )

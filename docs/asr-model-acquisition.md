@@ -245,6 +245,23 @@ M5.2a archive cache service:
   mismatch removes the `.part` file and does not replace an existing final
   archive.
 
+M5.2b archive extraction and install service:
+
+- `.tar.bz2` extraction uses libarchive when it is available at build time.
+- CMake option `SHATV_REQUIRE_LIBARCHIVE=ON` makes missing libarchive a
+  configure error. With the default `OFF`, ShaTV still builds and the installer
+  reports that archive extraction requires libarchive support.
+- `AsrModelArchiveInstaller` extracts a verified archive into a temporary
+  directory under the app-managed model root, rejects unsafe archive paths, and
+  rejects symlinks, hard links, and other non-regular-file entries.
+- Activation happens only after the extracted directory contains the selected
+  manifest's required encoder, decoder, and tokens files.
+- Existing installed models are preserved until validation passes. Activation
+  stages the new model directory, backs up the previous directory, renames the
+  staged directory into place, and restores the backup if activation fails.
+- The installed directory includes `asr_model_manifest.json` with the selected
+  manifest metadata.
+
 Production model policy after M3.5:
 
 - The base ShaTV package must not bundle model archives or extracted model files.

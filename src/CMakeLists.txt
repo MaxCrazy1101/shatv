@@ -7,6 +7,7 @@ configure_file(
 add_library(shatv_app
     app/application.cpp
     app/app_settings.cpp
+    app/asr_model_archive_installer.cpp
     app/asr_model_service.cpp
     app/epg_programme_presentation.cpp
     app/epg_service.cpp
@@ -56,6 +57,22 @@ target_link_libraries(shatv_app
         toml11::toml11
         ZLIB::ZLIB
 )
+
+if(LibArchive_FOUND)
+    target_link_libraries(shatv_app
+        PUBLIC
+            LibArchive::LibArchive
+    )
+    target_compile_definitions(shatv_app
+        PUBLIC
+            SHATV_HAS_LIBARCHIVE=1
+    )
+else()
+    target_compile_definitions(shatv_app
+        PUBLIC
+            SHATV_HAS_LIBARCHIVE=0
+    )
+endif()
 
 if(SHATV_ENABLE_ASR)
     target_sources(shatv_app
