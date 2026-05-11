@@ -139,6 +139,37 @@ Interpretation for the first CPU/int8 Paraformer slice:
 - Benchmark `SHATV_ASR_NUM_THREADS=1` first. Test `2` only if `averageRtf` or
   visible latency is unacceptable.
 
+Current M3.5 Linux/Wayland baseline from 2026-05-11:
+
+| Metric | Value |
+|--------|-------|
+| Source | CCTV7 live playback |
+| Model | `sherpa-onnx-streaming-paraformer-bilingual-zh-en` int8 |
+| Provider | `cpu` |
+| ASR startup | `808 ms` |
+| Recognized audio in summary | `20607 ms` |
+| ASR decode time in summary | `1755 ms` |
+| Average RTF | `0.0851652` |
+| Max ASR decode chunk | `57 ms` |
+| Max ASR queue latency | `57 ms` |
+| Queue overflows | `0` |
+| Process CPU | `11%` |
+| Process max RSS | `822332 KiB` |
+| Wall time | `2:12.75` |
+
+M3.5 decisions from this baseline:
+
+- Keep the CPU int8 bilingual Paraformer as the first production model target.
+- Keep `SHATV_ASR_NUM_THREADS=1` as the default. The measured RTF has enough
+  headroom, and a higher default thread count would spend more CPU before there
+  is evidence it improves subtitle readability.
+- Use an initial visible subtitle latency budget of about 1 second. ASR queue
+  latency should stay well below that; endpoint/finalization delay is accepted
+  as the readability tradeoff for segment boundaries.
+- Treat roughly 800 MiB RSS as the first measured ASR-enabled process-memory
+  cost on Linux/Wayland. Re-check this on Windows before enabling ASR in a
+  default portable package.
+
 ## Future Online Model Service
 
 Before ASR reaches the UI, model acquisition needs an explicit manifest and app-managed cache flow.
@@ -173,6 +204,17 @@ Service responsibilities:
 - Activate a model only when all required files exist.
 - Support deletion and redownload from the UI.
 
+Production model policy after M3.5:
+
+- The base ShaTV package must not bundle model archives or extracted model files.
+- The first user-facing production path is online model download on demand.
+- A user-configured local model directory can remain available for development
+  and advanced users, but it should not replace the app-managed download/cache
+  flow.
+- Model activation is per selected manifest version and requires checksum
+  verification plus required-file checks before the subtitle toggle becomes
+  available.
+
 ## Windows Notes
 
 The first Windows ASR probe should use a release x64 shared CPU sherpa-onnx package that matches the MSVC runtime strategy used by the app build. Runtime DLLs must be deployed next to `shatv_asr_probe.exe` or otherwise be discoverable by the Windows loader:
@@ -182,3 +224,13 @@ The first Windows ASR probe should use a release x64 shared CPU sherpa-onnx pack
 - any package-specific dependent DLLs
 
 The base ShaTV Windows package remains free of ASR model files until the online model service and license flow are implemented.
+
+M3.5 Windows packaging decision:
+
+- Keep Windows portable ASR as an optional ASR-capable package or add-on path,
+  not the default base package.
+- Ship native ASR runtime DLLs only in an ASR-enabled artifact after confirming
+  the matching sherpa-onnx/ONNX Runtime release, dependency DLL list, and license
+  notices.
+- Do not ship model files inside the Windows artifact. Use the same app-managed
+  online model download/cache policy as Linux.
