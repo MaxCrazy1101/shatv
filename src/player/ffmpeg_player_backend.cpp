@@ -737,8 +737,11 @@ void FfmpegPlayerBackend::RunPlaybackSession(domain::MediaSourceDescriptor sourc
 
 PlaybackPipelineResult FfmpegPlayerBackend::RunMediaPipeline(domain::MediaSourceDescriptor source) {
     media::demux::Demuxer demuxer;
+    const media::demux::DemuxerOpenOptions demux_options{
+        .abort_requested = &abort_requested_,
+    };
     QString error_message;
-    if (!demuxer.Open(source, &error_message)) {
+    if (!demuxer.Open(source, demux_options, &error_message)) {
         return PipelineFailed(tr("FFmpeg demux failed: %1").arg(error_message));
     }
 
@@ -865,8 +868,11 @@ PlaybackPipelineResult FfmpegPlayerBackend::RunMediaPipeline(domain::MediaSource
 
 PlaybackPipelineResult FfmpegPlayerBackend::RunAudioPipeline(domain::MediaSourceDescriptor source) {
     media::demux::Demuxer demuxer;
+    const media::demux::DemuxerOpenOptions demux_options{
+        .abort_requested = &abort_requested_,
+    };
     QString error_message;
-    if (!demuxer.Open(source, &error_message)) {
+    if (!demuxer.Open(source, demux_options, &error_message)) {
         return PipelineFailed(tr("FFmpeg demux failed: %1").arg(error_message));
     }
     if (!demuxer.HasAudioStream()) {
@@ -953,8 +959,11 @@ PlaybackPipelineResult FfmpegPlayerBackend::RunAudioPipeline(domain::MediaSource
 
 PlaybackPipelineResult FfmpegPlayerBackend::RunVideoPipeline(domain::MediaSourceDescriptor source) {
     media::demux::Demuxer demuxer;
+    const media::demux::DemuxerOpenOptions demux_options{
+        .abort_requested = &abort_requested_,
+    };
     QString error_message;
-    if (!demuxer.Open(source, &error_message)) {
+    if (!demuxer.Open(source, demux_options, &error_message)) {
         return PipelineFailed(tr("FFmpeg demux failed: %1").arg(error_message));
     }
     if (!demuxer.HasVideoStream()) {

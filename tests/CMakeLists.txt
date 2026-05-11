@@ -53,6 +53,21 @@ add_test(
     COMMAND $<TARGET_FILE:retry_schedule_test>
 )
 
+add_executable(demuxer_interrupt_test
+    unit/demuxer_interrupt_test.cpp
+)
+
+target_link_libraries(demuxer_interrupt_test
+    PRIVATE
+        shatv_app
+        Qt6::Test
+)
+
+add_test(
+    NAME demuxer_interrupt_test
+    COMMAND $<TARGET_FILE:demuxer_interrupt_test>
+)
+
 add_executable(ffmpeg_player_backend_retry_test
     unit/ffmpeg_player_backend_retry_test.cpp
 )
