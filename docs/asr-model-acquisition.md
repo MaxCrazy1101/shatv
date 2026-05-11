@@ -184,7 +184,7 @@ Initial manifest shape:
   "source_url": "https://...",
   "archive_size_bytes": 0,
   "installed_size_bytes": 0,
-  "sha256": "hex checksum",
+  "archive_sha256": "hex checksum",
   "license": "model license identifier",
   "attribution": "model source and required notice",
   "files": {
@@ -197,12 +197,26 @@ Initial manifest shape:
 
 Service responsibilities:
 
-- Detect whether the selected model is installed in the app data/cache directory.
+- Detect whether the selected model is installed in the app-managed local data
+  directory.
 - Show model size, source, version, checksum, license, and attribution before download.
 - Download only model archives, not native ASR runtime libraries.
 - Verify checksum before activation.
 - Activate a model only when all required files exist.
 - Support deletion and redownload from the UI.
+
+Storage locations:
+
+- Installed/extracted models live under
+  `QStandardPaths::AppLocalDataLocation/asr-models/<manifest.id>`. This keeps
+  large persistent model data local to the machine, especially on Windows where
+  `AppDataLocation` can resolve to roaming app data.
+- Downloaded archives and partial downloads live under
+  `QStandardPaths::CacheLocation/asr-model-archives`. These files are cache
+  artifacts and may be removed/redownloaded without deleting an installed model.
+- The exact native path depends on Qt's organization/application names. Typical
+  mappings are local app data on Windows, `~/Library/Application Support` plus
+  `~/Library/Caches` on macOS, and `~/.local/share` plus `~/.cache` on Linux.
 
 M5.1 status service:
 
@@ -217,6 +231,19 @@ M5.1 status service:
 - M5.1 only reports app-managed model status. Playback ASR startup still uses
   `SHATV_ASR_MODEL_DIR` until M5.4 connects managed model paths to the backend
   recognizer config.
+
+M5.2a archive cache service:
+
+- `AsrModelArchiveDownloader` uses `QNetworkAccessManager` to fetch the selected
+  manifest's `source_url`.
+- The archive is written to `<archive>.part` under
+  `QStandardPaths::CacheLocation/asr-model-archives`.
+- The `.part` file is renamed to the final cache path only after the downloaded
+  bytes match `archive_sha256`.
+- Existing cached archives are reused only after SHA256 verification.
+- Download failure, cancellation, write failure, size mismatch, or checksum
+  mismatch removes the `.part` file and does not replace an existing final
+  archive.
 
 Production model policy after M3.5:
 

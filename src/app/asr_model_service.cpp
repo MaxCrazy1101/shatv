@@ -1,10 +1,17 @@
 #include "app/asr_model_service.h"
 
+#include <QByteArray>
 #include <QDir>
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QStandardPaths>
+#include <QUrl>
+
+#include <utility>
 
 namespace shatv::app {
 
@@ -61,6 +68,68 @@ QStringList RequiredModelFiles(const AsrModelFileSet &files) {
     return QStringList{files.encoder_name, files.decoder_name, files.tokens_name};
 }
 
+QString SafeFileName(QString value) {
+    value = value.trimmed();
+    QString safe;
+    safe.reserve(value.size());
+    for (const QChar ch : value) {
+        safe.append(ch.isLetterOrNumber() || ch == QLatin1Char('-') || ch == QLatin1Char('_') ||
+                            ch == QLatin1Char('.')
+                        ? ch
+                        : QLatin1Char('_'));
+    }
+    return safe.isEmpty() ? QStringLiteral("asr-model") : safe;
+}
+
+QString ArchiveSuffixFromUrl(const QString &source_url) {
+    const QString file_name = QFileInfo(QUrl(source_url).path()).fileName().toLower();
+    if (file_name.endsWith(QStringLiteral(".tar.bz2"))) {
+        return QStringLiteral(".tar.bz2");
+    }
+    if (file_name.endsWith(QStringLiteral(".zip"))) {
+        return QStringLiteral(".zip");
+    }
+    return QStringLiteral(".archive");
+}
+
+bool FileSha256(const QString &path, QString *sha256, QString *error_message) {
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        if (error_message != nullptr) {
+            *error_message = QStringLiteral("Failed to read ASR model archive: %1").arg(file.errorString());
+        }
+        return false;
+    }
+
+    QCryptographicHash hash(QCryptographicHash::Sha256);
+    while (!file.atEnd()) {
+        const QByteArray chunk = file.read(1024 * 1024);
+        if (chunk.isEmpty() && file.error() != QFileDevice::NoError) {
+            if (error_message != nullptr) {
+                *error_message = QStringLiteral("Failed to read ASR model archive: %1").arg(file.errorString());
+            }
+            return false;
+        }
+        hash.addData(chunk);
+    }
+
+    if (sha256 != nullptr) {
+        *sha256 = QString::fromLatin1(hash.result().toHex());
+    }
+    return true;
+}
+
+bool Sha256Matches(const QString &path, const QString &expected_sha256, QString *actual_sha256, QString *error_message) {
+    QString actual;
+    if (!FileSha256(path, &actual, error_message)) {
+        return false;
+    }
+    if (actual_sha256 != nullptr) {
+        *actual_sha256 = actual;
+    }
+    return actual.compare(expected_sha256.trimmed(), Qt::CaseInsensitive) == 0;
+}
+
 }  // namespace
 
 bool AsrModelStatus::Available() const {
@@ -72,8 +141,19 @@ AsrModelService::AsrModelService(QString model_root, AsrModelManifest manifest)
     : model_root_(std::move(model_root)), manifest_(std::move(manifest)) {}
 
 QString AsrModelService::DefaultModelRoot() {
-    const QString app_data_root = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    return QDir(app_data_root).filePath(QStringLiteral("asr-models"));
+    const QString app_local_data_root = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+    if (app_local_data_root.isEmpty()) {
+        return {};
+    }
+    return QDir(app_local_data_root).filePath(QStringLiteral("asr-models"));
+}
+
+QString AsrModelService::DefaultArchiveCacheRoot() {
+    const QString cache_root = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+    if (cache_root.isEmpty()) {
+        return {};
+    }
+    return QDir(cache_root).filePath(QStringLiteral("asr-model-archives"));
 }
 
 AsrModelManifest AsrModelService::DefaultManifest() {
@@ -177,6 +257,9 @@ AsrModelFileSet AsrModelService::EffectiveFiles() const {
 }
 
 QString AsrModelService::InstallDirectory() const {
+    if (model_root_.isEmpty()) {
+        return {};
+    }
     return QDir(model_root_).filePath(manifest_.id);
 }
 
@@ -194,6 +277,12 @@ AsrModelStatus AsrModelService::StatusForDirectory(const QString &model_dir,
     AsrModelStatus status;
     status.source = source;
     status.model_dir = model_dir;
+    if (model_dir.trimmed().isEmpty()) {
+        status.status = AsrModelInstallStatus::kIncomplete;
+        status.message = QStringLiteral("ASR model directory is unavailable");
+        return status;
+    }
+
     const QFileInfo dir_info(model_dir);
     if (!dir_info.isDir()) {
         status.status = directory_required ? AsrModelInstallStatus::kIncomplete
@@ -224,6 +313,221 @@ AsrModelStatus AsrModelService::StatusForDirectory(const QString &model_dir,
                         : AsrModelInstallStatus::kInstalled;
     status.message.clear();
     return status;
+}
+
+AsrModelArchiveDownloader::AsrModelArchiveDownloader(QNetworkAccessManager *network_manager,
+                                                     QString archive_cache_root,
+                                                     QObject *parent)
+    : QObject(parent),
+      network_manager_(network_manager),
+      archive_cache_root_(std::move(archive_cache_root)) {}
+
+QString AsrModelArchiveDownloader::ArchivePath(const AsrModelManifest &manifest) const {
+    if (archive_cache_root_.trimmed().isEmpty()) {
+        return {};
+    }
+
+    const QString checksum_suffix = manifest.archive_sha256.trimmed().isEmpty()
+                                        ? QStringLiteral("unverified")
+                                        : manifest.archive_sha256.trimmed().toLower();
+    const QString archive_file_name = QStringLiteral("%1-%2%3")
+                                          .arg(SafeFileName(manifest.id), SafeFileName(checksum_suffix),
+                                               ArchiveSuffixFromUrl(manifest.source_url));
+    return QDir(archive_cache_root_).filePath(archive_file_name);
+}
+
+void AsrModelArchiveDownloader::Start(const AsrModelManifest &manifest) {
+    if (reply_ != nullptr) {
+        AsrModelArchiveDownloadResult result;
+        result.success = false;
+        result.archive_path = ArchivePath(manifest);
+        result.error_message = QStringLiteral("ASR model archive download is already running");
+        emit Finished(result);
+        return;
+    }
+
+    archive_path_ = ArchivePath(manifest);
+    part_path_ = archive_path_.isEmpty() ? QString{} : archive_path_ + QStringLiteral(".part");
+    bytes_received_ = 0;
+    bytes_total_ = -1;
+    cancel_requested_ = false;
+    hash_.reset();
+
+    if (network_manager_ == nullptr) {
+        FinishWithFailure(QStringLiteral("ASR model archive downloader has no network manager"));
+        return;
+    }
+    if (archive_path_.isEmpty()) {
+        FinishWithFailure(QStringLiteral("ASR model archive cache directory is unavailable"));
+        return;
+    }
+    if (manifest.archive_sha256.trimmed().isEmpty()) {
+        FinishWithFailure(QStringLiteral("ASR model archive checksum is missing"));
+        return;
+    }
+
+    const QFileInfo existing_archive(archive_path_);
+    if (existing_archive.isFile()) {
+        QString actual_sha256;
+        QString hash_error;
+        if (Sha256Matches(archive_path_, manifest.archive_sha256, &actual_sha256, &hash_error)) {
+            bytes_received_ = existing_archive.size();
+            bytes_total_ = existing_archive.size();
+            FinishWithSuccess();
+            return;
+        }
+    }
+
+    const QUrl source_url(manifest.source_url);
+    if (!source_url.isValid() || source_url.isEmpty()) {
+        FinishWithFailure(QStringLiteral("ASR model archive source URL is invalid"));
+        return;
+    }
+
+    QDir cache_dir(archive_cache_root_);
+    if (!cache_dir.mkpath(QStringLiteral("."))) {
+        FinishWithFailure(QStringLiteral("Failed to create ASR model archive cache directory: %1")
+                              .arg(QDir::toNativeSeparators(archive_cache_root_)));
+        return;
+    }
+
+    QFile::remove(part_path_);
+    output_file_.setFileName(part_path_);
+    if (!output_file_.open(QIODevice::WriteOnly)) {
+        FinishWithFailure(QStringLiteral("Failed to write ASR model archive cache: %1").arg(output_file_.errorString()));
+        return;
+    }
+
+    QNetworkRequest request(source_url);
+    reply_ = network_manager_->get(request);
+    connect(reply_, &QNetworkReply::readyRead, this, &AsrModelArchiveDownloader::OnReadyRead);
+    connect(reply_, &QNetworkReply::downloadProgress, this, &AsrModelArchiveDownloader::OnDownloadProgress);
+    connect(reply_, &QNetworkReply::finished, this, [this, manifest]() {
+        OnFinished(manifest);
+    });
+}
+
+void AsrModelArchiveDownloader::Cancel() {
+    if (reply_ == nullptr) {
+        return;
+    }
+    cancel_requested_ = true;
+    reply_->abort();
+}
+
+void AsrModelArchiveDownloader::OnReadyRead() {
+    if (reply_ == nullptr) {
+        return;
+    }
+
+    const QByteArray bytes = reply_->readAll();
+    if (bytes.isEmpty()) {
+        return;
+    }
+
+    const qint64 written = output_file_.write(bytes);
+    if (written != bytes.size()) {
+        FinishWithFailure(QStringLiteral("Failed to write ASR model archive cache: %1").arg(output_file_.errorString()));
+        return;
+    }
+
+    hash_.addData(bytes);
+    bytes_received_ += bytes.size();
+}
+
+void AsrModelArchiveDownloader::OnDownloadProgress(qint64 bytes_received, qint64 bytes_total) {
+    bytes_total_ = bytes_total;
+    emit ProgressChanged(bytes_received, bytes_total);
+}
+
+void AsrModelArchiveDownloader::OnFinished(const AsrModelManifest &manifest) {
+    if (reply_ == nullptr) {
+        return;
+    }
+
+    OnReadyRead();
+
+    if (cancel_requested_) {
+        FinishWithFailure(QStringLiteral("ASR model archive download cancelled"));
+        return;
+    }
+
+    if (reply_->error() != QNetworkReply::NoError) {
+        FinishWithFailure(QStringLiteral("ASR model archive download failed: %1").arg(reply_->errorString()));
+        return;
+    }
+
+    if (manifest.archive_size_bytes > 0 && bytes_received_ != manifest.archive_size_bytes) {
+        FinishWithFailure(QStringLiteral("ASR model archive size mismatch: expected %1 bytes, got %2 bytes")
+                              .arg(manifest.archive_size_bytes)
+                              .arg(bytes_received_));
+        return;
+    }
+
+    if (!output_file_.flush()) {
+        FinishWithFailure(QStringLiteral("Failed to flush ASR model archive cache: %1").arg(output_file_.errorString()));
+        return;
+    }
+    output_file_.close();
+
+    const QString actual_sha256 = QString::fromLatin1(hash_.result().toHex());
+    if (actual_sha256.compare(manifest.archive_sha256.trimmed(), Qt::CaseInsensitive) != 0) {
+        FinishWithFailure(QStringLiteral("ASR model archive checksum mismatch: expected %1 got %2")
+                              .arg(manifest.archive_sha256.trimmed(), actual_sha256));
+        return;
+    }
+
+    QFile::remove(archive_path_);
+    if (!QFile::rename(part_path_, archive_path_)) {
+        FinishWithFailure(QStringLiteral("Failed to activate ASR model archive cache file"));
+        return;
+    }
+
+    FinishWithSuccess();
+}
+
+void AsrModelArchiveDownloader::FinishWithSuccess() {
+    if (output_file_.isOpen()) {
+        output_file_.close();
+    }
+
+    AsrModelArchiveDownloadResult result;
+    result.success = true;
+    result.archive_path = archive_path_;
+    result.bytes_received = bytes_received_;
+    result.bytes_total = bytes_total_;
+    CleanupReply();
+    emit Finished(result);
+}
+
+void AsrModelArchiveDownloader::FinishWithFailure(const QString &message) {
+    AsrModelArchiveDownloadResult result;
+    result.success = false;
+    result.archive_path = archive_path_;
+    result.error_message = message;
+    result.bytes_received = bytes_received_;
+    result.bytes_total = bytes_total_;
+    CleanupPartFile();
+    CleanupReply();
+    emit Finished(result);
+}
+
+void AsrModelArchiveDownloader::CleanupReply() {
+    if (reply_ == nullptr) {
+        return;
+    }
+    reply_->disconnect(this);
+    reply_->deleteLater();
+    reply_ = nullptr;
+}
+
+void AsrModelArchiveDownloader::CleanupPartFile() {
+    if (output_file_.isOpen()) {
+        output_file_.close();
+    }
+    if (!part_path_.isEmpty()) {
+        QFile::remove(part_path_);
+    }
 }
 
 }  // namespace shatv::app
