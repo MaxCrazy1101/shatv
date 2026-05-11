@@ -27,6 +27,7 @@
 #include <QWindow>
 
 #include "app/build_info.h"
+#include "app/asr_model_service.h"
 #include "app/epg_programme_presentation.h"
 #include "app/epg_service.h"
 #include "app/logging.h"
@@ -89,39 +90,8 @@ QString FfmpegSmokeMediaPath() {
 }
 
 #if defined(SHATV_ENABLE_ASR)
-QString SpeechSubtitleEnvironmentValue(const char *name) {
-    return qEnvironmentVariable(name).trimmed();
-}
-
-QString SpeechSubtitleModelDirectory() {
-    return SpeechSubtitleEnvironmentValue("SHATV_ASR_MODEL_DIR");
-}
-
-QString SpeechSubtitleModelFileName(const char *environment_name, const QString &default_file_name) {
-    const QString override_file_name = SpeechSubtitleEnvironmentValue(environment_name);
-    if (!override_file_name.isEmpty()) {
-        return override_file_name;
-    }
-    return default_file_name;
-}
-
-bool ValidateSpeechSubtitleModelFile(const QString &model_dir,
-                                     const QString &file_name,
-                                     QString *unavailable_reason) {
-    const QString path = QDir(model_dir).filePath(file_name);
-    if (QFileInfo(path).isFile()) {
-        return true;
-    }
-
-    if (unavailable_reason != nullptr) {
-        *unavailable_reason =
-            QCoreApplication::translate("Application", "Required ASR model file is missing: %1").arg(path);
-    }
-    return false;
-}
-
 bool ValidateSpeechSubtitleProvider(QString *unavailable_reason) {
-    const QString provider = SpeechSubtitleEnvironmentValue("SHATV_ASR_PROVIDER");
+    const QString provider = qEnvironmentVariable("SHATV_ASR_PROVIDER").trimmed();
     if (provider.isEmpty() ||
         provider == QStringLiteral("cpu") ||
         provider == QStringLiteral("cuda") ||
@@ -662,24 +632,33 @@ void Application::OpenRecentItem(const QString &request_kind, const QString &tar
 
 bool Application::SpeechSubtitleAvailable(QString *unavailable_reason) const {
 #if defined(SHATV_ENABLE_ASR)
-    const QString model_dir = SpeechSubtitleModelDirectory();
-    if (model_dir.isEmpty()) {
+    const AsrModelService model_service;
+    const AsrModelStatus model_status = model_service.InstalledModelStatus();
+    if (!model_status.Available()) {
         if (unavailable_reason != nullptr) {
-            *unavailable_reason =
-                QCoreApplication::translate("Application", "Speech recognition model directory is not configured");
+            if (model_status.status == AsrModelInstallStatus::kNotInstalled) {
+                *unavailable_reason =
+                    QCoreApplication::translate("Application", "Speech recognition model is not installed");
+            } else if (!model_status.missing_files.isEmpty()) {
+                *unavailable_reason =
+                    QCoreApplication::translate("Application", "Required ASR model file is missing: %1")
+                        .arg(model_status.missing_files.join(QStringLiteral(", ")));
+            } else {
+                *unavailable_reason = model_status.message;
+            }
         }
         return false;
     }
-    const QString encoder_name =
-        SpeechSubtitleModelFileName("SHATV_ASR_ENCODER_NAME", QStringLiteral("encoder.int8.onnx"));
-    const QString decoder_name =
-        SpeechSubtitleModelFileName("SHATV_ASR_DECODER_NAME", QStringLiteral("decoder.int8.onnx"));
-    const QString tokens_name =
-        SpeechSubtitleModelFileName("SHATV_ASR_TOKENS_NAME", QStringLiteral("tokens.txt"));
-    if (!ValidateSpeechSubtitleModelFile(model_dir, encoder_name, unavailable_reason) ||
-        !ValidateSpeechSubtitleModelFile(model_dir, decoder_name, unavailable_reason) ||
-        !ValidateSpeechSubtitleModelFile(model_dir, tokens_name, unavailable_reason) ||
-        !ValidateSpeechSubtitleProvider(unavailable_reason)) {
+    if (model_status.source != AsrModelInstallSource::kDeveloperOverride) {
+        if (unavailable_reason != nullptr) {
+            *unavailable_reason =
+                QCoreApplication::translate(
+                    "Application",
+                    "Speech recognition model is installed, but playback still requires SHATV_ASR_MODEL_DIR until managed model startup is implemented");
+        }
+        return false;
+    }
+    if (!ValidateSpeechSubtitleProvider(unavailable_reason)) {
         return false;
     }
     if (unavailable_reason != nullptr) {

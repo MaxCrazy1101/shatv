@@ -204,6 +204,20 @@ Service responsibilities:
 - Activate a model only when all required files exist.
 - Support deletion and redownload from the UI.
 
+M5.1 status service:
+
+- `AsrModelService` exposes the compiled-in first manifest and checks the
+  app-managed install directory.
+- `SHATV_ASR_MODEL_DIR` remains a developer override. When it is set, ShaTV
+  validates that directory first and does not silently fall back to an installed
+  app-managed model.
+- `SHATV_ASR_ENCODER_NAME`, `SHATV_ASR_DECODER_NAME`, and
+  `SHATV_ASR_TOKENS_NAME` override the required file names for both developer
+  and app-managed status checks.
+- M5.1 only reports app-managed model status. Playback ASR startup still uses
+  `SHATV_ASR_MODEL_DIR` until M5.4 connects managed model paths to the backend
+  recognizer config.
+
 Production model policy after M3.5:
 
 - The base ShaTV package must not bundle model archives or extracted model files.
