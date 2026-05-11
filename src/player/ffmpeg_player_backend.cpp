@@ -164,6 +164,10 @@ FfmpegPlayerBackend::FfmpegPlayerBackend(QObject *parent) : PlayerBackend(parent
 
 FfmpegPlayerBackend::~FfmpegPlayerBackend() {
     StopWorker();
+#if defined(SHATV_ENABLE_ASR)
+    StopAsrSession();
+    JoinAllAsrStartupThreads();
+#endif
     audio_output_.Stop();
 }
 
@@ -240,7 +244,22 @@ void FfmpegPlayerBackend::SetSpeechSubtitleEnabled(bool enabled) {
         StopAsrSession();
 #endif
         ClearSpeechSubtitle();
+        return;
     }
+#if defined(SHATV_ENABLE_ASR)
+    bool playback_active = false;
+    {
+        QMutexLocker locker(&snapshot_mutex_);
+        playback_active = last_snapshot_.state == domain::PlaybackState::kLoading ||
+                          last_snapshot_.state == domain::PlaybackState::kPlaying ||
+                          last_snapshot_.state == domain::PlaybackState::kPaused ||
+                          last_snapshot_.state == domain::PlaybackState::kBuffering ||
+                          last_snapshot_.state == domain::PlaybackState::kRetrying;
+    }
+    if (playback_active) {
+        RequestAsrStartup(current_source_);
+    }
+#endif
 }
 
 void FfmpegPlayerBackend::AttachVideoSink(VideoFrameSink *sink) {
@@ -284,21 +303,11 @@ void FfmpegPlayerBackend::SetVideoOnlyMode(bool video_only) {
 }
 
 #if defined(SHATV_ENABLE_ASR)
-bool FfmpegPlayerBackend::TapAsrAudioFrame(const AVFrame &frame,
-                                           const domain::MediaSourceDescriptor &source,
-                                           QString *error_message) {
+bool FfmpegPlayerBackend::TapAsrAudioFrame(const AVFrame &frame, QString *error_message) {
+    std::shared_ptr<media::asr::StreamingRecognizerWorker> worker_to_stop;
     QMutexLocker locker(&asr_mutex_);
-    if (!speech_subtitle_enabled_.load()) {
-        StopAsrSessionLocked();
+    if (asr_runtime_state_ != AsrRuntimeState::kActive || !asr_worker_) {
         return true;
-    }
-    if (!asr_session_active_.load()) {
-        if (!StartAsrSessionLocked(source, error_message)) {
-            return false;
-        }
-        if (!asr_session_active_.load()) {
-            return true;
-        }
     }
 
     media::asr::PcmChunk chunk;
@@ -310,115 +319,301 @@ bool FfmpegPlayerBackend::TapAsrAudioFrame(const AVFrame &frame,
     }
 
     QString enqueue_error;
-    if (!asr_worker_.Enqueue(std::move(chunk), &enqueue_error)) {
+    if (!asr_worker_->Enqueue(std::move(chunk), &enqueue_error)) {
         qCWarning(app::log_ffmpeg).noquote()
             << "ASR audio tap stopped"
             << "reason=" << enqueue_error;
-        StopAsrSessionLocked();
+        worker_to_stop = StopAsrSessionLocked(AsrRuntimeState::kFailed);
+        locker.unlock();
+        if (worker_to_stop) {
+            worker_to_stop->Stop();
+        }
+        ClearSpeechSubtitle();
     }
     return true;
 }
 
-bool FfmpegPlayerBackend::StartAsrSession(const domain::MediaSourceDescriptor &source, QString *error_message) {
-    QMutexLocker locker(&asr_mutex_);
-    return StartAsrSessionLocked(source, error_message);
+void FfmpegPlayerBackend::RequestAsrStartup(const domain::MediaSourceDescriptor &source) {
+    if (!speech_subtitle_enabled_.load()) {
+        return;
+    }
+    if (source.url.isEmpty()) {
+        return;
+    }
+
+    std::shared_ptr<media::asr::StreamingRecognizerWorker> worker_to_stop;
+    bool should_stop_worker = false;
+    media::asr::StreamingRecognizerConfig config;
+    QString config_error;
+    quint64 generation = 0;
+    {
+        QMutexLocker locker(&asr_mutex_);
+        PruneFinishedAsrStartupThreadsLocked();
+        worker_to_stop = StopAsrSessionLocked(AsrRuntimeState::kEnabledPendingStart);
+        generation = asr_generation_;
+        if (!speech_subtitle_enabled_.load()) {
+            asr_runtime_state_ = AsrRuntimeState::kDisabled;
+            should_stop_worker = true;
+        } else if (!BuildAsrConfig(source, generation, &config, &config_error)) {
+            asr_runtime_state_ = AsrRuntimeState::kFailed;
+            should_stop_worker = true;
+            qCWarning(app::log_ffmpeg).noquote()
+                << "ASR async startup failed before launch"
+                << "name=" << source.name
+                << "reason=" << config_error;
+        }
+
+        if (should_stop_worker) {
+            // 旧会话已经从状态中摘除；不要依赖析构隐式释放模型资源。
+            locker.unlock();
+            if (worker_to_stop) {
+                worker_to_stop->Stop();
+            }
+            return;
+        }
+
+        asr_runtime_state_ = AsrRuntimeState::kStarting;
+        const auto done = std::make_shared<std::atomic_bool>(false);
+        asr_startup_threads_.push_back(AsrStartupThread{
+            .thread = std::thread([this, done, generation, source_name = source.name, config]() mutable {
+                QElapsedTimer elapsed_timer;
+                elapsed_timer.start();
+                qCInfo(app::log_ffmpeg).noquote()
+                    << "ASR async startup recognizer creation started"
+                    << "name=" << source_name
+                    << "generation=" << generation
+                    << "modelDir=" << config.model_dir
+                    << "provider=" << config.provider;
+
+                auto worker = std::make_shared<media::asr::StreamingRecognizerWorker>();
+                QString startup_error;
+                if (!worker->StartSession(config, &startup_error)) {
+                    worker.reset();
+                }
+
+                CompleteAsrStartup(generation,
+                                    source_name,
+                                    config.model_dir,
+                                    config.provider,
+                                    config.max_queued_chunks,
+                                    elapsed_timer.elapsed(),
+                                    std::move(worker),
+                                    startup_error);
+                done->store(true);
+            }),
+            .done = done,
+        });
+    }
+    if (worker_to_stop) {
+        worker_to_stop->Stop();
+    }
+    qCInfo(app::log_ffmpeg).noquote()
+        << "ASR async startup requested"
+        << "name=" << source.name
+        << "generation=" << generation;
 }
 
-bool FfmpegPlayerBackend::StartAsrSessionLocked(const domain::MediaSourceDescriptor &source, QString *error_message) {
-    StopAsrSessionLocked();
-    if (!speech_subtitle_enabled_.load()) {
-        return true;
+bool FfmpegPlayerBackend::BuildAsrConfig(const domain::MediaSourceDescriptor &source,
+                                         quint64 generation,
+                                         media::asr::StreamingRecognizerConfig *config,
+                                         QString *error_message) {
+    if (config == nullptr) {
+        if (error_message != nullptr) {
+            *error_message = QStringLiteral("missing ASR config output");
+        }
+        return false;
     }
-
     const QString model_dir = EnvironmentValue("SHATV_ASR_MODEL_DIR");
     if (model_dir.isEmpty()) {
+        if (error_message != nullptr) {
+            *error_message = QStringLiteral("SHATV_ASR_MODEL_DIR unset");
+        }
         qCInfo(app::log_ffmpeg).noquote()
-            << "ASR worker not started"
+            << "ASR async startup skipped"
             << "name=" << source.name
             << "reason=SHATV_ASR_MODEL_DIR unset";
-        return true;
+        return false;
     }
 
-    media::asr::StreamingRecognizerConfig config;
-    config.model_dir = model_dir;
+    config->model_dir = model_dir;
     const QString encoder_name = EnvironmentValue("SHATV_ASR_ENCODER_NAME");
     const QString decoder_name = EnvironmentValue("SHATV_ASR_DECODER_NAME");
     const QString tokens_name = EnvironmentValue("SHATV_ASR_TOKENS_NAME");
     const QString provider = EnvironmentValue("SHATV_ASR_PROVIDER");
     if (!encoder_name.isEmpty()) {
-        config.encoder_name = encoder_name;
+        config->encoder_name = encoder_name;
     }
     if (!decoder_name.isEmpty()) {
-        config.decoder_name = decoder_name;
+        config->decoder_name = decoder_name;
     }
     if (!tokens_name.isEmpty()) {
-        config.tokens_name = tokens_name;
+        config->tokens_name = tokens_name;
     }
     if (!provider.isEmpty()) {
-        config.provider = provider;
+        config->provider = provider;
     }
-    config.num_threads = PositiveEnvironmentInt("SHATV_ASR_NUM_THREADS", kDefaultAsrNumThreads, error_message);
-    if (config.num_threads <= 0) {
+    config->num_threads = PositiveEnvironmentInt("SHATV_ASR_NUM_THREADS", kDefaultAsrNumThreads, error_message);
+    if (config->num_threads <= 0) {
         return false;
     }
-    config.max_queued_chunks =
+    config->max_queued_chunks =
         PositiveEnvironmentInt("SHATV_ASR_MAX_QUEUED_CHUNKS", kDefaultAsrMaxQueuedChunks, error_message);
-    if (config.max_queued_chunks <= 0) {
+    if (config->max_queued_chunks <= 0) {
         return false;
     }
-    config.result_callback = [this, source_name = source.name](const media::asr::StreamingRecognitionResult &result) {
-        if (!speech_subtitle_enabled_.load()) {
-            return;
-        }
-        qCInfo(app::log_ffmpeg).noquote()
-            << "ASR recognition result"
-            << "name=" << source_name
-            << "final=" << result.is_final
-            << "latencyMs=" << result.latency_ms
-            << "text=" << result.text;
-        EmitSpeechSubtitleResult(result.text, result.is_final, result.latency_ms);
+    config->result_callback = [this, generation, source_name = source.name](
+                                  const media::asr::StreamingRecognitionResult &result) {
+        HandleAsrRecognitionResult(generation, source_name, result);
     };
-
-    if (!asr_worker_.StartSession(config, error_message)) {
-        asr_session_active_ = false;
-        return false;
-    }
-
-    asr_session_active_ = true;
-    qCInfo(app::log_ffmpeg).noquote()
-        << "ASR worker started"
-        << "name=" << source.name
-        << "modelDir=" << model_dir
-        << "provider=" << config.provider
-        << "maxQueuedChunks=" << config.max_queued_chunks;
     return true;
 }
 
-bool FfmpegPlayerBackend::FinishAsrSession(QString *error_message) {
-    QMutexLocker locker(&asr_mutex_);
-    return FinishAsrSessionLocked(error_message);
+void FfmpegPlayerBackend::CompleteAsrStartup(quint64 generation,
+                                             const QString &source_name,
+                                             const QString &model_dir,
+                                             const QString &provider,
+                                             int max_queued_chunks,
+                                             qint64 elapsed_ms,
+                                             std::shared_ptr<media::asr::StreamingRecognizerWorker> worker,
+                                             const QString &error_message) {
+    std::shared_ptr<media::asr::StreamingRecognizerWorker> worker_to_stop;
+    {
+        QMutexLocker locker(&asr_mutex_);
+        if (generation != asr_generation_ ||
+            !speech_subtitle_enabled_.load() ||
+            asr_runtime_state_ != AsrRuntimeState::kStarting) {
+            worker_to_stop = std::move(worker);
+            qCInfo(app::log_ffmpeg).noquote()
+                << "ASR async startup discarded"
+                << "name=" << source_name
+                << "generation=" << generation
+                << "currentGeneration=" << asr_generation_
+                << "elapsedMs=" << elapsed_ms;
+        } else if (!worker) {
+            asr_runtime_state_ = AsrRuntimeState::kFailed;
+            qCWarning(app::log_ffmpeg).noquote()
+                << "ASR async startup failed"
+                << "name=" << source_name
+                << "generation=" << generation
+                << "elapsedMs=" << elapsed_ms
+                << "reason=" << error_message;
+        } else {
+            asr_worker_ = std::move(worker);
+            asr_pcm_converter_.Reset();
+            asr_runtime_state_ = AsrRuntimeState::kActive;
+            qCInfo(app::log_ffmpeg).noquote()
+                << "ASR async startup completed"
+                << "name=" << source_name
+                << "generation=" << generation
+                << "elapsedMs=" << elapsed_ms
+                << "modelDir=" << model_dir
+                << "provider=" << provider
+                << "maxQueuedChunks=" << max_queued_chunks;
+        }
+    }
+    if (worker_to_stop) {
+        worker_to_stop->Stop();
+    }
 }
 
-bool FfmpegPlayerBackend::FinishAsrSessionLocked(QString *error_message) {
-    if (!asr_session_active_.load()) {
-        return true;
+void FfmpegPlayerBackend::HandleAsrRecognitionResult(
+    quint64 generation,
+    const QString &source_name,
+    const media::asr::StreamingRecognitionResult &result) {
+    {
+        QMutexLocker locker(&asr_mutex_);
+        if (generation != asr_generation_ ||
+            !speech_subtitle_enabled_.load() ||
+            asr_runtime_state_ != AsrRuntimeState::kActive) {
+            return;
+        }
     }
-    asr_session_active_ = false;
-    const bool ok = asr_worker_.FinishSession(error_message);
-    asr_pcm_converter_.Reset();
+
+    qCInfo(app::log_ffmpeg).noquote()
+        << "ASR recognition result"
+        << "name=" << source_name
+        << "final=" << result.is_final
+        << "latencyMs=" << result.latency_ms
+        << "text=" << result.text;
+    EmitSpeechSubtitleResult(result.text, result.is_final, result.latency_ms);
+}
+
+bool FfmpegPlayerBackend::FinishAsrSession(QString *error_message) {
+    std::shared_ptr<media::asr::StreamingRecognizerWorker> worker;
+    quint64 generation = 0;
+    {
+        QMutexLocker locker(&asr_mutex_);
+        if (asr_runtime_state_ != AsrRuntimeState::kActive || !asr_worker_) {
+            if (asr_runtime_state_ == AsrRuntimeState::kStarting ||
+                asr_runtime_state_ == AsrRuntimeState::kEnabledPendingStart) {
+                StopAsrSessionLocked(AsrRuntimeState::kDisabled);
+            }
+            return true;
+        }
+        worker = asr_worker_;
+        generation = asr_generation_;
+    }
+
+    const bool ok = worker->FinishSession(error_message);
+    {
+        QMutexLocker locker(&asr_mutex_);
+        if (generation == asr_generation_ && asr_worker_ == worker) {
+            asr_worker_.reset();
+            asr_pcm_converter_.Reset();
+            ++asr_generation_;
+            asr_runtime_state_ = AsrRuntimeState::kDisabled;
+        }
+    }
     return ok;
 }
 
 void FfmpegPlayerBackend::StopAsrSession() {
-    QMutexLocker locker(&asr_mutex_);
-    StopAsrSessionLocked();
+    std::shared_ptr<media::asr::StreamingRecognizerWorker> worker_to_stop;
+    {
+        QMutexLocker locker(&asr_mutex_);
+        worker_to_stop = StopAsrSessionLocked(AsrRuntimeState::kDisabled);
+    }
+    if (worker_to_stop) {
+        worker_to_stop->Stop();
+    }
+    ClearSpeechSubtitle();
 }
 
-void FfmpegPlayerBackend::StopAsrSessionLocked() {
-    asr_session_active_ = false;
-    asr_worker_.Stop();
+std::shared_ptr<media::asr::StreamingRecognizerWorker> FfmpegPlayerBackend::StopAsrSessionLocked(
+    AsrRuntimeState next_state) {
+    std::shared_ptr<media::asr::StreamingRecognizerWorker> worker_to_stop = std::move(asr_worker_);
+    asr_worker_.reset();
     asr_pcm_converter_.Reset();
-    ClearSpeechSubtitle();
+    ++asr_generation_;
+    asr_runtime_state_ = next_state;
+    return worker_to_stop;
+}
+
+void FfmpegPlayerBackend::PruneFinishedAsrStartupThreadsLocked() {
+    auto it = asr_startup_threads_.begin();
+    while (it != asr_startup_threads_.end()) {
+        if (it->done != nullptr && it->done->load()) {
+            if (it->thread.joinable()) {
+                it->thread.join();
+            }
+            it = asr_startup_threads_.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+void FfmpegPlayerBackend::JoinAllAsrStartupThreads() {
+    std::vector<AsrStartupThread> startup_threads;
+    {
+        QMutexLocker locker(&asr_mutex_);
+        startup_threads.swap(asr_startup_threads_);
+    }
+    for (AsrStartupThread &startup_thread : startup_threads) {
+        if (startup_thread.thread.joinable()) {
+            startup_thread.thread.join();
+        }
+    }
 }
 #endif
 
@@ -532,9 +727,7 @@ PlaybackPipelineResult FfmpegPlayerBackend::RunMediaPipeline(domain::MediaSource
     }
 
 #if defined(SHATV_ENABLE_ASR)
-    if (!StartAsrSession(source, &error_message)) {
-        return PipelineFailed(tr("FFmpeg ASR worker failed: %1").arg(error_message));
-    }
+    RequestAsrStartup(source);
 #endif
 
     AvPacketPtr packet(av_packet_alloc());
@@ -564,7 +757,7 @@ PlaybackPipelineResult FfmpegPlayerBackend::RunMediaPipeline(domain::MediaSource
                     return PipelineAborted();
                 }
 #if defined(SHATV_ENABLE_ASR)
-                if (!TapAsrAudioFrame(*frame, source, &error_message)) {
+                if (!TapAsrAudioFrame(*frame, &error_message)) {
                     return PipelineFailed(tr("FFmpeg ASR audio tap failed: %1").arg(error_message));
                 }
 #endif
@@ -608,7 +801,7 @@ PlaybackPipelineResult FfmpegPlayerBackend::RunMediaPipeline(domain::MediaSource
         }
         for (const auto &frame : audio_frames) {
 #if defined(SHATV_ENABLE_ASR)
-            if (!TapAsrAudioFrame(*frame, source, &error_message)) {
+            if (!TapAsrAudioFrame(*frame, &error_message)) {
                 return PipelineFailed(tr("FFmpeg ASR audio tap failed: %1").arg(error_message));
             }
 #endif
@@ -652,9 +845,7 @@ PlaybackPipelineResult FfmpegPlayerBackend::RunAudioPipeline(domain::MediaSource
     }
 
 #if defined(SHATV_ENABLE_ASR)
-    if (!StartAsrSession(source, &error_message)) {
-        return PipelineFailed(tr("FFmpeg ASR worker failed: %1").arg(error_message));
-    }
+    RequestAsrStartup(source);
 #endif
 
     AvPacketPtr packet(av_packet_alloc());
@@ -682,7 +873,7 @@ PlaybackPipelineResult FfmpegPlayerBackend::RunAudioPipeline(domain::MediaSource
                 return PipelineAborted();
             }
 #if defined(SHATV_ENABLE_ASR)
-            if (!TapAsrAudioFrame(*frame, source, &error_message)) {
+            if (!TapAsrAudioFrame(*frame, &error_message)) {
                 return PipelineFailed(tr("FFmpeg ASR audio tap failed: %1").arg(error_message));
             }
 #endif
@@ -703,7 +894,7 @@ PlaybackPipelineResult FfmpegPlayerBackend::RunAudioPipeline(domain::MediaSource
         }
         for (const auto &frame : frames) {
 #if defined(SHATV_ENABLE_ASR)
-            if (!TapAsrAudioFrame(*frame, source, &error_message)) {
+            if (!TapAsrAudioFrame(*frame, &error_message)) {
                 return PipelineFailed(tr("FFmpeg ASR audio tap failed: %1").arg(error_message));
             }
 #endif

@@ -2,6 +2,8 @@
 
 #include <atomic>
 #include <memory>
+#include <thread>
+#include <vector>
 
 #include <QMutex>
 #include <QString>
@@ -59,15 +61,41 @@ class FfmpegPlayerBackend final : public PlayerBackend {
     PlaybackPipelineResult RunAudioPipeline(domain::MediaSourceDescriptor source);
     PlaybackPipelineResult RunVideoPipeline(domain::MediaSourceDescriptor source);
 #if defined(SHATV_ENABLE_ASR)
-    bool TapAsrAudioFrame(const AVFrame &frame,
-                          const domain::MediaSourceDescriptor &source,
-                          QString *error_message);
-    bool StartAsrSession(const domain::MediaSourceDescriptor &source, QString *error_message);
-    bool StartAsrSessionLocked(const domain::MediaSourceDescriptor &source, QString *error_message);
+    enum class AsrRuntimeState {
+        kDisabled,
+        kEnabledPendingStart,
+        kStarting,
+        kActive,
+        kFailed,
+    };
+
+    struct AsrStartupThread {
+        std::thread thread;
+        std::shared_ptr<std::atomic_bool> done;
+    };
+
+    bool TapAsrAudioFrame(const AVFrame &frame, QString *error_message);
+    void RequestAsrStartup(const domain::MediaSourceDescriptor &source);
+    bool BuildAsrConfig(const domain::MediaSourceDescriptor &source,
+                        quint64 generation,
+                        media::asr::StreamingRecognizerConfig *config,
+                        QString *error_message);
+    void CompleteAsrStartup(quint64 generation,
+                            const QString &source_name,
+                            const QString &model_dir,
+                            const QString &provider,
+                            int max_queued_chunks,
+                            qint64 elapsed_ms,
+                            std::shared_ptr<media::asr::StreamingRecognizerWorker> worker,
+                            const QString &error_message);
+    void HandleAsrRecognitionResult(quint64 generation,
+                                    const QString &source_name,
+                                    const media::asr::StreamingRecognitionResult &result);
     bool FinishAsrSession(QString *error_message);
-    bool FinishAsrSessionLocked(QString *error_message);
     void StopAsrSession();
-    void StopAsrSessionLocked();
+    std::shared_ptr<media::asr::StreamingRecognizerWorker> StopAsrSessionLocked(AsrRuntimeState next_state);
+    void PruneFinishedAsrStartupThreadsLocked();
+    void JoinAllAsrStartupThreads();
 #endif
     void DrainVideoFrames(const domain::MediaSourceDescriptor &source,
                           bool *emitted_playing,
@@ -92,8 +120,10 @@ class FfmpegPlayerBackend final : public PlayerBackend {
 #if defined(SHATV_ENABLE_ASR)
     mutable QMutex asr_mutex_;
     media::asr::PcmConverter asr_pcm_converter_;
-    media::asr::StreamingRecognizerWorker asr_worker_;
-    std::atomic_bool asr_session_active_ = false;
+    std::shared_ptr<media::asr::StreamingRecognizerWorker> asr_worker_;
+    std::vector<AsrStartupThread> asr_startup_threads_;
+    AsrRuntimeState asr_runtime_state_ = AsrRuntimeState::kDisabled;
+    quint64 asr_generation_ = 0;
 #endif
     media::video::VideoFrameQueue video_frame_queue_;
     std::unique_ptr<QThread> worker_thread_;
