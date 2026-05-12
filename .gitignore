@@ -49,6 +49,7 @@ testdata/hls/
 
 .codex/
 .claude/
+.opencode/
 .trellis/
 .agents/
 AGENTS.md

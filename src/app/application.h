@@ -12,6 +12,7 @@
 
 #include "app/app_settings.h"
 #include "app/asr_model_archive_installer.h"
+#include "app/asr_model_service.h"
 #include "app/epg_service.h"
 #include "app/launch_options.h"
 #include "app/open_request.h"
@@ -74,6 +75,10 @@ class Application final {
     void RefreshSpeechSubtitleControl();
     void UpdateSpeechSubtitleEnabled(bool enabled);
     void RefreshSpeechModelStatus();
+    void DownloadSpeechModel();
+    void CancelSpeechModelDownload();
+    void UpdateSpeechModelDownloadProgress(qint64 bytes_received, qint64 bytes_total);
+    void FinishSpeechModelDownload(const AsrModelArchiveDownloadResult &result);
     void InstallSpeechModelArchive(const QString &archive_path);
     void FinishSpeechModelArchiveInstall();
     void DeleteSpeechModel();
@@ -107,6 +112,7 @@ class Application final {
     QTimer epg_refresh_timer_;
     QTimer status_message_timer_;
     QFutureWatcher<AsrModelArchiveInstallResult> speech_model_install_watcher_;
+    std::unique_ptr<AsrModelArchiveDownloader> speech_model_downloader_;
     int epg_load_generation_ = 0;
 };
 

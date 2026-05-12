@@ -76,6 +76,9 @@ ApplicationWindow {
         property bool speechModelDeveloperOverride: false
         property bool speechModelInstallSupported: false
         property bool speechModelBusy: false
+        property bool speechModelDownloadActive: false
+        property real speechModelProgress: -1
+        property string speechModelOperationText: ""
 
         function activateChannelRow(row) {}
         function setSearchText(text) {}
@@ -93,6 +96,8 @@ ApplicationWindow {
         function dismissAlert() {}
         function toggleSpeechSubtitleEnabled() {}
         function refreshSpeechModelStatus() {}
+        function downloadSpeechModel() {}
+        function cancelSpeechModelDownload() {}
         function installSpeechModelArchive(archiveUrl) {}
         function deleteSpeechModel() {}
     }
@@ -937,10 +942,15 @@ ApplicationWindow {
         speechModelDeveloperOverride: bridge.speechModelDeveloperOverride
         speechModelInstallSupported: bridge.speechModelInstallSupported
         speechModelBusy: bridge.speechModelBusy
+        speechModelDownloadActive: bridge.speechModelDownloadActive
+        speechModelProgress: bridge.speechModelProgress
+        speechModelOperationText: bridge.speechModelOperationText
         onSubmitted: (userAgent, epgUrl) => bridge.submitNetworkSettings(userAgent, epgUrl)
         onOpenLogsFolderRequested: bridge.openLogsFolder()
         onCopyDiagnosticsRequested: bridge.copyDiagnosticsToClipboard()
         onRefreshSpeechModelRequested: bridge.refreshSpeechModelStatus()
+        onDownloadSpeechModelRequested: bridge.downloadSpeechModel()
+        onCancelSpeechModelDownloadRequested: bridge.cancelSpeechModelDownload()
         onInstallSpeechModelArchiveRequested: archiveUrl => bridge.installSpeechModelArchive(archiveUrl)
         onDeleteSpeechModelRequested: bridge.deleteSpeechModel()
     }

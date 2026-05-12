@@ -31,11 +31,16 @@ Window {
     property bool speechModelInstallSupported: false
     property bool speechModelBusy: false
     property bool speechModelDetailsVisible: false
+    property bool speechModelDownloadActive: false
+    property real speechModelProgress: -1
+    property string speechModelOperationText: ""
 
     signal submitted(string userAgent, string epgUrl)
     signal openLogsFolderRequested()
     signal copyDiagnosticsRequested()
     signal refreshSpeechModelRequested()
+    signal downloadSpeechModelRequested()
+    signal cancelSpeechModelDownloadRequested()
     signal installSpeechModelArchiveRequested(url archiveUrl)
     signal deleteSpeechModelRequested()
 
@@ -242,6 +247,21 @@ Window {
                             spacing: Shell.Theme.spacingSm
 
                             Controls.ThemedToolButton {
+                                text: qsTr("Download")
+                                enabled: root.speechModelInstallSupported
+                                    && !root.speechModelBusy
+                                    && !root.speechModelDeveloperOverride
+                                onClicked: root.downloadSpeechModelRequested()
+                            }
+
+                            Controls.ThemedToolButton {
+                                text: qsTr("Cancel")
+                                visible: root.speechModelDownloadActive
+                                enabled: root.speechModelDownloadActive
+                                onClicked: root.cancelSpeechModelDownloadRequested()
+                            }
+
+                            Controls.ThemedToolButton {
                                 text: qsTr("Install Archive")
                                 enabled: root.speechModelInstallSupported
                                     && !root.speechModelBusy
@@ -272,6 +292,27 @@ Window {
 
                             Item {
                                 Layout.fillWidth: true
+                            }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: Shell.Theme.spacingSm
+                            visible: root.speechModelOperationText.length > 0
+
+                            Label {
+                                Layout.fillWidth: true
+                                text: root.speechModelOperationText
+                                color: Shell.Theme.textSecondary
+                                wrapMode: Text.WordWrap
+                            }
+
+                            ProgressBar {
+                                Layout.fillWidth: true
+                                from: 0
+                                to: 1
+                                value: Math.max(0, Math.min(1, root.speechModelProgress))
+                                visible: root.speechModelProgress >= 0
                             }
                         }
 

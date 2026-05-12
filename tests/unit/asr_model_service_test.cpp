@@ -6,8 +6,11 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QSignalSpy>
 #include <QTemporaryDir>
+#include <QTimer>
 #include <QUrl>
 
 #include "app/asr_model_service.h"
@@ -83,16 +86,86 @@ QString Sha256Hex(const QByteArray &content) {
 void WriteRequiredModelFiles(const QString &model_dir) {
     QDir dir(model_dir);
     QVERIFY(dir.mkpath(QStringLiteral(".")));
-    WriteEmptyFile(dir.filePath(QStringLiteral("encoder.int8.onnx")));
-    WriteEmptyFile(dir.filePath(QStringLiteral("decoder.int8.onnx")));
-    WriteEmptyFile(dir.filePath(QStringLiteral("tokens.txt")));
+    const AsrModelManifest manifest = AsrModelService::DefaultManifest();
+    WriteEmptyFile(dir.filePath(manifest.files.encoder_name));
+    WriteEmptyFile(dir.filePath(manifest.files.decoder_name));
+    WriteEmptyFile(dir.filePath(manifest.files.tokens_name));
 }
+
+class HangingNetworkReply final : public QNetworkReply {
+   public:
+    HangingNetworkReply(const QNetworkRequest &request, QByteArray payload, QObject *parent = nullptr)
+        : QNetworkReply(parent), payload_(std::move(payload)) {
+        setRequest(request);
+        setUrl(request.url());
+        setHeader(QNetworkRequest::ContentLengthHeader, payload_.size() * 2);
+        open(QIODevice::ReadOnly | QIODevice::Unbuffered);
+
+        QTimer::singleShot(0, this, [this]() {
+            if (aborted_) {
+                return;
+            }
+            emit readyRead();
+            emit downloadProgress(payload_.size(), payload_.size() * 2);
+        });
+    }
+
+    void abort() override {
+        aborted_ = true;
+        setError(QNetworkReply::OperationCanceledError, QStringLiteral("operation canceled"));
+    }
+
+    qint64 bytesAvailable() const override {
+        return payload_.size() - offset_ + QNetworkReply::bytesAvailable();
+    }
+
+   protected:
+    qint64 readData(char *data, qint64 max_size) override {
+        const qint64 remaining = payload_.size() - offset_;
+        const qint64 bytes_to_read = qMin(max_size, remaining);
+        if (bytes_to_read <= 0) {
+            return -1;
+        }
+
+        memcpy(data, payload_.constData() + offset_, static_cast<size_t>(bytes_to_read));
+        offset_ += bytes_to_read;
+        return bytes_to_read;
+    }
+
+    qint64 writeData(const char *, qint64) override {
+        return -1;
+    }
+
+   private:
+    QByteArray payload_;
+    qint64 offset_ = 0;
+    bool aborted_ = false;
+};
+
+class HangingNetworkAccessManager final : public QNetworkAccessManager {
+   public:
+    explicit HangingNetworkAccessManager(QByteArray payload, QObject *parent = nullptr)
+        : QNetworkAccessManager(parent), payload_(std::move(payload)) {}
+
+   protected:
+    QNetworkReply *createRequest(Operation operation,
+                                 const QNetworkRequest &request,
+                                 QIODevice *outgoing_data = nullptr) override {
+        Q_UNUSED(operation);
+        Q_UNUSED(outgoing_data);
+        return new HangingNetworkReply(request, payload_, this);
+    }
+
+   private:
+    QByteArray payload_;
+};
 
 class AsrModelServiceTest final : public QObject {
     Q_OBJECT
 
    private slots:
     void initTestCase();
+    void default_manifest_matches_downloaded_archive_file_names();
     void parses_manifest_json();
     void rejects_manifest_json_with_missing_required_field();
     void reports_not_installed_for_missing_app_managed_directory();
@@ -106,10 +179,22 @@ class AsrModelServiceTest final : public QObject {
     void downloads_archive_to_cache_and_verifies_sha256();
     void reuses_existing_archive_cache_after_sha256_verification();
     void checksum_mismatch_removes_part_and_preserves_existing_archive();
+    void replacing_invalid_existing_archive_preserves_content_when_activation_fails();
+    void destroying_active_downloader_removes_part_and_preserves_existing_archive();
 };
 
 void AsrModelServiceTest::initTestCase() {
     qRegisterMetaType<AsrModelArchiveDownloadResult>();
+}
+
+void AsrModelServiceTest::default_manifest_matches_downloaded_archive_file_names() {
+    const AsrModelManifest manifest = AsrModelService::DefaultManifest();
+
+    QCOMPARE(manifest.id, QStringLiteral("sherpa-onnx-streaming-paraformer-bilingual-zh-en-int8"));
+    QCOMPARE(manifest.display_name, QStringLiteral("Streaming Paraformer bilingual zh/en int8"));
+    QCOMPARE(manifest.files.encoder_name, QStringLiteral("encoder.int8.onnx"));
+    QCOMPARE(manifest.files.decoder_name, QStringLiteral("decoder.int8.onnx"));
+    QCOMPARE(manifest.files.tokens_name, QStringLiteral("tokens.txt"));
 }
 
 void AsrModelServiceTest::parses_manifest_json() {
@@ -190,14 +275,14 @@ void AsrModelServiceTest::reports_incomplete_with_missing_required_files() {
     AsrModelService service(temp_dir.filePath(QStringLiteral("models")));
     QDir install_dir(service.InstallDirectory());
     QVERIFY(install_dir.mkpath(QStringLiteral(".")));
-    WriteEmptyFile(install_dir.filePath(QStringLiteral("encoder.int8.onnx")));
+    WriteEmptyFile(install_dir.filePath(service.SelectedManifest().files.encoder_name));
 
     const auto status = service.InstalledModelStatus();
 
     QCOMPARE(EnumValue(status.status), EnumValue(AsrModelInstallStatus::kIncomplete));
     QCOMPARE(status.missing_files.size(), 2);
-    QVERIFY(status.missing_files.at(0).endsWith(QStringLiteral("decoder.int8.onnx")));
-    QVERIFY(status.missing_files.at(1).endsWith(QStringLiteral("tokens.txt")));
+    QVERIFY(status.missing_files.at(0).endsWith(service.SelectedManifest().files.decoder_name));
+    QVERIFY(status.missing_files.at(1).endsWith(service.SelectedManifest().files.tokens_name));
     QVERIFY(!status.Available());
 }
 
@@ -406,6 +491,70 @@ void AsrModelServiceTest::checksum_mismatch_removes_part_and_preserves_existing_
 
     QVERIFY(!result.success);
     QVERIFY(result.error_message.contains(QStringLiteral("checksum mismatch")));
+    QCOMPARE(ReadFile(archive_path), previous_archive);
+    QVERIFY(!QFileInfo(archive_path + QStringLiteral(".part")).exists());
+}
+
+void AsrModelServiceTest::replacing_invalid_existing_archive_preserves_content_when_activation_fails() {
+    QTemporaryDir temp_dir;
+    QVERIFY(temp_dir.isValid());
+    const QByteArray previous_archive("previous invalid archive");
+    const QByteArray downloaded_archive("downloaded replacement archive");
+    const QString source_path = temp_dir.filePath(QStringLiteral("model.tar.bz2"));
+    WriteFile(source_path, downloaded_archive);
+
+    AsrModelManifest manifest = AsrModelService::DefaultManifest();
+    manifest.id = QStringLiteral("test-model");
+    manifest.source_url = QUrl::fromLocalFile(source_path).toString();
+    manifest.archive_size_bytes = downloaded_archive.size();
+    manifest.archive_sha256 = Sha256Hex(downloaded_archive);
+
+    QNetworkAccessManager network_manager;
+    AsrModelArchiveDownloader downloader(&network_manager, temp_dir.filePath(QStringLiteral("cache")));
+    const QString archive_path = downloader.ArchivePath(manifest);
+    QVERIFY(QDir().mkpath(QFileInfo(archive_path).path()));
+    QVERIFY(QDir().mkpath(archive_path));
+    WriteFile(QDir(archive_path).filePath(QStringLiteral("keep.txt")), previous_archive);
+    QSignalSpy finished_spy(&downloader, &AsrModelArchiveDownloader::Finished);
+
+    downloader.Start(manifest);
+
+    QVERIFY(!finished_spy.isEmpty() || finished_spy.wait(5000));
+    QCOMPARE(finished_spy.size(), 1);
+    const auto result = qvariant_cast<AsrModelArchiveDownloadResult>(finished_spy.takeFirst().at(0));
+
+    QVERIFY(!result.success);
+    QVERIFY(result.error_message.contains(QStringLiteral("archive cache path exists and is not a file")));
+    QVERIFY(QFileInfo(archive_path).isDir());
+    QCOMPARE(ReadFile(QDir(archive_path).filePath(QStringLiteral("keep.txt"))), previous_archive);
+    QVERIFY(!QFileInfo(archive_path + QStringLiteral(".part")).exists());
+}
+
+void AsrModelServiceTest::destroying_active_downloader_removes_part_and_preserves_existing_archive() {
+    QTemporaryDir temp_dir;
+    QVERIFY(temp_dir.isValid());
+    const QByteArray previous_archive("previous verified archive");
+    const QByteArray partial_payload("partial replacement bytes");
+
+    AsrModelManifest manifest = AsrModelService::DefaultManifest();
+    manifest.id = QStringLiteral("test-model");
+    manifest.source_url = QStringLiteral("https://example.invalid/model.tar.bz2");
+    manifest.archive_size_bytes = partial_payload.size() * 2;
+    manifest.archive_sha256 = Sha256Hex(QByteArray("complete archive bytes"));
+
+    HangingNetworkAccessManager network_manager(partial_payload);
+    const QString cache_root = temp_dir.filePath(QStringLiteral("cache"));
+    auto downloader = std::make_unique<AsrModelArchiveDownloader>(&network_manager, cache_root);
+    const QString archive_path = downloader->ArchivePath(manifest);
+    QVERIFY(QDir().mkpath(QFileInfo(archive_path).path()));
+    WriteFile(archive_path, previous_archive);
+
+    downloader->Start(manifest);
+
+    QTRY_VERIFY(QFileInfo(archive_path + QStringLiteral(".part")).isFile());
+    downloader->Cancel();
+    downloader.reset();
+
     QCOMPARE(ReadFile(archive_path), previous_archive);
     QVERIFY(!QFileInfo(archive_path + QStringLiteral(".part")).exists());
 }

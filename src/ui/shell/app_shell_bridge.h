@@ -73,6 +73,9 @@ class AppShellBridge final : public QObject {
     Q_PROPERTY(bool speechModelDeveloperOverride READ SpeechModelDeveloperOverride NOTIFY SpeechModelStatusChanged)
     Q_PROPERTY(bool speechModelInstallSupported READ SpeechModelInstallSupported NOTIFY SpeechModelStatusChanged)
     Q_PROPERTY(bool speechModelBusy READ SpeechModelBusy NOTIFY SpeechModelBusyChanged)
+    Q_PROPERTY(bool speechModelDownloadActive READ SpeechModelDownloadActive NOTIFY SpeechModelOperationChanged)
+    Q_PROPERTY(double speechModelProgress READ SpeechModelProgress NOTIFY SpeechModelOperationChanged)
+    Q_PROPERTY(QString speechModelOperationText READ SpeechModelOperationText NOTIFY SpeechModelOperationChanged)
 
    public:
     explicit AppShellBridge(ui::models::ChannelFilterModel *channel_model, QObject *parent = nullptr);
@@ -128,6 +131,9 @@ class AppShellBridge final : public QObject {
     bool SpeechModelDeveloperOverride() const;
     bool SpeechModelInstallSupported() const;
     bool SpeechModelBusy() const;
+    bool SpeechModelDownloadActive() const;
+    double SpeechModelProgress() const;
+    QString SpeechModelOperationText() const;
 
     void SetAvailableGroups(QStringList groups);
     void SetCurrentGroupFilter(const QString &group);
@@ -159,6 +165,7 @@ class AppShellBridge final : public QObject {
                               bool developer_override,
                               bool install_supported);
     void SetSpeechModelBusy(bool busy);
+    void SetSpeechModelOperation(bool download_active, double progress, const QString &operation_text);
 
     Q_INVOKABLE void activateChannelRow(int row);
     Q_INVOKABLE void setSearchText(const QString &search_text);
@@ -176,6 +183,8 @@ class AppShellBridge final : public QObject {
     Q_INVOKABLE void openRecentAt(int index);
     Q_INVOKABLE void toggleSpeechSubtitleEnabled();
     Q_INVOKABLE void refreshSpeechModelStatus();
+    Q_INVOKABLE void downloadSpeechModel();
+    Q_INVOKABLE void cancelSpeechModelDownload();
     Q_INVOKABLE void installSpeechModelArchive(const QUrl &archive_url);
     Q_INVOKABLE void deleteSpeechModel();
 
@@ -214,6 +223,7 @@ class AppShellBridge final : public QObject {
     void SpeechSubtitleStatusTextChanged();
     void SpeechModelStatusChanged();
     void SpeechModelBusyChanged();
+    void SpeechModelOperationChanged();
 
     void ActivateChannelRequested(const QModelIndex &index);
     void PlayPauseRequested();
@@ -228,6 +238,8 @@ class AppShellBridge final : public QObject {
     void RecentOpenRequested(const QString &request_kind, const QString &target);
     void SpeechSubtitleEnabledRequested(bool enabled);
     void SpeechModelStatusRefreshRequested();
+    void SpeechModelDownloadRequested();
+    void SpeechModelDownloadCancelRequested();
     void SpeechModelArchiveInstallRequested(const QString &archive_path);
     void SpeechModelDeleteRequested();
 
@@ -275,6 +287,9 @@ class AppShellBridge final : public QObject {
     bool speech_model_developer_override_ = false;
     bool speech_model_install_supported_ = false;
     bool speech_model_busy_ = false;
+    bool speech_model_download_active_ = false;
+    double speech_model_progress_ = -1.0;
+    QString speech_model_operation_text_;
 };
 
 }  // namespace shatv::ui::shell

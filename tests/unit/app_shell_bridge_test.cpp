@@ -131,10 +131,16 @@ void AppShellBridgeTest::speech_model_state_tracks_status_and_requests() {
     QVERIFY(!bridge.SpeechModelDeveloperOverride());
     QVERIFY(!bridge.SpeechModelInstallSupported());
     QVERIFY(!bridge.SpeechModelBusy());
+    QVERIFY(!bridge.SpeechModelDownloadActive());
+    QCOMPARE(bridge.SpeechModelProgress(), -1.0);
+    QCOMPARE(bridge.SpeechModelOperationText(), QString());
 
     QSignalSpy status_spy(&bridge, &AppShellBridge::SpeechModelStatusChanged);
     QSignalSpy busy_spy(&bridge, &AppShellBridge::SpeechModelBusyChanged);
+    QSignalSpy operation_spy(&bridge, &AppShellBridge::SpeechModelOperationChanged);
     QSignalSpy refresh_spy(&bridge, &AppShellBridge::SpeechModelStatusRefreshRequested);
+    QSignalSpy download_spy(&bridge, &AppShellBridge::SpeechModelDownloadRequested);
+    QSignalSpy cancel_spy(&bridge, &AppShellBridge::SpeechModelDownloadCancelRequested);
     QSignalSpy install_spy(&bridge, &AppShellBridge::SpeechModelArchiveInstallRequested);
     QSignalSpy delete_spy(&bridge, &AppShellBridge::SpeechModelDeleteRequested);
 
@@ -175,8 +181,20 @@ void AppShellBridgeTest::speech_model_state_tracks_status_and_requests() {
     QVERIFY(bridge.SpeechModelBusy());
     QCOMPARE(busy_spy.size(), 1);
 
+    bridge.SetSpeechModelOperation(true, 0.5, QStringLiteral("Downloading"));
+    QVERIFY(bridge.SpeechModelDownloadActive());
+    QCOMPARE(bridge.SpeechModelProgress(), 0.5);
+    QCOMPARE(bridge.SpeechModelOperationText(), QStringLiteral("Downloading"));
+    QCOMPARE(operation_spy.size(), 1);
+
     bridge.refreshSpeechModelStatus();
     QCOMPARE(refresh_spy.size(), 1);
+
+    bridge.downloadSpeechModel();
+    QCOMPARE(download_spy.size(), 1);
+
+    bridge.cancelSpeechModelDownload();
+    QCOMPARE(cancel_spy.size(), 1);
 
     bridge.installSpeechModelArchive(QUrl::fromLocalFile(QStringLiteral("/tmp/model.tar.bz2")));
     QCOMPARE(install_spy.size(), 1);

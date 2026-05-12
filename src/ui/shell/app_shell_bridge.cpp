@@ -222,6 +222,18 @@ bool AppShellBridge::SpeechModelBusy() const {
     return speech_model_busy_;
 }
 
+bool AppShellBridge::SpeechModelDownloadActive() const {
+    return speech_model_download_active_;
+}
+
+double AppShellBridge::SpeechModelProgress() const {
+    return speech_model_progress_;
+}
+
+QString AppShellBridge::SpeechModelOperationText() const {
+    return speech_model_operation_text_;
+}
+
 void AppShellBridge::SetAvailableGroups(QStringList groups) {
     if (available_groups_ == groups) {
         return;
@@ -506,6 +518,21 @@ void AppShellBridge::SetSpeechModelBusy(bool busy) {
     emit SpeechModelBusyChanged();
 }
 
+void AppShellBridge::SetSpeechModelOperation(bool download_active,
+                                             double progress,
+                                             const QString &operation_text) {
+    if (speech_model_download_active_ == download_active &&
+        speech_model_progress_ == progress &&
+        speech_model_operation_text_ == operation_text) {
+        return;
+    }
+
+    speech_model_download_active_ = download_active;
+    speech_model_progress_ = progress;
+    speech_model_operation_text_ = operation_text;
+    emit SpeechModelOperationChanged();
+}
+
 void AppShellBridge::activateChannelRow(int row) {
     const QModelIndex model_index = channel_model_->index(row, 0);
     if (!model_index.isValid()) {
@@ -561,6 +588,14 @@ void AppShellBridge::toggleSpeechSubtitleEnabled() {
 
 void AppShellBridge::refreshSpeechModelStatus() {
     emit SpeechModelStatusRefreshRequested();
+}
+
+void AppShellBridge::downloadSpeechModel() {
+    emit SpeechModelDownloadRequested();
+}
+
+void AppShellBridge::cancelSpeechModelDownload() {
+    emit SpeechModelDownloadCancelRequested();
 }
 
 void AppShellBridge::installSpeechModelArchive(const QUrl &archive_url) {

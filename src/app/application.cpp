@@ -1,6 +1,7 @@
 #include "app/application.h"
 
 #include <iostream>
+#include <algorithm>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -187,6 +188,7 @@ Application::Application(QGuiApplication *qt_app, LaunchOptions options)
     qRegisterMetaType<domain::MediaSourceDescriptor>("shatv::domain::MediaSourceDescriptor");
     qRegisterMetaType<domain::ResolvedChannel>("shatv::domain::ResolvedChannel");
     qRegisterMetaType<app::AsrModelArchiveInstallResult>("shatv::app::AsrModelArchiveInstallResult");
+    qRegisterMetaType<app::AsrModelArchiveDownloadResult>("shatv::app::AsrModelArchiveDownloadResult");
 
     backend_ = std::make_unique<player::FfmpegPlayerBackend>();
 
@@ -273,6 +275,10 @@ Application::Application(QGuiApplication *qt_app, LaunchOptions options)
                      [this](bool enabled) { UpdateSpeechSubtitleEnabled(enabled); });
     QObject::connect(shell_bridge_.get(), &ui::shell::AppShellBridge::SpeechModelStatusRefreshRequested, qt_app_,
                      [this]() { RefreshSpeechModelStatus(); });
+    QObject::connect(shell_bridge_.get(), &ui::shell::AppShellBridge::SpeechModelDownloadRequested, qt_app_,
+                     [this]() { DownloadSpeechModel(); });
+    QObject::connect(shell_bridge_.get(), &ui::shell::AppShellBridge::SpeechModelDownloadCancelRequested, qt_app_,
+                     [this]() { CancelSpeechModelDownload(); });
     QObject::connect(shell_bridge_.get(), &ui::shell::AppShellBridge::SpeechModelArchiveInstallRequested, qt_app_,
                      [this](const QString &archive_path) { InstallSpeechModelArchive(archive_path); });
     QObject::connect(shell_bridge_.get(), &ui::shell::AppShellBridge::SpeechModelDeleteRequested, qt_app_,
@@ -356,6 +362,10 @@ Application::Application(QGuiApplication *qt_app, LaunchOptions options)
 
 Application::~Application() {
     status_message_timer_.stop();
+    if (speech_model_downloader_ != nullptr) {
+        speech_model_downloader_->Cancel();
+        speech_model_downloader_.reset();
+    }
     if (speech_model_install_watcher_.isRunning()) {
         speech_model_install_watcher_.waitForFinished();
     }
@@ -832,7 +842,100 @@ void Application::RefreshSpeechModelStatus() {
                                         install_supported);
 }
 
+void Application::DownloadSpeechModel() {
+    if (speech_model_downloader_ != nullptr) {
+        ShowStatusMessage(QCoreApplication::translate("Application", "ASR model download is already running"), 3000);
+        return;
+    }
+    if (speech_model_install_watcher_.isRunning()) {
+        ShowStatusMessage(QCoreApplication::translate("Application", "ASR model installation is already running"), 3000);
+        return;
+    }
+    if (!AsrModelArchiveInstaller::Supported()) {
+        ShowAlert(QCoreApplication::translate("Application", "ASR model archive extraction requires libarchive support"));
+        return;
+    }
+
+    const AsrModelManifest manifest = AsrModelService::DefaultManifest();
+    speech_model_downloader_ = std::make_unique<AsrModelArchiveDownloader>(network_manager_.get());
+    QObject::connect(speech_model_downloader_.get(), &AsrModelArchiveDownloader::ProgressChanged, qt_app_,
+                     [this](qint64 bytes_received, qint64 bytes_total) {
+                         UpdateSpeechModelDownloadProgress(bytes_received, bytes_total);
+                     });
+    QObject::connect(speech_model_downloader_.get(), &AsrModelArchiveDownloader::Finished, qt_app_,
+                     [this](const AsrModelArchiveDownloadResult &result) {
+                         QTimer::singleShot(0, qt_app_, [this, result]() { FinishSpeechModelDownload(result); });
+                     });
+
+    shell_bridge_->SetSpeechModelBusy(true);
+    shell_bridge_->SetSpeechModelOperation(true,
+                                           -1.0,
+                                           QCoreApplication::translate("Application", "Downloading ASR model..."));
+    ShowStatusMessage(QCoreApplication::translate("Application", "Downloading ASR model..."), 0);
+    qCInfo(log_app).noquote()
+        << "ASR model download requested"
+        << "source=" << manifest.source_url;
+    speech_model_downloader_->Start(manifest);
+}
+
+void Application::CancelSpeechModelDownload() {
+    if (speech_model_downloader_ == nullptr) {
+        return;
+    }
+
+    shell_bridge_->SetSpeechModelOperation(true,
+                                           -1.0,
+                                           QCoreApplication::translate("Application", "Cancelling ASR model download..."));
+    speech_model_downloader_->Cancel();
+}
+
+void Application::UpdateSpeechModelDownloadProgress(qint64 bytes_received, qint64 bytes_total) {
+    const double progress = bytes_total > 0
+                                ? std::clamp(static_cast<double>(bytes_received) / static_cast<double>(bytes_total),
+                                             0.0,
+                                             1.0)
+                                : -1.0;
+    const QString operation_text = bytes_total > 0
+                                       ? QCoreApplication::translate("Application", "Downloading ASR model... %1 / %2")
+                                             .arg(FormatBytes(bytes_received), FormatBytes(bytes_total))
+                                       : QCoreApplication::translate("Application", "Downloading ASR model... %1")
+                                             .arg(FormatBytes(bytes_received));
+    shell_bridge_->SetSpeechModelOperation(true, progress, operation_text);
+}
+
+void Application::FinishSpeechModelDownload(const AsrModelArchiveDownloadResult &result) {
+    speech_model_downloader_.reset();
+
+    if (!result.success) {
+        shell_bridge_->SetSpeechModelBusy(false);
+        shell_bridge_->SetSpeechModelOperation(false, -1.0, QString());
+        RefreshSpeechModelStatus();
+        RefreshSpeechSubtitleControl();
+
+        qCWarning(log_app).noquote()
+            << "ASR model download failed"
+            << "reason=" << result.error_message;
+        if (result.error_message.contains(QStringLiteral("cancelled"), Qt::CaseInsensitive)) {
+            ShowStatusMessage(QCoreApplication::translate("Application", "ASR model download cancelled"), 3000);
+            return;
+        }
+        ShowAlert(result.error_message);
+        return;
+    }
+
+    qCInfo(log_app).noquote()
+        << "ASR model download finished"
+        << "archive=" << QDir::toNativeSeparators(result.archive_path);
+    shell_bridge_->SetSpeechModelBusy(false);
+    shell_bridge_->SetSpeechModelOperation(false, -1.0, QString());
+    InstallSpeechModelArchive(result.archive_path);
+}
+
 void Application::InstallSpeechModelArchive(const QString &archive_path) {
+    if (speech_model_downloader_ != nullptr) {
+        ShowStatusMessage(QCoreApplication::translate("Application", "ASR model download is still running"), 3000);
+        return;
+    }
     if (speech_model_install_watcher_.isRunning()) {
         ShowStatusMessage(QCoreApplication::translate("Application", "ASR model installation is already running"), 3000);
         return;
@@ -850,6 +953,9 @@ void Application::InstallSpeechModelArchive(const QString &archive_path) {
     const AsrModelManifest manifest = AsrModelService::DefaultManifest();
     const QString normalized_archive_path = QFileInfo(archive_path).absoluteFilePath();
     shell_bridge_->SetSpeechModelBusy(true);
+    shell_bridge_->SetSpeechModelOperation(false,
+                                           -1.0,
+                                           QCoreApplication::translate("Application", "Installing ASR model..."));
     ShowStatusMessage(QCoreApplication::translate("Application", "Installing ASR model..."), 0);
     qCInfo(log_app).noquote()
         << "ASR model archive install requested"
@@ -864,6 +970,7 @@ void Application::InstallSpeechModelArchive(const QString &archive_path) {
 void Application::FinishSpeechModelArchiveInstall() {
     const AsrModelArchiveInstallResult result = speech_model_install_watcher_.result();
     shell_bridge_->SetSpeechModelBusy(false);
+    shell_bridge_->SetSpeechModelOperation(false, -1.0, QString());
     RefreshSpeechModelStatus();
     RefreshSpeechSubtitleControl();
 
@@ -882,6 +989,10 @@ void Application::FinishSpeechModelArchiveInstall() {
 }
 
 void Application::DeleteSpeechModel() {
+    if (speech_model_downloader_ != nullptr) {
+        ShowStatusMessage(QCoreApplication::translate("Application", "ASR model download is still running"), 3000);
+        return;
+    }
     if (speech_model_install_watcher_.isRunning()) {
         ShowStatusMessage(QCoreApplication::translate("Application", "ASR model installation is still running"), 3000);
         return;

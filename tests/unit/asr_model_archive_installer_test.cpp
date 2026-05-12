@@ -38,8 +38,9 @@ QByteArray ReadFile(const QString &path) {
 }
 
 void WriteRequiredModelFiles(const QString &model_dir, const QByteArray &encoder_content) {
-    WriteFile(QDir(model_dir).filePath(QStringLiteral("encoder.int8.onnx")), encoder_content);
-    WriteFile(QDir(model_dir).filePath(QStringLiteral("decoder.int8.onnx")), QByteArray("decoder"));
+    const AsrModelManifest manifest = AsrModelService::DefaultManifest();
+    WriteFile(QDir(model_dir).filePath(manifest.files.encoder_name), encoder_content);
+    WriteFile(QDir(model_dir).filePath(manifest.files.decoder_name), QByteArray("decoder"));
     WriteFile(QDir(model_dir).filePath(QStringLiteral("tokens.txt")), QByteArray("tokens"));
 }
 
@@ -88,17 +89,17 @@ void AsrModelArchiveInstallerTest::installs_tar_bz2_archive_after_required_file_
 #if SHATV_HAS_LIBARCHIVE
     QTemporaryDir temp_dir;
     QVERIFY(temp_dir.isValid());
-    const QString archive_path = temp_dir.filePath(QStringLiteral("model.tar.bz2"));
-    WriteTarBz2Archive(archive_path,
-                       {
-                           {QStringLiteral("model/encoder.int8.onnx"), QByteArray("new encoder")},
-                           {QStringLiteral("model/decoder.int8.onnx"), QByteArray("new decoder")},
-                           {QStringLiteral("model/tokens.txt"), QByteArray("new tokens")},
-                       });
-
     AsrModelManifest manifest = AsrModelService::DefaultManifest();
     manifest.id = QStringLiteral("test-model");
     manifest.version = QStringLiteral("v-test");
+
+    const QString archive_path = temp_dir.filePath(QStringLiteral("model.tar.bz2"));
+    WriteTarBz2Archive(archive_path,
+                       {
+                           {QStringLiteral("model/") + manifest.files.encoder_name, QByteArray("new encoder")},
+                           {QStringLiteral("model/") + manifest.files.decoder_name, QByteArray("new decoder")},
+                           {QStringLiteral("model/") + manifest.files.tokens_name, QByteArray("new tokens")},
+                       });
 
     const QString model_root = temp_dir.filePath(QStringLiteral("models"));
     const AsrModelArchiveInstaller installer(model_root);
@@ -106,8 +107,7 @@ void AsrModelArchiveInstallerTest::installs_tar_bz2_archive_after_required_file_
 
     QVERIFY2(result.success, qPrintable(result.error_message));
     QCOMPARE(result.install_dir, QDir(model_root).filePath(manifest.id));
-    QCOMPARE(ReadFile(QDir(result.install_dir).filePath(QStringLiteral("encoder.int8.onnx"))),
-             QByteArray("new encoder"));
+    QCOMPARE(ReadFile(QDir(result.install_dir).filePath(manifest.files.encoder_name)), QByteArray("new encoder"));
     QVERIFY(QFileInfo(QDir(result.install_dir).filePath(QStringLiteral("asr_model_manifest.json"))).isFile());
 
     const QJsonDocument metadata =
@@ -125,17 +125,18 @@ void AsrModelArchiveInstallerTest::rejects_path_traversal_and_preserves_existing
 #if SHATV_HAS_LIBARCHIVE
     QTemporaryDir temp_dir;
     QVERIFY(temp_dir.isValid());
+    AsrModelManifest manifest = AsrModelService::DefaultManifest();
+    manifest.id = QStringLiteral("test-model");
+
     const QString archive_path = temp_dir.filePath(QStringLiteral("malicious.tar.bz2"));
     WriteTarBz2Archive(archive_path,
                        {
                            {QStringLiteral("../evil.txt"), QByteArray("evil")},
-                           {QStringLiteral("model/encoder.int8.onnx"), QByteArray("new encoder")},
-                           {QStringLiteral("model/decoder.int8.onnx"), QByteArray("new decoder")},
-                           {QStringLiteral("model/tokens.txt"), QByteArray("new tokens")},
+                           {QStringLiteral("model/") + manifest.files.encoder_name, QByteArray("new encoder")},
+                           {QStringLiteral("model/") + manifest.files.decoder_name, QByteArray("new decoder")},
+                           {QStringLiteral("model/") + manifest.files.tokens_name, QByteArray("new tokens")},
                        });
 
-    AsrModelManifest manifest = AsrModelService::DefaultManifest();
-    manifest.id = QStringLiteral("test-model");
     const QString model_root = temp_dir.filePath(QStringLiteral("models"));
     const QString existing_model_dir = QDir(model_root).filePath(manifest.id);
     WriteRequiredModelFiles(existing_model_dir, QByteArray("old encoder"));
@@ -145,8 +146,7 @@ void AsrModelArchiveInstallerTest::rejects_path_traversal_and_preserves_existing
 
     QVERIFY(!result.success);
     QVERIFY(result.error_message.contains(QStringLiteral("Unsafe archive entry path")));
-    QCOMPARE(ReadFile(QDir(existing_model_dir).filePath(QStringLiteral("encoder.int8.onnx"))),
-             QByteArray("old encoder"));
+    QCOMPARE(ReadFile(QDir(existing_model_dir).filePath(manifest.files.encoder_name)), QByteArray("old encoder"));
     QVERIFY(!QFileInfo(temp_dir.filePath(QStringLiteral("evil.txt"))).exists());
 #endif
 }
@@ -159,14 +159,15 @@ void AsrModelArchiveInstallerTest::rejects_archive_missing_required_files() {
 #if SHATV_HAS_LIBARCHIVE
     QTemporaryDir temp_dir;
     QVERIFY(temp_dir.isValid());
+    AsrModelManifest manifest = AsrModelService::DefaultManifest();
+    manifest.id = QStringLiteral("test-model");
+
     const QString archive_path = temp_dir.filePath(QStringLiteral("incomplete.tar.bz2"));
     WriteTarBz2Archive(archive_path,
                        {
-                           {QStringLiteral("model/encoder.int8.onnx"), QByteArray("encoder only")},
+                           {QStringLiteral("model/") + manifest.files.encoder_name, QByteArray("encoder only")},
                        });
 
-    AsrModelManifest manifest = AsrModelService::DefaultManifest();
-    manifest.id = QStringLiteral("test-model");
     const QString model_root = temp_dir.filePath(QStringLiteral("models"));
 
     const AsrModelArchiveInstaller installer(model_root);

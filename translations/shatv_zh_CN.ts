@@ -109,7 +109,7 @@
         <translation type="vanished">打开失败：无效的媒体目标。</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="469"/>
+        <location filename="../src/app/application.cpp" line="479"/>
         <source>Playlist contains no playable channels</source>
         <translation>播放列表中没有可播放频道。</translation>
     </message>
@@ -138,12 +138,12 @@
         <translation type="vanished">保存 User-Agent 到 %1 失败。</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="510"/>
+        <location filename="../src/app/application.cpp" line="520"/>
         <source>Network settings saved</source>
         <translation>网络设置已保存</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="496"/>
+        <location filename="../src/app/application.cpp" line="506"/>
         <source>Failed to save network settings to %1</source>
         <translation>保存网络设置到 %1 失败。</translation>
     </message>
@@ -152,183 +152,223 @@
         <translation type="vanished">未配置语音识别模型目录</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="727"/>
+        <location filename="../src/app/application.cpp" line="737"/>
         <source>Required ASR model file is missing: %1</source>
         <translation>缺少必需的语音识别模型文件：%1</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="174"/>
+        <location filename="../src/app/application.cpp" line="175"/>
         <source>Unsupported ASR provider: %1</source>
         <translation>不支持的语音识别后端：%1</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="96"/>
-        <location filename="../src/app/application.cpp" line="142"/>
+        <location filename="../src/app/application.cpp" line="97"/>
+        <location filename="../src/app/application.cpp" line="143"/>
         <source>Unknown</source>
         <translation>未知</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="102"/>
+        <location filename="../src/app/application.cpp" line="103"/>
         <source>B</source>
         <translation>B</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="103"/>
+        <location filename="../src/app/application.cpp" line="104"/>
         <source>KiB</source>
         <translation>KiB</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="104"/>
+        <location filename="../src/app/application.cpp" line="105"/>
         <source>MiB</source>
         <translation>MiB</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="105"/>
+        <location filename="../src/app/application.cpp" line="106"/>
         <source>GiB</source>
         <translation>GiB</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="134"/>
+        <location filename="../src/app/application.cpp" line="135"/>
         <source>Not installed</source>
         <translation>未安装</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="136"/>
+        <location filename="../src/app/application.cpp" line="137"/>
         <source>Incomplete</source>
         <translation>不完整</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="138"/>
+        <location filename="../src/app/application.cpp" line="139"/>
         <source>Installed</source>
         <translation>已安装</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="140"/>
+        <location filename="../src/app/application.cpp" line="141"/>
         <source>Developer override</source>
         <translation>开发覆盖</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="147"/>
+        <location filename="../src/app/application.cpp" line="148"/>
         <source>Model archive extraction requires libarchive support</source>
         <translation>解压模型归档需要 libarchive 支持</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="150"/>
+        <location filename="../src/app/application.cpp" line="151"/>
         <source>Missing required file: %1</source>
         <translation>缺少必需文件：%1</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="704"/>
+        <location filename="../src/app/application.cpp" line="714"/>
         <source>Recent item cannot be reopened</source>
         <translation>无法重新打开最近项目</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="724"/>
+        <location filename="../src/app/application.cpp" line="734"/>
         <source>Speech recognition model is not installed</source>
         <translation>语音识别模型未安装</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="745"/>
+        <location filename="../src/app/application.cpp" line="755"/>
         <source>This build does not include speech recognition subtitles</source>
         <translation>当前构建未启用语音识别字幕</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="774"/>
+        <location filename="../src/app/application.cpp" line="784"/>
         <source>Speech recognition subtitles require an installed model. Open Settings &gt; Speech to install one.</source>
         <translation>语音识别字幕需要已安装的模型。请打开设置 &gt; 语音安装模型。</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="789"/>
+        <location filename="../src/app/application.cpp" line="799"/>
         <source>Failed to save speech subtitle setting</source>
         <translation>保存语音识别字幕设置失败。</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="805"/>
+        <location filename="../src/app/application.cpp" line="815"/>
         <source>Speech recognition subtitles enabled</source>
         <translation>语音识别字幕已开启</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="806"/>
+        <location filename="../src/app/application.cpp" line="816"/>
         <source>Speech recognition subtitles disabled</source>
         <translation>语音识别字幕已关闭</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="837"/>
+        <location filename="../src/app/application.cpp" line="847"/>
+        <source>ASR model download is already running</source>
+        <translation>语音识别模型正在下载</translation>
+    </message>
+    <message>
+        <location filename="../src/app/application.cpp" line="851"/>
+        <location filename="../src/app/application.cpp" line="941"/>
         <source>ASR model installation is already running</source>
         <translation>语音识别模型正在安装</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="841"/>
+        <location filename="../src/app/application.cpp" line="855"/>
+        <location filename="../src/app/application.cpp" line="945"/>
         <source>ASR model archive extraction requires libarchive support</source>
         <translation>解压语音识别模型归档需要 libarchive 支持</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="845"/>
+        <location filename="../src/app/application.cpp" line="873"/>
+        <location filename="../src/app/application.cpp" line="874"/>
+        <source>Downloading ASR model...</source>
+        <translation>正在下载语音识别模型...</translation>
+    </message>
+    <message>
+        <location filename="../src/app/application.cpp" line="888"/>
+        <source>Cancelling ASR model download...</source>
+        <translation>正在取消语音识别模型下载...</translation>
+    </message>
+    <message>
+        <location filename="../src/app/application.cpp" line="899"/>
+        <source>Downloading ASR model... %1 / %2</source>
+        <translation>正在下载语音识别模型... %1 / %2</translation>
+    </message>
+    <message>
+        <location filename="../src/app/application.cpp" line="901"/>
+        <source>Downloading ASR model... %1</source>
+        <translation>正在下载语音识别模型... %1</translation>
+    </message>
+    <message>
+        <location filename="../src/app/application.cpp" line="919"/>
+        <source>ASR model download cancelled</source>
+        <translation>语音识别模型下载已取消</translation>
+    </message>
+    <message>
+        <location filename="../src/app/application.cpp" line="937"/>
+        <location filename="../src/app/application.cpp" line="994"/>
+        <source>ASR model download is still running</source>
+        <translation>语音识别模型仍在下载</translation>
+    </message>
+    <message>
+        <location filename="../src/app/application.cpp" line="949"/>
         <source>ASR model archive is missing: %1</source>
         <translation>语音识别模型归档不存在：%1</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="853"/>
+        <location filename="../src/app/application.cpp" line="959"/>
+        <location filename="../src/app/application.cpp" line="960"/>
         <source>Installing ASR model...</source>
         <translation>正在安装语音识别模型...</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="881"/>
+        <location filename="../src/app/application.cpp" line="989"/>
         <source>ASR model installed</source>
         <translation>语音识别模型已安装</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="886"/>
+        <location filename="../src/app/application.cpp" line="998"/>
         <source>ASR model installation is still running</source>
         <translation>语音识别模型仍在安装</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="893"/>
+        <location filename="../src/app/application.cpp" line="1005"/>
         <source>Developer override model directories are not managed by ShaTV</source>
         <translation>开发覆盖模型目录不由 ShaTV 管理</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="900"/>
+        <location filename="../src/app/application.cpp" line="1012"/>
         <source>ASR model is not installed</source>
         <translation>语音识别模型未安装</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="904"/>
+        <location filename="../src/app/application.cpp" line="1016"/>
         <source>ASR model install path is not a directory: %1</source>
         <translation>语音识别模型安装路径不是目录：%1</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="909"/>
+        <location filename="../src/app/application.cpp" line="1021"/>
         <source>Failed to delete ASR model: %1</source>
         <translation>删除语音识别模型失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="919"/>
+        <location filename="../src/app/application.cpp" line="1031"/>
         <source>ASR model deleted</source>
         <translation>语音识别模型已删除</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="1047"/>
+        <location filename="../src/app/application.cpp" line="1159"/>
         <source>Log folder is not available</source>
         <translation>日志文件夹不可用</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="1053"/>
+        <location filename="../src/app/application.cpp" line="1165"/>
         <source>Failed to open logs folder</source>
         <translation>打开日志文件夹失败</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="1060"/>
+        <location filename="../src/app/application.cpp" line="1172"/>
         <source>Clipboard is not available</source>
         <translation>剪贴板不可用</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="1066"/>
+        <location filename="../src/app/application.cpp" line="1178"/>
         <source>Diagnostics copied to clipboard</source>
         <translation>诊断信息已复制到剪贴板</translation>
     </message>
     <message>
-        <location filename="../src/app/application.cpp" line="675"/>
+        <location filename="../src/app/application.cpp" line="685"/>
         <source>Failed to save recent history</source>
         <translation>最近打开记录保存失败</translation>
     </message>
@@ -353,7 +393,7 @@
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="119"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="124"/>
         <source>All groups</source>
         <translation>全部分组</translation>
     </message>
@@ -398,101 +438,101 @@
         <translation type="vanished">关于 ShaTV(&amp;A)...</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="1050"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="1060"/>
         <source>Search channels</source>
         <translation>搜索频道</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="1362"/>
-        <location filename="../src/ui/qml/MainWindow.qml" line="1498"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="1372"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="1508"/>
         <source>Pause</source>
         <translation>暂停</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="1362"/>
-        <location filename="../src/ui/qml/MainWindow.qml" line="1498"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="1372"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="1508"/>
         <source>Play</source>
         <translation>播放</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="1368"/>
-        <location filename="../src/ui/qml/MainWindow.qml" line="1504"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="1378"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="1514"/>
         <source>Stop</source>
         <translation>停止</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="141"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="146"/>
         <source>Enable Speech Recognition Subtitles</source>
         <translation>开启语音识别字幕</translation>
     </message>
     <message>
         <location filename="../src/ui/qml/MainWindow.qml" line="21"/>
-        <location filename="../src/ui/qml/MainWindow.qml" line="598"/>
-        <location filename="../src/ui/qml/MainWindow.qml" line="974"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="603"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="984"/>
         <source>ShaTV</source>
         <translation type="unfinished">ShaTV</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="140"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="145"/>
         <source>Disable Speech Recognition Subtitles</source>
         <translation>关闭语音识别字幕</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="146"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="151"/>
         <source>Speech recognition subtitles unavailable</source>
         <translation>语音识别字幕不可用</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="614"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="619"/>
         <source>Open Link</source>
         <translation type="unfinished">打开链接</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="1392"/>
-        <location filename="../src/ui/qml/MainWindow.qml" line="1528"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="1402"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="1538"/>
         <source>Unmute</source>
         <translation>取消静音</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="1392"/>
-        <location filename="../src/ui/qml/MainWindow.qml" line="1528"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="1402"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="1538"/>
         <source>Mute</source>
         <translation>静音</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="1422"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="1432"/>
         <source>X</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="1476"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="1486"/>
         <source>Exit Full Screen</source>
         <translation>退出全屏</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="730"/>
-        <location filename="../src/ui/qml/MainWindow.qml" line="733"/>
-        <location filename="../src/ui/qml/MainWindow.qml" line="1615"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="735"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="738"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="1625"/>
         <source>Full Screen</source>
         <translation>全屏</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="122"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="127"/>
         <source>Ready</source>
         <translation>就绪</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="131"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="136"/>
         <source>Reconnecting</source>
         <translation>正在重连</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="132"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="137"/>
         <source>Buffering</source>
         <translation>正在缓冲</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="132"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="137"/>
         <source>Loading</source>
         <translation>正在加载</translation>
     </message>
@@ -501,7 +541,7 @@
         <translation type="vanished">文件</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="648"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="653"/>
         <source>Settings</source>
         <translation>设置</translation>
     </message>
@@ -510,18 +550,18 @@
         <translation type="vanished">关于</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="606"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="611"/>
         <source>Open File...</source>
         <translation>打开文件...</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="615"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="620"/>
         <source>Open Link...</source>
         <translation>打开链接...</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="624"/>
-        <location filename="../src/ui/qml/MainWindow.qml" line="808"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="629"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="813"/>
         <source>Open Recent</source>
         <translation>最近打开</translation>
     </message>
@@ -530,93 +570,93 @@
         <translation type="vanished">网络设置</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="605"/>
-        <location filename="../src/ui/qml/MainWindow.qml" line="955"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="610"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="965"/>
         <source>Open File</source>
         <translation>打开文件</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="958"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="968"/>
         <source>Media Files (*.m3u *.m3u8 *.mp4 *.mkv *.ts *.mov *.webm *.mp3 *.flac)</source>
         <translation>媒体文件 (*.m3u *.m3u8 *.mp4 *.mkv *.ts *.mov *.webm *.mp3 *.flac)</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="959"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="969"/>
         <source>All Files (*)</source>
         <translation>所有文件 (*)</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="738"/>
-        <location filename="../src/ui/qml/MainWindow.qml" line="741"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="743"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="746"/>
         <source>Minimize</source>
         <translation>最小化</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="746"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="751"/>
         <source>Maximize</source>
         <translation>最大化</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="746"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="751"/>
         <source>Restore</source>
         <translation>还原</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="760"/>
-        <location filename="../src/ui/qml/MainWindow.qml" line="763"/>
-        <location filename="../src/ui/qml/MainWindow.qml" line="1001"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="765"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="768"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="1011"/>
         <source>Close</source>
         <translation>关闭</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="710"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="715"/>
         <source>Always on Top</source>
         <translation>窗口置顶</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="700"/>
         <location filename="../src/ui/qml/MainWindow.qml" line="705"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="710"/>
         <source>Toggle Status Panel</source>
         <translation>显示状态面板</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="1166"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="1176"/>
         <source>Now</source>
         <translation>当前</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="1216"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="1226"/>
         <source>Next</source>
         <translation>接下来</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="720"/>
         <location filename="../src/ui/qml/MainWindow.qml" line="725"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="730"/>
         <source>Toggle Channel List</source>
         <translation>频道列表</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="843"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="848"/>
         <source>Aspect Ratio</source>
         <translation>画面比例</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="846"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="851"/>
         <source>Preserve (Fit)</source>
         <translation>保持比例（适应）</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="853"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="858"/>
         <source>Stretch</source>
         <translation>拉伸</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="860"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="865"/>
         <source>Fill (Crop)</source>
         <translation>填充（裁剪）</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/MainWindow.qml" line="867"/>
+        <location filename="../src/ui/qml/MainWindow.qml" line="872"/>
         <source>Native (1:1)</source>
         <translation>原始尺寸（1:1）</translation>
     </message>
@@ -730,52 +770,52 @@
 <context>
     <name>SettingsWindow</name>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="48"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="53"/>
         <source>Settings</source>
         <translation>设置</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="68"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="73"/>
         <source>Unknown</source>
         <translation>未知</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="126"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="131"/>
         <source>General</source>
         <translation>常规</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="130"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="135"/>
         <source>Speech</source>
         <translation>语音</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="134"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="139"/>
         <source>About</source>
         <translation>关于</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="156"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="161"/>
         <source>Configure the HTTP User-Agent and an optional XMLTV EPG URL used for current/next programme lookup.</source>
         <translation>配置 HTTP User-Agent 和可选 XMLTV EPG 地址，用于当前/下一节目的查询。</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="167"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="172"/>
         <source>User-Agent</source>
         <translation>User-Agent</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="174"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="179"/>
         <source>Leave empty to use the default</source>
         <translation>留空则使用默认值</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="183"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="188"/>
         <source>EPG URL</source>
         <translation>EPG 地址</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="190"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="195"/>
         <source>https://example.com/guide.xml.gz</source>
         <translation>https://example.com/guide.xml.gz</translation>
     </message>
@@ -792,154 +832,164 @@
         <translation type="vanished">模型</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="305"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="346"/>
         <source>Source</source>
         <translation>来源</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="317"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="358"/>
         <source>Archive</source>
         <translation>归档</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="329"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="370"/>
         <source>Installed</source>
         <translation>安装大小</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="341"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="382"/>
         <source>Checksum</source>
         <translation>校验和</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="365"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="406"/>
         <source>Attribution</source>
         <translation>署名</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="377"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="418"/>
         <source>Directory</source>
         <translation>目录</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="245"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="265"/>
         <source>Install Archive</source>
         <translation>安装归档</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="253"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="273"/>
         <source>Refresh</source>
         <translation>刷新</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="259"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="279"/>
         <source>Delete</source>
         <translation>删除</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="407"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="448"/>
         <source>ShaTV</source>
         <translation>ShaTV</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="415"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="456"/>
         <source>A cross-platform IPTV player.</source>
         <translation>一个跨平台 IPTV 播放器。</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="570"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="611"/>
         <source>Install ASR Model Archive</source>
         <translation>安装语音识别模型归档</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="573"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="614"/>
         <source>Model Archives (*.tar.bz2 *.tar.gz *.tgz *.zip)</source>
         <translation>模型归档 (*.tar.bz2 *.tar.gz *.tgz *.zip)</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="574"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="615"/>
         <source>All Files (*)</source>
         <translation>所有文件 (*)</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="293"/>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="427"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="334"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="468"/>
         <source>Version</source>
         <translation>版本</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="280"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="250"/>
+        <source>Download</source>
+        <translation>下载</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="258"/>
+        <source>Cancel</source>
+        <translation>取消</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="321"/>
         <source>Hide Details</source>
         <translation>隐藏详情</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="281"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="322"/>
         <source>Show Details</source>
         <translation>显示详情</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="437"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="478"/>
         <source>Build</source>
         <translation>构建</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="449"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="490"/>
         <source>Built with C++20, Qt 6, and FFmpeg.</source>
         <translation>基于 C++20、Qt 6 和 FFmpeg 构建。</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="455"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="496"/>
         <source>Diagnostics</source>
         <translation>诊断</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="463"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="504"/>
         <source>Log file: %1</source>
         <translation>日志文件：%1</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="464"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="505"/>
         <source>File logging is not available.</source>
         <translation>文件日志不可用。</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="474"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="515"/>
         <source>Open Logs Folder</source>
         <translation>打开日志文件夹</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="480"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="521"/>
         <source>Copy Diagnostics</source>
         <translation>复制诊断信息</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="490"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="531"/>
         <source>Authors</source>
         <translation>作者</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="353"/>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="505"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="394"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="546"/>
         <source>License</source>
         <translation>许可证</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="511"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="552"/>
         <source>Not specified</source>
         <translation>未指定</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="516"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="557"/>
         <source>Repository</source>
         <translation>仓库</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="552"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="593"/>
         <source>Close</source>
         <translation>关闭</translation>
     </message>
     <message>
-        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="557"/>
+        <location filename="../src/ui/qml/dialogs/SettingsWindow.qml" line="598"/>
         <source>Save</source>
         <translation>保存</translation>
     </message>
@@ -1241,17 +1291,17 @@
 <context>
     <name>shatv::ui::shell::AppShellBridge</name>
     <message>
-        <location filename="../src/ui/shell/app_shell_bridge.cpp" line="420"/>
+        <location filename="../src/ui/shell/app_shell_bridge.cpp" line="432"/>
         <source>Delay %1 ms</source>
         <translation type="unfinished">延迟 %1 毫秒</translation>
     </message>
     <message>
-        <location filename="../src/ui/shell/app_shell_bridge.cpp" line="421"/>
+        <location filename="../src/ui/shell/app_shell_bridge.cpp" line="433"/>
         <source>Final</source>
         <translation type="unfinished">已确认</translation>
     </message>
     <message>
-        <location filename="../src/ui/shell/app_shell_bridge.cpp" line="421"/>
+        <location filename="../src/ui/shell/app_shell_bridge.cpp" line="433"/>
         <source>Recognizing</source>
         <translation type="unfinished">识别中</translation>
     </message>

@@ -94,6 +94,7 @@ class AsrModelArchiveDownloader final : public QObject {
     explicit AsrModelArchiveDownloader(QNetworkAccessManager *network_manager,
                                        QString archive_cache_root = AsrModelService::DefaultArchiveCacheRoot(),
                                        QObject *parent = nullptr);
+    ~AsrModelArchiveDownloader() override;
 
     QString ArchivePath(const AsrModelManifest &manifest) const;
     void Start(const AsrModelManifest &manifest);

@@ -161,13 +161,18 @@ AsrModelManifest AsrModelService::DefaultManifest() {
         .id = QStringLiteral("sherpa-onnx-streaming-paraformer-bilingual-zh-en-int8"),
         .version = QStringLiteral("manual-2026-05-11"),
         .display_name = QStringLiteral("Streaming Paraformer bilingual zh/en int8"),
-        .source_url = QStringLiteral("https://github.com/k2-fsa/sherpa-onnx/releases/tag/asr-models"),
-        .archive_size_bytes = 0,
+        .source_url = QStringLiteral("https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/"
+                                     "sherpa-onnx-streaming-paraformer-bilingual-zh-en.tar.bz2"),
+        .archive_size_bytes = 1047319737,
         .installed_size_bytes = 0,
         .archive_sha256 = QStringLiteral("5462a1fce42693deae572af1e8c4687124b12aa85fe61ff4d3168bb5280e205f"),
         .license = QStringLiteral("review-required"),
         .attribution = QStringLiteral("csukuangfj/sherpa-onnx-streaming-paraformer-bilingual-zh-en"),
-        .files = {},
+        .files = AsrModelFileSet{
+            .encoder_name = QStringLiteral("encoder.int8.onnx"),
+            .decoder_name = QStringLiteral("decoder.int8.onnx"),
+            .tokens_name = QStringLiteral("tokens.txt"),
+        },
     };
 }
 
@@ -322,6 +327,19 @@ AsrModelArchiveDownloader::AsrModelArchiveDownloader(QNetworkAccessManager *netw
       network_manager_(network_manager),
       archive_cache_root_(std::move(archive_cache_root)) {}
 
+AsrModelArchiveDownloader::~AsrModelArchiveDownloader() {
+    if (reply_ == nullptr) {
+        return;
+    }
+
+    reply_->disconnect(this);
+    cancel_requested_ = true;
+    reply_->abort();
+    CleanupPartFile();
+    reply_->deleteLater();
+    reply_ = nullptr;
+}
+
 QString AsrModelArchiveDownloader::ArchivePath(const AsrModelManifest &manifest) const {
     if (archive_cache_root_.trimmed().isEmpty()) {
         return {};
@@ -367,6 +385,11 @@ void AsrModelArchiveDownloader::Start(const AsrModelManifest &manifest) {
     }
 
     const QFileInfo existing_archive(archive_path_);
+    if (existing_archive.exists() && !existing_archive.isFile()) {
+        FinishWithFailure(QStringLiteral("ASR model archive cache path exists and is not a file: %1")
+                              .arg(QDir::toNativeSeparators(archive_path_)));
+        return;
+    }
     if (existing_archive.isFile()) {
         QString actual_sha256;
         QString hash_error;
@@ -399,6 +422,7 @@ void AsrModelArchiveDownloader::Start(const AsrModelManifest &manifest) {
     }
 
     QNetworkRequest request(source_url);
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
     reply_ = network_manager_->get(request);
     connect(reply_, &QNetworkReply::readyRead, this, &AsrModelArchiveDownloader::OnReadyRead);
     connect(reply_, &QNetworkReply::downloadProgress, this, &AsrModelArchiveDownloader::OnDownloadProgress);
@@ -446,6 +470,9 @@ void AsrModelArchiveDownloader::OnFinished(const AsrModelManifest &manifest) {
     }
 
     OnReadyRead();
+    if (reply_ == nullptr) {
+        return;
+    }
 
     if (cancel_requested_) {
         FinishWithFailure(QStringLiteral("ASR model archive download cancelled"));
@@ -477,10 +504,23 @@ void AsrModelArchiveDownloader::OnFinished(const AsrModelManifest &manifest) {
         return;
     }
 
-    QFile::remove(archive_path_);
+    const QString backup_path = archive_path_ + QStringLiteral(".previous");
+    QFile::remove(backup_path);
+    const bool had_existing_archive = QFileInfo(archive_path_).exists();
+    if (had_existing_archive && !QFile::rename(archive_path_, backup_path)) {
+        FinishWithFailure(QStringLiteral("Failed to prepare existing ASR model archive cache file for replacement"));
+        return;
+    }
+
     if (!QFile::rename(part_path_, archive_path_)) {
+        if (had_existing_archive) {
+            QFile::rename(backup_path, archive_path_);
+        }
         FinishWithFailure(QStringLiteral("Failed to activate ASR model archive cache file"));
         return;
+    }
+    if (had_existing_archive) {
+        QFile::remove(backup_path);
     }
 
     FinishWithSuccess();
