@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Dialogs
 import QtQuick.Layouts
 import QtQuick.Window
 
@@ -13,10 +14,30 @@ Window {
     property string buildId: ""
     property string logFilePath: ""
     property string logsDirectoryPath: ""
+    property string speechModelStatusToken: ""
+    property string speechModelStatusText: ""
+    property string speechModelStatusDetail: ""
+    property string speechModelName: ""
+    property string speechModelVersion: ""
+    property string speechModelSourceUrl: ""
+    property string speechModelArchiveSizeText: ""
+    property string speechModelInstalledSizeText: ""
+    property string speechModelChecksum: ""
+    property string speechModelLicense: ""
+    property string speechModelAttribution: ""
+    property string speechModelDirectory: ""
+    property bool speechModelInstalled: false
+    property bool speechModelDeveloperOverride: false
+    property bool speechModelInstallSupported: false
+    property bool speechModelBusy: false
+    property bool speechModelDetailsVisible: false
 
     signal submitted(string userAgent, string epgUrl)
     signal openLogsFolderRequested()
     signal copyDiagnosticsRequested()
+    signal refreshSpeechModelRequested()
+    signal installSpeechModelArchiveRequested(url archiveUrl)
+    signal deleteSpeechModelRequested()
 
     width: 720
     height: 560
@@ -32,6 +53,7 @@ Window {
         userAgentField.text = userAgent
         epgUrlField.text = epgUrl
         settingsTabBar.currentIndex = tabIndex
+        speechModelDetailsVisible = false
 
         show()
         raise()
@@ -40,6 +62,10 @@ Window {
         if (tabIndex === 0) {
             userAgentField.forceActiveFocus()
         }
+    }
+
+    function displayValue(value) {
+        return value.length > 0 ? value : qsTr("Unknown")
     }
 
     Shortcut {
@@ -101,6 +127,10 @@ Window {
                 }
 
                 SettingsTabButton {
+                    text: qsTr("Speech")
+                }
+
+                SettingsTabButton {
                     text: qsTr("About")
                 }
             }
@@ -158,6 +188,201 @@ Window {
                                 id: epgUrlField
                                 Layout.fillWidth: true
                                 placeholderText: qsTr("https://example.com/guide.xml.gz")
+                            }
+                        }
+
+                        Item {
+                            Layout.fillHeight: true
+                        }
+                    }
+                }
+
+                ScrollView {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    clip: true
+
+                    contentWidth: availableWidth
+
+                    ColumnLayout {
+                        width: Math.max(parent ? parent.width : 0, root.width - Shell.Theme.spacingMd * 4)
+                        spacing: Shell.Theme.spacingMd
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: Shell.Theme.spacingSm
+
+                            Label {
+                                Layout.fillWidth: true
+                                text: root.displayValue(root.speechModelStatusText)
+                                color: root.speechModelInstalled ? Shell.Theme.accent : Shell.Theme.textPrimary
+                                font.pixelSize: 18
+                                font.bold: true
+                                wrapMode: Text.WordWrap
+                            }
+
+                            Label {
+                                Layout.fillWidth: true
+                                text: root.displayValue(root.speechModelName)
+                                color: Shell.Theme.textPrimary
+                                wrapMode: Text.WordWrap
+                            }
+
+                            Label {
+                                Layout.fillWidth: true
+                                text: root.speechModelStatusDetail
+                                color: Shell.Theme.textSecondary
+                                wrapMode: Text.WrapAnywhere
+                                visible: root.speechModelStatusDetail.length > 0
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: Shell.Theme.spacingSm
+
+                            Controls.ThemedToolButton {
+                                text: qsTr("Install Archive")
+                                enabled: root.speechModelInstallSupported
+                                    && !root.speechModelBusy
+                                    && !root.speechModelDeveloperOverride
+                                onClicked: speechModelArchiveDialog.open()
+                            }
+
+                            Controls.ThemedToolButton {
+                                text: qsTr("Refresh")
+                                enabled: !root.speechModelBusy
+                                onClicked: root.refreshSpeechModelRequested()
+                            }
+
+                            Controls.ThemedToolButton {
+                                text: qsTr("Delete")
+                                enabled: root.speechModelInstalled
+                                    && !root.speechModelBusy
+                                    && !root.speechModelDeveloperOverride
+                                onClicked: root.deleteSpeechModelRequested()
+                            }
+
+                            BusyIndicator {
+                                running: root.speechModelBusy
+                                visible: running
+                                implicitWidth: 28
+                                implicitHeight: 28
+                            }
+
+                            Item {
+                                Layout.fillWidth: true
+                            }
+                        }
+
+                        Controls.ThemedToolButton {
+                            text: root.speechModelDetailsVisible
+                                ? qsTr("Hide Details")
+                                : qsTr("Show Details")
+                            onClicked: root.speechModelDetailsVisible = !root.speechModelDetailsVisible
+                        }
+
+                        GridLayout {
+                            Layout.fillWidth: true
+                            columns: 2
+                            columnSpacing: Shell.Theme.spacingMd
+                            rowSpacing: Shell.Theme.spacingSm
+                            visible: root.speechModelDetailsVisible
+
+                            Label {
+                                text: qsTr("Version")
+                                color: Shell.Theme.textSecondary
+                            }
+
+                            Label {
+                                Layout.fillWidth: true
+                                text: root.displayValue(root.speechModelVersion)
+                                color: Shell.Theme.textPrimary
+                                wrapMode: Text.WordWrap
+                            }
+
+                            Label {
+                                text: qsTr("Source")
+                                color: Shell.Theme.textSecondary
+                            }
+
+                            Label {
+                                Layout.fillWidth: true
+                                text: root.displayValue(root.speechModelSourceUrl)
+                                color: Shell.Theme.textPrimary
+                                wrapMode: Text.WrapAnywhere
+                            }
+
+                            Label {
+                                text: qsTr("Archive")
+                                color: Shell.Theme.textSecondary
+                            }
+
+                            Label {
+                                Layout.fillWidth: true
+                                text: root.displayValue(root.speechModelArchiveSizeText)
+                                color: Shell.Theme.textPrimary
+                                wrapMode: Text.WordWrap
+                            }
+
+                            Label {
+                                text: qsTr("Installed")
+                                color: Shell.Theme.textSecondary
+                            }
+
+                            Label {
+                                Layout.fillWidth: true
+                                text: root.displayValue(root.speechModelInstalledSizeText)
+                                color: Shell.Theme.textPrimary
+                                wrapMode: Text.WordWrap
+                            }
+
+                            Label {
+                                text: qsTr("Checksum")
+                                color: Shell.Theme.textSecondary
+                            }
+
+                            Label {
+                                Layout.fillWidth: true
+                                text: root.displayValue(root.speechModelChecksum)
+                                color: Shell.Theme.textPrimary
+                                wrapMode: Text.WrapAnywhere
+                            }
+
+                            Label {
+                                text: qsTr("License")
+                                color: Shell.Theme.textSecondary
+                            }
+
+                            Label {
+                                Layout.fillWidth: true
+                                text: root.displayValue(root.speechModelLicense)
+                                color: Shell.Theme.textPrimary
+                                wrapMode: Text.WordWrap
+                            }
+
+                            Label {
+                                text: qsTr("Attribution")
+                                color: Shell.Theme.textSecondary
+                            }
+
+                            Label {
+                                Layout.fillWidth: true
+                                text: root.displayValue(root.speechModelAttribution)
+                                color: Shell.Theme.textPrimary
+                                wrapMode: Text.WrapAnywhere
+                            }
+
+                            Label {
+                                text: qsTr("Directory")
+                                color: Shell.Theme.textSecondary
+                            }
+
+                            Label {
+                                Layout.fillWidth: true
+                                text: root.displayValue(root.speechModelDirectory)
+                                color: Shell.Theme.textPrimary
+                                wrapMode: Text.WrapAnywhere
                             }
                         }
 
@@ -338,5 +563,16 @@ Window {
                 }
             }
         }
+    }
+
+    FileDialog {
+        id: speechModelArchiveDialog
+        title: qsTr("Install ASR Model Archive")
+        options: FileDialog.DontUseNativeDialog
+        nameFilters: [
+            qsTr("Model Archives (*.tar.bz2 *.tar.gz *.tgz *.zip)"),
+            qsTr("All Files (*)")
+        ]
+        onAccepted: root.installSpeechModelArchiveRequested(selectedFile)
     }
 }

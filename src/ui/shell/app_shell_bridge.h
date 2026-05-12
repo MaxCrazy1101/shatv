@@ -57,6 +57,22 @@ class AppShellBridge final : public QObject {
     Q_PROPERTY(bool speechSubtitleFinal READ SpeechSubtitleFinal NOTIFY SpeechSubtitleFinalChanged)
     Q_PROPERTY(qint64 speechSubtitleLatencyMs READ SpeechSubtitleLatencyMs NOTIFY SpeechSubtitleLatencyMsChanged)
     Q_PROPERTY(QString speechSubtitleStatusText READ SpeechSubtitleStatusText NOTIFY SpeechSubtitleStatusTextChanged)
+    Q_PROPERTY(QString speechModelStatusToken READ SpeechModelStatusToken NOTIFY SpeechModelStatusChanged)
+    Q_PROPERTY(QString speechModelStatusText READ SpeechModelStatusText NOTIFY SpeechModelStatusChanged)
+    Q_PROPERTY(QString speechModelStatusDetail READ SpeechModelStatusDetail NOTIFY SpeechModelStatusChanged)
+    Q_PROPERTY(QString speechModelName READ SpeechModelName NOTIFY SpeechModelStatusChanged)
+    Q_PROPERTY(QString speechModelVersion READ SpeechModelVersion NOTIFY SpeechModelStatusChanged)
+    Q_PROPERTY(QString speechModelSourceUrl READ SpeechModelSourceUrl NOTIFY SpeechModelStatusChanged)
+    Q_PROPERTY(QString speechModelArchiveSizeText READ SpeechModelArchiveSizeText NOTIFY SpeechModelStatusChanged)
+    Q_PROPERTY(QString speechModelInstalledSizeText READ SpeechModelInstalledSizeText NOTIFY SpeechModelStatusChanged)
+    Q_PROPERTY(QString speechModelChecksum READ SpeechModelChecksum NOTIFY SpeechModelStatusChanged)
+    Q_PROPERTY(QString speechModelLicense READ SpeechModelLicense NOTIFY SpeechModelStatusChanged)
+    Q_PROPERTY(QString speechModelAttribution READ SpeechModelAttribution NOTIFY SpeechModelStatusChanged)
+    Q_PROPERTY(QString speechModelDirectory READ SpeechModelDirectory NOTIFY SpeechModelStatusChanged)
+    Q_PROPERTY(bool speechModelInstalled READ SpeechModelInstalled NOTIFY SpeechModelStatusChanged)
+    Q_PROPERTY(bool speechModelDeveloperOverride READ SpeechModelDeveloperOverride NOTIFY SpeechModelStatusChanged)
+    Q_PROPERTY(bool speechModelInstallSupported READ SpeechModelInstallSupported NOTIFY SpeechModelStatusChanged)
+    Q_PROPERTY(bool speechModelBusy READ SpeechModelBusy NOTIFY SpeechModelBusyChanged)
 
    public:
     explicit AppShellBridge(ui::models::ChannelFilterModel *channel_model, QObject *parent = nullptr);
@@ -96,6 +112,22 @@ class AppShellBridge final : public QObject {
     bool SpeechSubtitleFinal() const;
     qint64 SpeechSubtitleLatencyMs() const;
     QString SpeechSubtitleStatusText() const;
+    QString SpeechModelStatusToken() const;
+    QString SpeechModelStatusText() const;
+    QString SpeechModelStatusDetail() const;
+    QString SpeechModelName() const;
+    QString SpeechModelVersion() const;
+    QString SpeechModelSourceUrl() const;
+    QString SpeechModelArchiveSizeText() const;
+    QString SpeechModelInstalledSizeText() const;
+    QString SpeechModelChecksum() const;
+    QString SpeechModelLicense() const;
+    QString SpeechModelAttribution() const;
+    QString SpeechModelDirectory() const;
+    bool SpeechModelInstalled() const;
+    bool SpeechModelDeveloperOverride() const;
+    bool SpeechModelInstallSupported() const;
+    bool SpeechModelBusy() const;
 
     void SetAvailableGroups(QStringList groups);
     void SetCurrentGroupFilter(const QString &group);
@@ -111,6 +143,22 @@ class AppShellBridge final : public QObject {
     void SetSpeechSubtitleControlState(bool enabled, bool available, const QString &unavailable_reason);
     void SetSpeechSubtitle(const QString &text, bool is_final, qint64 latency_ms);
     void ClearSpeechSubtitle();
+    void SetSpeechModelStatus(const QString &status_token,
+                              const QString &status_text,
+                              const QString &status_detail,
+                              const QString &name,
+                              const QString &version,
+                              const QString &source_url,
+                              const QString &archive_size_text,
+                              const QString &installed_size_text,
+                              const QString &checksum,
+                              const QString &license,
+                              const QString &attribution,
+                              const QString &directory,
+                              bool installed,
+                              bool developer_override,
+                              bool install_supported);
+    void SetSpeechModelBusy(bool busy);
 
     Q_INVOKABLE void activateChannelRow(int row);
     Q_INVOKABLE void setSearchText(const QString &search_text);
@@ -127,6 +175,9 @@ class AppShellBridge final : public QObject {
     Q_INVOKABLE void dismissAlert();
     Q_INVOKABLE void openRecentAt(int index);
     Q_INVOKABLE void toggleSpeechSubtitleEnabled();
+    Q_INVOKABLE void refreshSpeechModelStatus();
+    Q_INVOKABLE void installSpeechModelArchive(const QUrl &archive_url);
+    Q_INVOKABLE void deleteSpeechModel();
 
    signals:
     void AvailableGroupsChanged();
@@ -161,6 +212,8 @@ class AppShellBridge final : public QObject {
     void SpeechSubtitleFinalChanged();
     void SpeechSubtitleLatencyMsChanged();
     void SpeechSubtitleStatusTextChanged();
+    void SpeechModelStatusChanged();
+    void SpeechModelBusyChanged();
 
     void ActivateChannelRequested(const QModelIndex &index);
     void PlayPauseRequested();
@@ -174,6 +227,9 @@ class AppShellBridge final : public QObject {
     void CopyDiagnosticsRequested();
     void RecentOpenRequested(const QString &request_kind, const QString &target);
     void SpeechSubtitleEnabledRequested(bool enabled);
+    void SpeechModelStatusRefreshRequested();
+    void SpeechModelArchiveInstallRequested(const QString &archive_path);
+    void SpeechModelDeleteRequested();
 
    private:
     ui::models::ChannelFilterModel *channel_model_ = nullptr;
@@ -203,6 +259,22 @@ class AppShellBridge final : public QObject {
     bool speech_subtitle_final_ = false;
     qint64 speech_subtitle_latency_ms_ = -1;
     QString speech_subtitle_status_text_;
+    QString speech_model_status_token_;
+    QString speech_model_status_text_;
+    QString speech_model_status_detail_;
+    QString speech_model_name_;
+    QString speech_model_version_;
+    QString speech_model_source_url_;
+    QString speech_model_archive_size_text_;
+    QString speech_model_installed_size_text_;
+    QString speech_model_checksum_;
+    QString speech_model_license_;
+    QString speech_model_attribution_;
+    QString speech_model_directory_;
+    bool speech_model_installed_ = false;
+    bool speech_model_developer_override_ = false;
+    bool speech_model_install_supported_ = false;
+    bool speech_model_busy_ = false;
 };
 
 }  // namespace shatv::ui::shell

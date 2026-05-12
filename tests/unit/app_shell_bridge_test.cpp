@@ -16,6 +16,7 @@ class AppShellBridgeTest : public QObject {
    private slots:
     void speech_subtitle_state_tracks_result_and_clear();
     void speech_subtitle_control_state_tracks_toggle_request();
+    void speech_model_state_tracks_status_and_requests();
 };
 
 void AppShellBridgeTest::speech_subtitle_state_tracks_result_and_clear() {
@@ -116,6 +117,73 @@ void AppShellBridgeTest::speech_subtitle_control_state_tracks_toggle_request() {
     bridge.toggleSpeechSubtitleEnabled();
     QCOMPARE(request_spy.size(), 1);
     QCOMPARE(request_spy.takeFirst().at(0).toBool(), false);
+}
+
+void AppShellBridgeTest::speech_model_state_tracks_status_and_requests() {
+    ChannelListModel channel_model;
+    ChannelFilterModel filter_model;
+    filter_model.setSourceModel(&channel_model);
+    AppShellBridge bridge(&filter_model);
+
+    QCOMPARE(bridge.SpeechModelStatusToken(), QString());
+    QCOMPARE(bridge.SpeechModelStatusText(), QString());
+    QVERIFY(!bridge.SpeechModelInstalled());
+    QVERIFY(!bridge.SpeechModelDeveloperOverride());
+    QVERIFY(!bridge.SpeechModelInstallSupported());
+    QVERIFY(!bridge.SpeechModelBusy());
+
+    QSignalSpy status_spy(&bridge, &AppShellBridge::SpeechModelStatusChanged);
+    QSignalSpy busy_spy(&bridge, &AppShellBridge::SpeechModelBusyChanged);
+    QSignalSpy refresh_spy(&bridge, &AppShellBridge::SpeechModelStatusRefreshRequested);
+    QSignalSpy install_spy(&bridge, &AppShellBridge::SpeechModelArchiveInstallRequested);
+    QSignalSpy delete_spy(&bridge, &AppShellBridge::SpeechModelDeleteRequested);
+
+    bridge.SetSpeechModelStatus(QStringLiteral("installed"),
+                                QStringLiteral("Installed"),
+                                QStringLiteral("/tmp/model"),
+                                QStringLiteral("Paraformer"),
+                                QStringLiteral("v1"),
+                                QStringLiteral("https://example.invalid/model"),
+                                QStringLiteral("42 MiB"),
+                                QStringLiteral("100 MiB"),
+                                QStringLiteral("abc123"),
+                                QStringLiteral("review-required"),
+                                QStringLiteral("sherpa-onnx"),
+                                QStringLiteral("/tmp/model"),
+                                true,
+                                false,
+                                true);
+
+    QCOMPARE(status_spy.size(), 1);
+    QCOMPARE(bridge.SpeechModelStatusToken(), QStringLiteral("installed"));
+    QCOMPARE(bridge.SpeechModelStatusText(), QStringLiteral("Installed"));
+    QCOMPARE(bridge.SpeechModelStatusDetail(), QStringLiteral("/tmp/model"));
+    QCOMPARE(bridge.SpeechModelName(), QStringLiteral("Paraformer"));
+    QCOMPARE(bridge.SpeechModelVersion(), QStringLiteral("v1"));
+    QCOMPARE(bridge.SpeechModelSourceUrl(), QStringLiteral("https://example.invalid/model"));
+    QCOMPARE(bridge.SpeechModelArchiveSizeText(), QStringLiteral("42 MiB"));
+    QCOMPARE(bridge.SpeechModelInstalledSizeText(), QStringLiteral("100 MiB"));
+    QCOMPARE(bridge.SpeechModelChecksum(), QStringLiteral("abc123"));
+    QCOMPARE(bridge.SpeechModelLicense(), QStringLiteral("review-required"));
+    QCOMPARE(bridge.SpeechModelAttribution(), QStringLiteral("sherpa-onnx"));
+    QCOMPARE(bridge.SpeechModelDirectory(), QStringLiteral("/tmp/model"));
+    QVERIFY(bridge.SpeechModelInstalled());
+    QVERIFY(!bridge.SpeechModelDeveloperOverride());
+    QVERIFY(bridge.SpeechModelInstallSupported());
+
+    bridge.SetSpeechModelBusy(true);
+    QVERIFY(bridge.SpeechModelBusy());
+    QCOMPARE(busy_spy.size(), 1);
+
+    bridge.refreshSpeechModelStatus();
+    QCOMPARE(refresh_spy.size(), 1);
+
+    bridge.installSpeechModelArchive(QUrl::fromLocalFile(QStringLiteral("/tmp/model.tar.bz2")));
+    QCOMPARE(install_spy.size(), 1);
+    QCOMPARE(install_spy.takeFirst().at(0).toString(), QStringLiteral("/tmp/model.tar.bz2"));
+
+    bridge.deleteSpeechModel();
+    QCOMPARE(delete_spy.size(), 1);
 }
 
 }  // namespace

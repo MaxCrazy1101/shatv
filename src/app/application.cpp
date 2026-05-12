@@ -7,13 +7,13 @@
 #include <variant>
 
 #include <QCoreApplication>
+#include <QClipboard>
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QGuiApplication>
-#include <QClipboard>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
@@ -25,7 +25,9 @@
 #include <QTimer>
 #include <QUrl>
 #include <QWindow>
+#include <QtConcurrent/QtConcurrentRun>
 
+#include "app/asr_model_archive_installer.h"
 #include "app/build_info.h"
 #include "app/asr_model_service.h"
 #include "app/epg_programme_presentation.h"
@@ -89,6 +91,74 @@ QString FfmpegSmokeMediaPath() {
     return {};
 }
 
+QString FormatBytes(qint64 bytes) {
+    if (bytes <= 0) {
+        return QCoreApplication::translate("Application", "Unknown");
+    }
+
+    constexpr double kUnit = 1024.0;
+    double value = static_cast<double>(bytes);
+    QStringList units{
+        QCoreApplication::translate("Application", "B"),
+        QCoreApplication::translate("Application", "KiB"),
+        QCoreApplication::translate("Application", "MiB"),
+        QCoreApplication::translate("Application", "GiB"),
+    };
+    int unit_index = 0;
+    while (value >= kUnit && unit_index < units.size() - 1) {
+        value /= kUnit;
+        ++unit_index;
+    }
+
+    const int precision = unit_index == 0 ? 0 : 1;
+    return QStringLiteral("%1 %2").arg(value, 0, 'f', precision).arg(units.at(unit_index));
+}
+
+QString SpeechModelStatusToken(AsrModelInstallStatus status) {
+    switch (status) {
+        case AsrModelInstallStatus::kNotInstalled:
+            return QStringLiteral("not_installed");
+        case AsrModelInstallStatus::kIncomplete:
+            return QStringLiteral("incomplete");
+        case AsrModelInstallStatus::kInstalled:
+            return QStringLiteral("installed");
+        case AsrModelInstallStatus::kDeveloperOverride:
+            return QStringLiteral("developer_override");
+    }
+    return QStringLiteral("unknown");
+}
+
+QString SpeechModelStatusText(const AsrModelStatus &status) {
+    switch (status.status) {
+        case AsrModelInstallStatus::kNotInstalled:
+            return QCoreApplication::translate("Application", "Not installed");
+        case AsrModelInstallStatus::kIncomplete:
+            return QCoreApplication::translate("Application", "Incomplete");
+        case AsrModelInstallStatus::kInstalled:
+            return QCoreApplication::translate("Application", "Installed");
+        case AsrModelInstallStatus::kDeveloperOverride:
+            return QCoreApplication::translate("Application", "Developer override");
+    }
+    return QCoreApplication::translate("Application", "Unknown");
+}
+
+QString SpeechModelStatusDetail(const AsrModelStatus &status, bool install_supported) {
+    if (!install_supported) {
+        return QCoreApplication::translate("Application", "Model archive extraction requires libarchive support");
+    }
+    if (!status.missing_files.isEmpty()) {
+        return QCoreApplication::translate("Application", "Missing required file: %1")
+            .arg(QDir::toNativeSeparators(status.missing_files.first()));
+    }
+    if (!status.message.isEmpty()) {
+        return status.message;
+    }
+    if (!status.model_dir.isEmpty()) {
+        return QDir::toNativeSeparators(status.model_dir);
+    }
+    return {};
+}
+
 #if defined(SHATV_ENABLE_ASR)
 bool ValidateSpeechSubtitleProvider(QString *unavailable_reason) {
     const QString provider = qEnvironmentVariable("SHATV_ASR_PROVIDER").trimmed();
@@ -116,6 +186,7 @@ Application::Application(QGuiApplication *qt_app, LaunchOptions options)
     qRegisterMetaType<domain::PlayerSnapshot>("shatv::domain::PlayerSnapshot");
     qRegisterMetaType<domain::MediaSourceDescriptor>("shatv::domain::MediaSourceDescriptor");
     qRegisterMetaType<domain::ResolvedChannel>("shatv::domain::ResolvedChannel");
+    qRegisterMetaType<app::AsrModelArchiveInstallResult>("shatv::app::AsrModelArchiveInstallResult");
 
     backend_ = std::make_unique<player::FfmpegPlayerBackend>();
 
@@ -140,6 +211,8 @@ Application::Application(QGuiApplication *qt_app, LaunchOptions options)
         status_message_.clear();
         shell_bridge_->SetStatusMessage(QString());
     });
+    QObject::connect(&speech_model_install_watcher_, &QFutureWatcher<AsrModelArchiveInstallResult>::finished,
+                     qt_app_, [this]() { FinishSpeechModelArchiveInstall(); });
 
     if (!settings_.Load()) {
         qCWarning(log_config).noquote()
@@ -148,6 +221,7 @@ Application::Application(QGuiApplication *qt_app, LaunchOptions options)
 
     controller_->SetVolume(settings_.Volume());
     controller_->SetMuted(settings_.Muted());
+    RefreshSpeechModelStatus();
     RefreshSpeechSubtitleControl();
 
     qml_engine_->rootContext()->setContextProperty(QStringLiteral("appShellBridge"), shell_bridge_.get());
@@ -197,6 +271,12 @@ Application::Application(QGuiApplication *qt_app, LaunchOptions options)
                      &application::PlayerController::SetVolume);
     QObject::connect(shell_bridge_.get(), &ui::shell::AppShellBridge::SpeechSubtitleEnabledRequested, qt_app_,
                      [this](bool enabled) { UpdateSpeechSubtitleEnabled(enabled); });
+    QObject::connect(shell_bridge_.get(), &ui::shell::AppShellBridge::SpeechModelStatusRefreshRequested, qt_app_,
+                     [this]() { RefreshSpeechModelStatus(); });
+    QObject::connect(shell_bridge_.get(), &ui::shell::AppShellBridge::SpeechModelArchiveInstallRequested, qt_app_,
+                     [this](const QString &archive_path) { InstallSpeechModelArchive(archive_path); });
+    QObject::connect(shell_bridge_.get(), &ui::shell::AppShellBridge::SpeechModelDeleteRequested, qt_app_,
+                     [this]() { DeleteSpeechModel(); });
     QObject::connect(shell_bridge_.get(), &ui::shell::AppShellBridge::OpenFileRequested, qt_app_,
                      [this](const QString &path) {
                          ResolveOpenRequest(OpenRequest{
@@ -276,6 +356,9 @@ Application::Application(QGuiApplication *qt_app, LaunchOptions options)
 
 Application::~Application() {
     status_message_timer_.stop();
+    if (speech_model_install_watcher_.isRunning()) {
+        speech_model_install_watcher_.waitForFinished();
+    }
     if (ffmpeg_video_item_ != nullptr) {
         ffmpeg_video_item_->SetBackend(nullptr);
     }
@@ -649,15 +732,6 @@ bool Application::SpeechSubtitleAvailable(QString *unavailable_reason) const {
         }
         return false;
     }
-    if (model_status.source != AsrModelInstallSource::kDeveloperOverride) {
-        if (unavailable_reason != nullptr) {
-            *unavailable_reason =
-                QCoreApplication::translate(
-                    "Application",
-                    "Speech recognition model is installed, but playback still requires SHATV_ASR_MODEL_DIR until managed model startup is implemented");
-        }
-        return false;
-    }
     if (!ValidateSpeechSubtitleProvider(unavailable_reason)) {
         return false;
     }
@@ -694,6 +768,13 @@ void Application::UpdateSpeechSubtitleEnabled(bool enabled) {
         controller_->SetSpeechSubtitleEnabled(false);
         shell_bridge_->ClearSpeechSubtitle();
         ShowStatusMessage(unavailable_reason, 3000);
+        RefreshSpeechModelStatus();
+        if (shell_bridge_->SpeechModelStatusToken() == QStringLiteral("not_installed") ||
+            shell_bridge_->SpeechModelStatusToken() == QStringLiteral("incomplete")) {
+            ShowAlert(QCoreApplication::translate(
+                "Application",
+                "Speech recognition subtitles require an installed model. Open Settings > Speech to install one."));
+        }
         return;
     }
 
@@ -724,6 +805,118 @@ void Application::UpdateSpeechSubtitleEnabled(bool enabled) {
                           ? QCoreApplication::translate("Application", "Speech recognition subtitles enabled")
                           : QCoreApplication::translate("Application", "Speech recognition subtitles disabled"),
                       3000);
+}
+
+void Application::RefreshSpeechModelStatus() {
+    const AsrModelService model_service;
+    const AsrModelManifest &manifest = model_service.SelectedManifest();
+    const AsrModelStatus model_status = model_service.InstalledModelStatus();
+    const bool install_supported = AsrModelArchiveInstaller::Supported();
+    const bool installed = model_status.Available();
+    const bool developer_override = model_status.source == AsrModelInstallSource::kDeveloperOverride;
+
+    shell_bridge_->SetSpeechModelStatus(SpeechModelStatusToken(model_status.status),
+                                        SpeechModelStatusText(model_status),
+                                        SpeechModelStatusDetail(model_status, install_supported),
+                                        manifest.display_name,
+                                        manifest.version,
+                                        manifest.source_url,
+                                        FormatBytes(manifest.archive_size_bytes),
+                                        FormatBytes(manifest.installed_size_bytes),
+                                        manifest.archive_sha256,
+                                        manifest.license,
+                                        manifest.attribution,
+                                        QDir::toNativeSeparators(model_status.model_dir),
+                                        installed,
+                                        developer_override,
+                                        install_supported);
+}
+
+void Application::InstallSpeechModelArchive(const QString &archive_path) {
+    if (speech_model_install_watcher_.isRunning()) {
+        ShowStatusMessage(QCoreApplication::translate("Application", "ASR model installation is already running"), 3000);
+        return;
+    }
+    if (!AsrModelArchiveInstaller::Supported()) {
+        ShowAlert(QCoreApplication::translate("Application", "ASR model archive extraction requires libarchive support"));
+        return;
+    }
+    if (!QFileInfo(archive_path).isFile()) {
+        ShowAlert(QCoreApplication::translate("Application", "ASR model archive is missing: %1")
+                      .arg(QDir::toNativeSeparators(archive_path)));
+        return;
+    }
+
+    const AsrModelManifest manifest = AsrModelService::DefaultManifest();
+    const QString normalized_archive_path = QFileInfo(archive_path).absoluteFilePath();
+    shell_bridge_->SetSpeechModelBusy(true);
+    ShowStatusMessage(QCoreApplication::translate("Application", "Installing ASR model..."), 0);
+    qCInfo(log_app).noquote()
+        << "ASR model archive install requested"
+        << "archive=" << QDir::toNativeSeparators(normalized_archive_path);
+
+    speech_model_install_watcher_.setFuture(QtConcurrent::run([normalized_archive_path, manifest]() {
+        const AsrModelArchiveInstaller installer;
+        return installer.InstallVerifiedArchive(normalized_archive_path, manifest);
+    }));
+}
+
+void Application::FinishSpeechModelArchiveInstall() {
+    const AsrModelArchiveInstallResult result = speech_model_install_watcher_.result();
+    shell_bridge_->SetSpeechModelBusy(false);
+    RefreshSpeechModelStatus();
+    RefreshSpeechSubtitleControl();
+
+    if (!result.success) {
+        qCWarning(log_app).noquote()
+            << "ASR model archive install failed"
+            << "reason=" << result.error_message;
+        ShowAlert(result.error_message);
+        return;
+    }
+
+    qCInfo(log_app).noquote()
+        << "ASR model archive installed"
+        << "installDir=" << QDir::toNativeSeparators(result.install_dir);
+    ShowStatusMessage(QCoreApplication::translate("Application", "ASR model installed"), 3000);
+}
+
+void Application::DeleteSpeechModel() {
+    if (speech_model_install_watcher_.isRunning()) {
+        ShowStatusMessage(QCoreApplication::translate("Application", "ASR model installation is still running"), 3000);
+        return;
+    }
+
+    const AsrModelService model_service;
+    const AsrModelStatus model_status = model_service.InstalledModelStatus();
+    if (model_status.source == AsrModelInstallSource::kDeveloperOverride) {
+        ShowAlert(QCoreApplication::translate("Application", "Developer override model directories are not managed by ShaTV"));
+        return;
+    }
+
+    const QString install_dir = model_service.InstallDirectory();
+    if (install_dir.isEmpty() || !QFileInfo(install_dir).exists()) {
+        RefreshSpeechModelStatus();
+        ShowStatusMessage(QCoreApplication::translate("Application", "ASR model is not installed"), 3000);
+        return;
+    }
+    if (!QFileInfo(install_dir).isDir()) {
+        ShowAlert(QCoreApplication::translate("Application", "ASR model install path is not a directory: %1")
+                      .arg(QDir::toNativeSeparators(install_dir)));
+        return;
+    }
+    if (!QDir(install_dir).removeRecursively()) {
+        ShowAlert(QCoreApplication::translate("Application", "Failed to delete ASR model: %1")
+                      .arg(QDir::toNativeSeparators(install_dir)));
+        return;
+    }
+
+    qCInfo(log_app).noquote()
+        << "ASR model deleted"
+        << "installDir=" << QDir::toNativeSeparators(install_dir);
+    RefreshSpeechModelStatus();
+    RefreshSpeechSubtitleControl();
+    ShowStatusMessage(QCoreApplication::translate("Application", "ASR model deleted"), 3000);
 }
 
 void Application::StartInitialPlayback() {

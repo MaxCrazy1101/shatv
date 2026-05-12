@@ -54,13 +54,13 @@ set(SHATV_SHERPA_ONNX_ROOT "" CACHE PATH "Path to an extracted sherpa-onnx SDK f
 set(SHATV_ONNXRUNTIME_ROOT "" CACHE PATH "Optional path to an ONNX Runtime SDK when it is not bundled with sherpa-onnx")
 
 if(WIN32)
-    find_package(Qt6 REQUIRED COMPONENTS Core Network Qml Quick QuickControls2 QuickDialogs2 Multimedia ShaderTools ShaderToolsPrivate)
+    find_package(Qt6 REQUIRED COMPONENTS Core Network Concurrent Qml Quick QuickControls2 QuickDialogs2 Multimedia ShaderTools ShaderToolsPrivate)
     find_package(Qt6 QUIET COMPONENTS LinguistTools)
     # Windows 上几乎不存在 toml11 系统包，默认启用 FetchContent。
     option(SHATV_FETCH_TOML11 "Fetch toml11 during configure" ON)
     option(SHATV_FETCH_ZLIB "Fetch zlib during configure" ON)
 else()
-    find_package(Qt6 REQUIRED COMPONENTS Core Network Qml Quick QuickControls2 QuickDialogs2 LinguistTools Multimedia ShaderTools ShaderToolsPrivate)
+    find_package(Qt6 REQUIRED COMPONENTS Core Network Concurrent Qml Quick QuickControls2 QuickDialogs2 LinguistTools Multimedia ShaderTools ShaderToolsPrivate)
     option(SHATV_FETCH_TOML11 "Fetch toml11 during configure" OFF)
     option(SHATV_FETCH_ZLIB "Fetch zlib during configure" OFF)
 endif()

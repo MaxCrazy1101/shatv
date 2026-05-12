@@ -46,6 +46,7 @@ target_link_libraries(shatv_app
     PUBLIC
         Qt6::Core
         Qt6::Network
+        Qt6::Concurrent
         Qt6::Multimedia
         Qt6::Qml
         Qt6::Quick
@@ -123,15 +124,6 @@ if(SHATV_ENABLE_ASR)
     )
 endif()
 
-if(TARGET Qt6::lrelease)
-    qt_add_translations(shatv_app
-        IMMEDIATE_CALL
-        SOURCE_TARGETS shatv_app
-        TS_FILES
-            ${CMAKE_SOURCE_DIR}/translations/shatv_zh_CN.ts
-    )
-endif()
-
 set_source_files_properties(
     ui/qml/MainWindow.qml
     PROPERTIES QT_RESOURCE_ALIAS MainWindow.qml
@@ -158,3 +150,26 @@ qt_add_resources(shatv_app shatv_app_main_window_qml
         ui/qml/dialogs/SettingsWindow.qml
         ui/qml/dialogs/OpenUrlDialog.qml
 )
+
+if(TARGET Qt6::lrelease)
+    qt_add_translations(shatv_app
+        IMMEDIATE_CALL
+        SOURCE_TARGETS shatv_app
+        SOURCES
+            ${CMAKE_CURRENT_SOURCE_DIR}/ui/qml/MainWindow.qml
+            ${CMAKE_CURRENT_SOURCE_DIR}/ui/qml/Theme.qml
+            ${CMAKE_CURRENT_SOURCE_DIR}/ui/qml/controls/ThemedToolButton.qml
+            ${CMAKE_CURRENT_SOURCE_DIR}/ui/qml/controls/ThemedTextField.qml
+            ${CMAKE_CURRENT_SOURCE_DIR}/ui/qml/controls/ThemedItemDelegate.qml
+            ${CMAKE_CURRENT_SOURCE_DIR}/ui/qml/controls/MaterialSymbolIcon.qml
+            ${CMAKE_CURRENT_SOURCE_DIR}/ui/qml/controls/ThemedComboBox.qml
+            ${CMAKE_CURRENT_SOURCE_DIR}/ui/qml/controls/ThemedSlider.qml
+            ${CMAKE_CURRENT_SOURCE_DIR}/ui/qml/controls/WindowControlButton.qml
+            ${CMAKE_CURRENT_SOURCE_DIR}/ui/qml/dialogs/AboutDialog.qml
+            ${CMAKE_CURRENT_SOURCE_DIR}/ui/qml/dialogs/NetworkSettingsDialog.qml
+            ${CMAKE_CURRENT_SOURCE_DIR}/ui/qml/dialogs/SettingsWindow.qml
+            ${CMAKE_CURRENT_SOURCE_DIR}/ui/qml/dialogs/OpenUrlDialog.qml
+        TS_FILES
+            ${CMAKE_SOURCE_DIR}/translations/shatv_zh_CN.ts
+    )
+endif()

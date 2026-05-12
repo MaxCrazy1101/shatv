@@ -12,6 +12,7 @@
 #include <QThread>
 #include <QtGlobal>
 
+#include "app/asr_model_service.h"
 #include "app/logging.h"
 #include "domain/player_snapshot.h"
 #include "media/decode/audio_decoder.h"
@@ -85,6 +86,16 @@ QString SourceKindName(domain::SourceKind source_kind) {
 #if defined(SHATV_ENABLE_ASR)
 QString EnvironmentValue(const char *name) {
     return qEnvironmentVariable(name).trimmed();
+}
+
+QString AsrModelSourceName(app::AsrModelInstallSource source) {
+    switch (source) {
+        case app::AsrModelInstallSource::kAppManaged:
+            return QStringLiteral("app_managed");
+        case app::AsrModelInstallSource::kDeveloperOverride:
+            return QStringLiteral("developer_override");
+    }
+    return QStringLiteral("unknown");
 }
 
 int PositiveEnvironmentInt(const char *name, int default_value, QString *error_message) {
@@ -454,23 +465,31 @@ bool FfmpegPlayerBackend::BuildAsrConfig(const domain::MediaSourceDescriptor &so
         }
         return false;
     }
-    const QString model_dir = EnvironmentValue("SHATV_ASR_MODEL_DIR");
-    if (model_dir.isEmpty()) {
+    const app::AsrModelService model_service;
+    const app::AsrModelStatus model_status = model_service.InstalledModelStatus();
+    if (!model_status.Available()) {
         if (error_message != nullptr) {
-            *error_message = QStringLiteral("SHATV_ASR_MODEL_DIR unset");
+            *error_message = model_status.message.isEmpty()
+                                 ? QStringLiteral("ASR model is not available")
+                                 : model_status.message;
         }
         qCInfo(app::log_ffmpeg).noquote()
             << "ASR async startup skipped"
             << "name=" << source.name
-            << "reason=SHATV_ASR_MODEL_DIR unset";
+            << "reason=" << (error_message == nullptr ? QStringLiteral("ASR model is not available")
+                                                       : *error_message);
         return false;
     }
 
-    config->model_dir = model_dir;
+    config->model_dir = model_status.model_dir;
     const QString encoder_name = EnvironmentValue("SHATV_ASR_ENCODER_NAME");
     const QString decoder_name = EnvironmentValue("SHATV_ASR_DECODER_NAME");
     const QString tokens_name = EnvironmentValue("SHATV_ASR_TOKENS_NAME");
     const QString provider = EnvironmentValue("SHATV_ASR_PROVIDER");
+    const app::AsrModelFileSet files = model_service.EffectiveFiles();
+    config->encoder_name = files.encoder_name;
+    config->decoder_name = files.decoder_name;
+    config->tokens_name = files.tokens_name;
     if (!encoder_name.isEmpty()) {
         config->encoder_name = encoder_name;
     }
@@ -499,6 +518,11 @@ bool FfmpegPlayerBackend::BuildAsrConfig(const domain::MediaSourceDescriptor &so
                                   const media::asr::StreamingRecognitionResult &result) {
         HandleAsrRecognitionResult(generation, source_name, result);
     };
+    qCInfo(app::log_ffmpeg).noquote()
+        << "ASR config resolved"
+        << "name=" << source.name
+        << "modelSource=" << AsrModelSourceName(model_status.source)
+        << "modelDir=" << config->model_dir;
     return true;
 }
 

@@ -5,11 +5,13 @@
 #include <vector>
 
 #include <QGuiApplication>
+#include <QFutureWatcher>
 #include <QPointer>
 #include <QString>
 #include <QTimer>
 
 #include "app/app_settings.h"
+#include "app/asr_model_archive_installer.h"
 #include "app/epg_service.h"
 #include "app/launch_options.h"
 #include "app/open_request.h"
@@ -71,6 +73,10 @@ class Application final {
     bool SpeechSubtitleAvailable(QString *unavailable_reason) const;
     void RefreshSpeechSubtitleControl();
     void UpdateSpeechSubtitleEnabled(bool enabled);
+    void RefreshSpeechModelStatus();
+    void InstallSpeechModelArchive(const QString &archive_path);
+    void FinishSpeechModelArchiveInstall();
+    void DeleteSpeechModel();
     void StartInitialPlayback();
     void SetupFfmpegAudioSmokeScenario();
     void SetupFfmpegSmokeScenario();
@@ -100,6 +106,7 @@ class Application final {
     QString status_message_;
     QTimer epg_refresh_timer_;
     QTimer status_message_timer_;
+    QFutureWatcher<AsrModelArchiveInstallResult> speech_model_install_watcher_;
     int epg_load_generation_ = 0;
 };
 

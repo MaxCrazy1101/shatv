@@ -60,6 +60,22 @@ ApplicationWindow {
         property bool speechSubtitleFinal: false
         property int speechSubtitleLatencyMs: -1
         property string speechSubtitleStatusText: ""
+        property string speechModelStatusToken: ""
+        property string speechModelStatusText: ""
+        property string speechModelStatusDetail: ""
+        property string speechModelName: ""
+        property string speechModelVersion: ""
+        property string speechModelSourceUrl: ""
+        property string speechModelArchiveSizeText: ""
+        property string speechModelInstalledSizeText: ""
+        property string speechModelChecksum: ""
+        property string speechModelLicense: ""
+        property string speechModelAttribution: ""
+        property string speechModelDirectory: ""
+        property bool speechModelInstalled: false
+        property bool speechModelDeveloperOverride: false
+        property bool speechModelInstallSupported: false
+        property bool speechModelBusy: false
 
         function activateChannelRow(row) {}
         function setSearchText(text) {}
@@ -76,6 +92,9 @@ ApplicationWindow {
         function openRecentAt(index) {}
         function dismissAlert() {}
         function toggleSpeechSubtitleEnabled() {}
+        function refreshSpeechModelStatus() {}
+        function installSpeechModelArchive(archiveUrl) {}
+        function deleteSpeechModel() {}
     }
 
     readonly property var bridge: (typeof appShellBridge !== "undefined" && appShellBridge !== null)
@@ -902,9 +921,28 @@ ApplicationWindow {
         buildId: bridge.buildId
         logFilePath: bridge.logFilePath
         logsDirectoryPath: bridge.logsDirectoryPath
+        speechModelStatusToken: bridge.speechModelStatusToken
+        speechModelStatusText: bridge.speechModelStatusText
+        speechModelStatusDetail: bridge.speechModelStatusDetail
+        speechModelName: bridge.speechModelName
+        speechModelVersion: bridge.speechModelVersion
+        speechModelSourceUrl: bridge.speechModelSourceUrl
+        speechModelArchiveSizeText: bridge.speechModelArchiveSizeText
+        speechModelInstalledSizeText: bridge.speechModelInstalledSizeText
+        speechModelChecksum: bridge.speechModelChecksum
+        speechModelLicense: bridge.speechModelLicense
+        speechModelAttribution: bridge.speechModelAttribution
+        speechModelDirectory: bridge.speechModelDirectory
+        speechModelInstalled: bridge.speechModelInstalled
+        speechModelDeveloperOverride: bridge.speechModelDeveloperOverride
+        speechModelInstallSupported: bridge.speechModelInstallSupported
+        speechModelBusy: bridge.speechModelBusy
         onSubmitted: (userAgent, epgUrl) => bridge.submitNetworkSettings(userAgent, epgUrl)
         onOpenLogsFolderRequested: bridge.openLogsFolder()
         onCopyDiagnosticsRequested: bridge.copyDiagnosticsToClipboard()
+        onRefreshSpeechModelRequested: bridge.refreshSpeechModelStatus()
+        onInstallSpeechModelArchiveRequested: archiveUrl => bridge.installSpeechModelArchive(archiveUrl)
+        onDeleteSpeechModelRequested: bridge.deleteSpeechModel()
     }
 
     Dialogs.OpenUrlDialog {

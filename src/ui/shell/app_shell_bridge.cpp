@@ -158,6 +158,70 @@ QString AppShellBridge::SpeechSubtitleStatusText() const {
     return speech_subtitle_status_text_;
 }
 
+QString AppShellBridge::SpeechModelStatusToken() const {
+    return speech_model_status_token_;
+}
+
+QString AppShellBridge::SpeechModelStatusText() const {
+    return speech_model_status_text_;
+}
+
+QString AppShellBridge::SpeechModelStatusDetail() const {
+    return speech_model_status_detail_;
+}
+
+QString AppShellBridge::SpeechModelName() const {
+    return speech_model_name_;
+}
+
+QString AppShellBridge::SpeechModelVersion() const {
+    return speech_model_version_;
+}
+
+QString AppShellBridge::SpeechModelSourceUrl() const {
+    return speech_model_source_url_;
+}
+
+QString AppShellBridge::SpeechModelArchiveSizeText() const {
+    return speech_model_archive_size_text_;
+}
+
+QString AppShellBridge::SpeechModelInstalledSizeText() const {
+    return speech_model_installed_size_text_;
+}
+
+QString AppShellBridge::SpeechModelChecksum() const {
+    return speech_model_checksum_;
+}
+
+QString AppShellBridge::SpeechModelLicense() const {
+    return speech_model_license_;
+}
+
+QString AppShellBridge::SpeechModelAttribution() const {
+    return speech_model_attribution_;
+}
+
+QString AppShellBridge::SpeechModelDirectory() const {
+    return speech_model_directory_;
+}
+
+bool AppShellBridge::SpeechModelInstalled() const {
+    return speech_model_installed_;
+}
+
+bool AppShellBridge::SpeechModelDeveloperOverride() const {
+    return speech_model_developer_override_;
+}
+
+bool AppShellBridge::SpeechModelInstallSupported() const {
+    return speech_model_install_supported_;
+}
+
+bool AppShellBridge::SpeechModelBusy() const {
+    return speech_model_busy_;
+}
+
 void AppShellBridge::SetAvailableGroups(QStringList groups) {
     if (available_groups_ == groups) {
         return;
@@ -382,6 +446,66 @@ void AppShellBridge::ClearSpeechSubtitle() {
     SetSpeechSubtitle(QString(), false, -1);
 }
 
+void AppShellBridge::SetSpeechModelStatus(const QString &status_token,
+                                          const QString &status_text,
+                                          const QString &status_detail,
+                                          const QString &name,
+                                          const QString &version,
+                                          const QString &source_url,
+                                          const QString &archive_size_text,
+                                          const QString &installed_size_text,
+                                          const QString &checksum,
+                                          const QString &license,
+                                          const QString &attribution,
+                                          const QString &directory,
+                                          bool installed,
+                                          bool developer_override,
+                                          bool install_supported) {
+    if (speech_model_status_token_ == status_token &&
+        speech_model_status_text_ == status_text &&
+        speech_model_status_detail_ == status_detail &&
+        speech_model_name_ == name &&
+        speech_model_version_ == version &&
+        speech_model_source_url_ == source_url &&
+        speech_model_archive_size_text_ == archive_size_text &&
+        speech_model_installed_size_text_ == installed_size_text &&
+        speech_model_checksum_ == checksum &&
+        speech_model_license_ == license &&
+        speech_model_attribution_ == attribution &&
+        speech_model_directory_ == directory &&
+        speech_model_installed_ == installed &&
+        speech_model_developer_override_ == developer_override &&
+        speech_model_install_supported_ == install_supported) {
+        return;
+    }
+
+    speech_model_status_token_ = status_token;
+    speech_model_status_text_ = status_text;
+    speech_model_status_detail_ = status_detail;
+    speech_model_name_ = name;
+    speech_model_version_ = version;
+    speech_model_source_url_ = source_url;
+    speech_model_archive_size_text_ = archive_size_text;
+    speech_model_installed_size_text_ = installed_size_text;
+    speech_model_checksum_ = checksum;
+    speech_model_license_ = license;
+    speech_model_attribution_ = attribution;
+    speech_model_directory_ = directory;
+    speech_model_installed_ = installed;
+    speech_model_developer_override_ = developer_override;
+    speech_model_install_supported_ = install_supported;
+    emit SpeechModelStatusChanged();
+}
+
+void AppShellBridge::SetSpeechModelBusy(bool busy) {
+    if (speech_model_busy_ == busy) {
+        return;
+    }
+
+    speech_model_busy_ = busy;
+    emit SpeechModelBusyChanged();
+}
+
 void AppShellBridge::activateChannelRow(int row) {
     const QModelIndex model_index = channel_model_->index(row, 0);
     if (!model_index.isValid()) {
@@ -433,6 +557,27 @@ void AppShellBridge::setVolume(int volume) {
 
 void AppShellBridge::toggleSpeechSubtitleEnabled() {
     emit SpeechSubtitleEnabledRequested(!speech_subtitle_enabled_);
+}
+
+void AppShellBridge::refreshSpeechModelStatus() {
+    emit SpeechModelStatusRefreshRequested();
+}
+
+void AppShellBridge::installSpeechModelArchive(const QUrl &archive_url) {
+    if (!archive_url.isValid() || !archive_url.isLocalFile()) {
+        return;
+    }
+
+    const QString archive_path = archive_url.toLocalFile().trimmed();
+    if (archive_path.isEmpty()) {
+        return;
+    }
+
+    emit SpeechModelArchiveInstallRequested(archive_path);
+}
+
+void AppShellBridge::deleteSpeechModel() {
+    emit SpeechModelDeleteRequested();
 }
 
 void AppShellBridge::submitOpenFile(const QUrl &file_url) {
