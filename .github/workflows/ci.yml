@@ -1,7 +1,6 @@
 name: ci
 
 on:
-  workflow_dispatch:
   push:
     branches: [main]
   pull_request:
@@ -21,14 +20,21 @@ jobs:
 
     env:
       BUILD_DIR: build-windows
+      ASR_BUILD_DIR: build-windows-asr
       PACKAGE_ROOT: package-root
       PACKAGE_DIR: package-root/shatv-windows-x64
       PACKAGE_ARCHIVE: shatv-windows-x64.zip
-      # aqt not support 6.11.x windows yet.
+      ASR_PACKAGE_ROOT: package-root-asr
+      ASR_PACKAGE_DIR: package-root-asr/shatv-windows-x64-asr
+      ASR_PACKAGE_ARCHIVE: shatv-windows-x64-asr.zip
+      # aqt does not currently install Qt 6.11.x for Windows.
       QT_VERSION: 6.10.3
       # BtbN provides pre-built FFmpeg shared builds (GPL variant) for Windows.
       FFMPEG_VERSION: master-latest
       FFMPEG_URL: https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl-shared.zip
+      SHERPA_ONNX_VERSION: v1.13.1
+      SHERPA_ONNX_PACKAGE: sherpa-onnx-v1.13.1-win-x64-shared-MD-Release-no-tts
+      SHERPA_ONNX_URL: https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.1/sherpa-onnx-v1.13.1-win-x64-shared-MD-Release-no-tts.tar.bz2
 
     steps:
       - uses: actions/checkout@v6
@@ -108,12 +114,128 @@ jobs:
           Compress-Archive -Path shatv-windows-x64 -DestinationPath "$env:GITHUB_WORKSPACE/$env:PACKAGE_ARCHIVE" -Force
           Pop-Location
 
+      - name: Install ASR Windows dependencies
+        shell: pwsh
+        run: |
+          $vcpkgRoot = $env:VCPKG_INSTALLATION_ROOT
+          if (-not $vcpkgRoot) {
+            $vcpkgRoot = "C:\vcpkg"
+          }
+          $vcpkgExe = Join-Path $vcpkgRoot "vcpkg.exe"
+          if (-not (Test-Path $vcpkgExe)) {
+            throw "vcpkg.exe not found: $vcpkgExe"
+          }
+
+          & $vcpkgExe install libarchive:x64-windows --clean-after-build
+
+      - name: Download sherpa-onnx runtime
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path deps/sherpa | Out-Null
+          Invoke-WebRequest $env:SHERPA_ONNX_URL -OutFile deps/sherpa/sherpa-onnx.tar.bz2
+          tar -xjf deps/sherpa/sherpa-onnx.tar.bz2 -C deps/sherpa
+
+          $sdkRoot = "$PWD/deps/sherpa/$env:SHERPA_ONNX_PACKAGE"
+          if (-not (Test-Path "$sdkRoot/include/sherpa-onnx/c-api/c-api.h")) {
+            throw "sherpa-onnx C API header is missing under $sdkRoot"
+          }
+          if (-not (Test-Path "$sdkRoot/lib/sherpa-onnx-c-api.lib")) {
+            throw "sherpa-onnx C API import library is missing under $sdkRoot"
+          }
+          if (-not (Test-Path "$sdkRoot/lib/onnxruntime.lib")) {
+            throw "ONNX Runtime import library is missing under $sdkRoot"
+          }
+
+      - name: Configure ASR build
+        shell: pwsh
+        run: |
+          $vcpkgRoot = $env:VCPKG_INSTALLATION_ROOT
+          if (-not $vcpkgRoot) {
+            $vcpkgRoot = "C:\vcpkg"
+          }
+
+          cmake -S . -B $env:ASR_BUILD_DIR -G Ninja -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_TOOLCHAIN_FILE="$vcpkgRoot/scripts/buildsystems/vcpkg.cmake" `
+            -DVCPKG_TARGET_TRIPLET=x64-windows `
+            -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR" `
+            -DBUILD_TESTING=OFF `
+            -DSHATV_ENABLE_ASR=ON `
+            -DSHATV_REQUIRE_LIBARCHIVE=ON `
+            -DSHATV_SHERPA_ONNX_ROOT="$PWD/deps/sherpa/$env:SHERPA_ONNX_PACKAGE" `
+            -DSHATV_FFMPEG_INCLUDE_DIR="$PWD/deps/ffmpeg/include" `
+            -DSHATV_FFMPEG_LIBRARY_DIR="$PWD/deps/ffmpeg/lib"
+
+      - name: Build ASR package binary
+        shell: pwsh
+        run: cmake --build $env:ASR_BUILD_DIR --target shatv --config Release
+
+      - name: Prepare ASR package root
+        shell: pwsh
+        run: |
+          $vcpkgRoot = $env:VCPKG_INSTALLATION_ROOT
+          if (-not $vcpkgRoot) {
+            $vcpkgRoot = "C:\vcpkg"
+          }
+
+          New-Item -ItemType Directory -Force -Path $env:ASR_PACKAGE_DIR | Out-Null
+          Copy-Item "$env:ASR_BUILD_DIR/src/shatv.exe" "$env:ASR_PACKAGE_DIR/"
+          Copy-Item "$PWD/deps/ffmpeg/bin/*.dll" "$env:ASR_PACKAGE_DIR/"
+          Copy-Item "$PWD/deps/sherpa/$env:SHERPA_ONNX_PACKAGE/lib/*.dll" "$env:ASR_PACKAGE_DIR/"
+          Copy-Item "$vcpkgRoot/installed/x64-windows/bin/*.dll" "$env:ASR_PACKAGE_DIR/"
+
+      - name: Deploy ASR Qt runtime
+        shell: pwsh
+        run: windeployqt.exe --release --qmldir "$PWD/src/ui/qml" "$env:ASR_PACKAGE_DIR/shatv.exe"
+
+      - name: Generate ASR license files
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "$env:ASR_PACKAGE_DIR/licenses" | Out-Null
+          Copy-Item "packaging/licenses/LGPL-3.0.txt" "$env:ASR_PACKAGE_DIR/licenses/LGPL-3.0.txt"
+          Copy-Item "packaging/licenses/LGPL-2.1.txt" "$env:ASR_PACKAGE_DIR/licenses/LGPL-2.1.txt"
+
+          $notice = (Get-Content packaging/windows/NOTICE.txt.in -Raw)
+          $notice = $notice.Replace("@QT_VERSION@", $env:QT_VERSION).Replace("@FFMPEG_VERSION@", $env:FFMPEG_VERSION)
+          $notice += "`r`nASR package additions:`r`n"
+          $notice += "- sherpa-onnx $env:SHERPA_ONNX_VERSION`r`n"
+          $notice += "- ONNX Runtime bundled with sherpa-onnx $env:SHERPA_ONNX_VERSION`r`n"
+          $notice += "- libarchive from vcpkg x64-windows`r`n"
+          Set-Content "$env:ASR_PACKAGE_DIR/NOTICE.txt" $notice
+
+          $sources = (Get-Content packaging/windows/THIRD_PARTY_SOURCES.md.in -Raw)
+          $sources = $sources.Replace("@QT_VERSION@", $env:QT_VERSION).Replace("@FFMPEG_VERSION@", $env:FFMPEG_VERSION).Replace("@FFMPEG_URL@", $env:FFMPEG_URL)
+          $sources += @"
+
+          ## sherpa-onnx
+          - Version: $env:SHERPA_ONNX_VERSION
+          - Binary source: $env:SHERPA_ONNX_URL
+          - Upstream source: https://github.com/k2-fsa/sherpa-onnx
+
+          ## ONNX Runtime
+          - Bundled with the selected sherpa-onnx binary package.
+          - Upstream source: https://github.com/microsoft/onnxruntime
+
+          ## libarchive
+          - Package: libarchive:x64-windows from vcpkg
+          - Upstream source: https://github.com/libarchive/libarchive
+          "@
+          Set-Content "$env:ASR_PACKAGE_DIR/THIRD_PARTY_SOURCES.md" $sources
+
+      - name: Archive ASR Windows package
+        shell: pwsh
+        run: |
+          Push-Location $env:ASR_PACKAGE_ROOT
+          Compress-Archive -Path shatv-windows-x64-asr -DestinationPath "$env:GITHUB_WORKSPACE/$env:ASR_PACKAGE_ARCHIVE" -Force
+          Pop-Location
+
       - name: Upload pull request artifact
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v7
         with:
-          name: shatv-windows-x64
-          path: ${{ env.PACKAGE_ARCHIVE }}
+          name: shatv-windows-packages
+          path: |
+            ${{ env.PACKAGE_ARCHIVE }}
+            ${{ env.ASR_PACKAGE_ARCHIVE }}
           if-no-files-found: error
           retention-days: 1
 
@@ -137,3 +259,4 @@ jobs:
           }
 
           gh release upload $tag "$env:GITHUB_WORKSPACE/$env:PACKAGE_ARCHIVE" --clobber
+          gh release upload $tag "$env:GITHUB_WORKSPACE/$env:ASR_PACKAGE_ARCHIVE" --clobber
