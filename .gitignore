@@ -6,6 +6,7 @@
 
 /build/
 /build-asr/
+/build-linux*/
 /build-tests/
 /cmake-build-*/
 /compile_commands.json

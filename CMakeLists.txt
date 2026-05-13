@@ -18,11 +18,14 @@ set(CMAKE_AUTORCC ON)
 option(BUILD_TESTING "Build ShaTV tests" OFF)
 option(SHATV_ENABLE_ASR "Build optional sherpa-onnx ASR development probes" OFF)
 option(SHATV_REQUIRE_LIBARCHIVE "Require libarchive for app-managed ASR model archive extraction" OFF)
+option(SHATV_INSTALL_BUNDLED_ASR_RUNTIME "Install bundled ASR runtime libraries into a private app library directory" OFF)
 include(CTest)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
+include(GNUInstallDirs)
 
 if(MSVC)
     add_compile_options(/W4)
@@ -130,4 +133,8 @@ add_subdirectory(src)
 if(BUILD_TESTING)
     find_package(Qt6 REQUIRED COMPONENTS Test)
     add_subdirectory(tests)
+endif()
+
+if(UNIX AND NOT APPLE)
+    include(ShatvLinuxPackaging)
 endif()

@@ -45,6 +45,12 @@ function(shatv_configure_sherpa_onnx_target out_target)
         NO_DEFAULT_PATH
     )
 
+    find_library(SHATV_ONNXRUNTIME_PROVIDERS_SHARED_LIBRARY
+        NAMES onnxruntime_providers_shared libonnxruntime_providers_shared
+        HINTS ${_onnxruntime_library_hints}
+        NO_DEFAULT_PATH
+    )
+
     set(_missing_items "")
     if(NOT SHATV_SHERPA_ONNX_INCLUDE_DIR)
         list(APPEND _missing_items "sherpa-onnx/c-api/c-api.h under SHATV_SHERPA_ONNX_ROOT/include")
@@ -75,10 +81,21 @@ function(shatv_configure_sherpa_onnx_target out_target)
 
     get_filename_component(_sherpa_c_dir "${SHATV_SHERPA_ONNX_C_API_LIBRARY}" DIRECTORY)
     get_filename_component(_onnxruntime_dir "${SHATV_ONNXRUNTIME_LIBRARY}" DIRECTORY)
+    set(_runtime_libraries
+        "${SHATV_SHERPA_ONNX_C_API_LIBRARY}"
+        "${SHATV_ONNXRUNTIME_LIBRARY}"
+    )
+    if(SHATV_ONNXRUNTIME_PROVIDERS_SHARED_LIBRARY)
+        list(APPEND _runtime_libraries "${SHATV_ONNXRUNTIME_PROVIDERS_SHARED_LIBRARY}")
+    endif()
     set(SHATV_ASR_RUNTIME_LIBRARY_DIRS
         "${_sherpa_c_dir}"
         "${_onnxruntime_dir}"
         CACHE INTERNAL "Runtime library directories needed by ASR probe targets"
+    )
+    set(SHATV_ASR_RUNTIME_LIBRARIES
+        "${_runtime_libraries}"
+        CACHE INTERNAL "Runtime libraries needed by ASR-enabled packages"
     )
 
     message(STATUS "ShaTV ASR probe enabled with sherpa-onnx root: ${SHATV_SHERPA_ONNX_ROOT}")

@@ -1,0 +1,6 @@
+ShaTV includes third-party software components:
+
+- Qt runtime packages from the target Linux distribution
+- FFmpeg runtime packages from the target Linux distribution
+@SHATV_LINUX_PACKAGE_EXTRA_NOTICE@
+See licenses/ and THIRD_PARTY_SOURCES.md for license texts and source details.

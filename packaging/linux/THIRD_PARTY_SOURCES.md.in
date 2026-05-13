@@ -1,0 +1,13 @@
+# Third-Party Sources
+
+This package bundles or depends on the following third-party components.
+
+## Qt
+- Source releases: https://download.qt.io/official_releases/qt/
+- Debian/Ubuntu package source: use `apt source qt6-base`, `apt source qt6-declarative`, and related Qt 6 source packages for the target distribution.
+
+## FFmpeg
+- Debian/Ubuntu package source: use `apt source ffmpeg` for the target distribution.
+- Upstream source: https://github.com/FFmpeg/FFmpeg
+
+@SHATV_LINUX_PACKAGE_EXTRA_SOURCES@
