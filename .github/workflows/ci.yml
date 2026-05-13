@@ -16,12 +16,15 @@ concurrency:
 jobs:
   build-windows:
     runs-on: windows-2022
+    permissions:
+      contents: write
 
     env:
       BUILD_DIR: build-windows
       PACKAGE_ROOT: package-root
       PACKAGE_DIR: package-root/shatv-windows-x64
       PACKAGE_ARCHIVE: shatv-windows-x64.zip
+      # aqt not support 6.11.x windows yet.
       QT_VERSION: 6.10.3
       # BtbN provides pre-built FFmpeg shared builds (GPL variant) for Windows.
       FFMPEG_VERSION: master-latest
@@ -43,7 +46,7 @@ jobs:
           target: desktop
           arch: win64_msvc2022_64
           modules: qtmultimedia qtshadertools
-          cache: false
+          cache: true
 
       - name: Download FFmpeg
         shell: pwsh
@@ -105,7 +108,8 @@ jobs:
           Compress-Archive -Path shatv-windows-x64 -DestinationPath "$env:GITHUB_WORKSPACE/$env:PACKAGE_ARCHIVE" -Force
           Pop-Location
 
-      - name: Upload artifact
+      - name: Upload pull request artifact
+        if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v7
         with:
           name: shatv-windows-x64
@@ -113,35 +117,23 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  publish-alpha:
-    if: github.event_name != 'pull_request'
-    needs: build-windows
-    runs-on: ubuntu-24.04
-    permissions:
-      actions: read
-      contents: write
-
-    steps:
-      - name: Download Windows artifact
-        uses: actions/download-artifact@v7
-        with:
-          name: shatv-windows-x64
-          path: release-assets
-
       - name: Publish alpha release asset
-        shell: bash
+        if: github.event_name != 'pull_request'
+        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          set -euo pipefail
-
-          tag="alpha"
-          if ! gh release view "$tag" >/dev/null 2>&1; then
-            gh release create "$tag" \
-              --target "$GITHUB_SHA" \
-              --title "Alpha" \
-              --notes "Continuously updated ShaTV alpha build." \
+          $tag = "alpha"
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag `
+              --target "$env:GITHUB_SHA" `
+              --title "Alpha" `
+              --notes "Continuously updated ShaTV alpha build." `
               --prerelease
-          fi
+            if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+            }
+          }
 
-          gh release upload "$tag" release-assets/shatv-windows-x64.zip --clobber
+          gh release upload $tag "$env:GITHUB_WORKSPACE/$env:PACKAGE_ARCHIVE" --clobber
