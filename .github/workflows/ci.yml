@@ -1,18 +1,27 @@
-name: windows-portable
+name: ci
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build-windows-portable:
-    runs-on: windows-latest
+  build-windows:
+    runs-on: windows-2022
 
     env:
       BUILD_DIR: build-windows
       PACKAGE_ROOT: package-root
       PACKAGE_DIR: package-root/shatv-windows-x64
+      PACKAGE_ARCHIVE: shatv-windows-x64.zip
       QT_VERSION: 6.10.3
       # BtbN provides pre-built FFmpeg shared builds (GPL variant) for Windows.
       FFMPEG_VERSION: master-latest
@@ -34,17 +43,9 @@ jobs:
           target: desktop
           arch: win64_msvc2022_64
           modules: qtmultimedia qtshadertools
-          cache: true
-
-      - name: Cache FFmpeg
-        id: cache-ffmpeg
-        uses: actions/cache@v5
-        with:
-          path: deps/ffmpeg
-          key: ffmpeg-shared-${{ env.FFMPEG_VERSION }}
+          cache: false
 
       - name: Download FFmpeg
-        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path deps | Out-Null
@@ -97,16 +98,50 @@ jobs:
           $sources = $sources.Replace("@QT_VERSION@", $env:QT_VERSION).Replace("@FFMPEG_VERSION@", $env:FFMPEG_VERSION).Replace("@FFMPEG_URL@", $env:FFMPEG_URL)
           Set-Content "$env:PACKAGE_DIR/THIRD_PARTY_SOURCES.md" $sources
 
-      - name: Archive portable package
+      - name: Archive Windows package
         shell: pwsh
         run: |
           Push-Location $env:PACKAGE_ROOT
-          Compress-Archive -Path shatv-windows-x64 -DestinationPath "$env:GITHUB_WORKSPACE/shatv-windows-x64-portable.zip" -Force
+          Compress-Archive -Path shatv-windows-x64 -DestinationPath "$env:GITHUB_WORKSPACE/$env:PACKAGE_ARCHIVE" -Force
           Pop-Location
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: shatv-windows-x64-portable
-          path: shatv-windows-x64-portable.zip
+          name: shatv-windows-x64
+          path: ${{ env.PACKAGE_ARCHIVE }}
           if-no-files-found: error
+          retention-days: 1
+
+  publish-alpha:
+    if: github.event_name != 'pull_request'
+    needs: build-windows
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: write
+
+    steps:
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: shatv-windows-x64
+          path: release-assets
+
+      - name: Publish alpha release asset
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          tag="alpha"
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" \
+              --target "$GITHUB_SHA" \
+              --title "Alpha" \
+              --notes "Continuously updated ShaTV alpha build." \
+              --prerelease
+          fi
+
+          gh release upload "$tag" release-assets/shatv-windows-x64.zip --clobber

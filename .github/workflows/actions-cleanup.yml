@@ -1,0 +1,60 @@
+name: actions-cleanup
+
+on:
+  workflow_dispatch:
+    inputs:
+      delete_artifacts:
+        description: Delete all workflow artifacts
+        type: boolean
+        default: true
+      delete_caches:
+        description: Delete all workflow caches
+        type: boolean
+        default: true
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Delete workflow artifacts
+        if: inputs.delete_artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ids="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/artifacts" --jq '.artifacts[].id')"
+          if [ -z "$ids" ]; then
+            echo "No workflow artifacts to delete."
+            exit 0
+          fi
+
+          for id in $ids; do
+            echo "Deleting artifact $id"
+            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/actions/artifacts/${id}"
+          done
+
+      - name: Delete workflow caches
+        if: inputs.delete_caches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ids="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/caches" --jq '.actions_caches[].id')"
+          if [ -z "$ids" ]; then
+            echo "No workflow caches to delete."
+            exit 0
+          fi
+
+          for id in $ids; do
+            echo "Deleting cache $id"
+            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/actions/caches/${id}"
+          done
