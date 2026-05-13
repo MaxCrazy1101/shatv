@@ -214,6 +214,10 @@ bool AppShellBridge::SpeechModelDeveloperOverride() const {
     return speech_model_developer_override_;
 }
 
+bool AppShellBridge::SpeechModelRuntimeAvailable() const {
+    return speech_model_runtime_available_;
+}
+
 bool AppShellBridge::SpeechModelInstallSupported() const {
     return speech_model_install_supported_;
 }
@@ -472,6 +476,7 @@ void AppShellBridge::SetSpeechModelStatus(const QString &status_token,
                                           const QString &directory,
                                           bool installed,
                                           bool developer_override,
+                                          bool runtime_available,
                                           bool install_supported) {
     if (speech_model_status_token_ == status_token &&
         speech_model_status_text_ == status_text &&
@@ -487,6 +492,7 @@ void AppShellBridge::SetSpeechModelStatus(const QString &status_token,
         speech_model_directory_ == directory &&
         speech_model_installed_ == installed &&
         speech_model_developer_override_ == developer_override &&
+        speech_model_runtime_available_ == runtime_available &&
         speech_model_install_supported_ == install_supported) {
         return;
     }
@@ -505,6 +511,7 @@ void AppShellBridge::SetSpeechModelStatus(const QString &status_token,
     speech_model_directory_ = directory;
     speech_model_installed_ = installed;
     speech_model_developer_override_ = developer_override;
+    speech_model_runtime_available_ = runtime_available;
     speech_model_install_supported_ = install_supported;
     emit SpeechModelStatusChanged();
 }

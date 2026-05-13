@@ -213,6 +213,11 @@
         <translation>解压模型归档需要 libarchive 支持</translation>
     </message>
     <message>
+        <location filename="../src/app/application.cpp" line="156"/>
+        <source>This build does not include the speech recognition runtime</source>
+        <translation>当前版本不包含语音识别运行时</translation>
+    </message>
+    <message>
         <location filename="../src/app/application.cpp" line="151"/>
         <source>Missing required file: %1</source>
         <translation>缺少必需文件：%1</translation>

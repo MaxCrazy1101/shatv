@@ -143,7 +143,18 @@ QString SpeechModelStatusText(const AsrModelStatus &status) {
     return QCoreApplication::translate("Application", "Unknown");
 }
 
+bool SpeechRuntimeAvailable() {
+#if defined(SHATV_ENABLE_ASR)
+    return true;
+#else
+    return false;
+#endif
+}
+
 QString SpeechModelStatusDetail(const AsrModelStatus &status, bool install_supported) {
+    if (!SpeechRuntimeAvailable()) {
+        return QCoreApplication::translate("Application", "This build does not include the speech recognition runtime");
+    }
     if (!install_supported) {
         return QCoreApplication::translate("Application", "Model archive extraction requires libarchive support");
     }
@@ -821,6 +832,7 @@ void Application::RefreshSpeechModelStatus() {
     const AsrModelService model_service;
     const AsrModelManifest &manifest = model_service.SelectedManifest();
     const AsrModelStatus model_status = model_service.InstalledModelStatus();
+    const bool runtime_available = SpeechRuntimeAvailable();
     const bool install_supported = AsrModelArchiveInstaller::Supported();
     const bool installed = model_status.Available();
     const bool developer_override = model_status.source == AsrModelInstallSource::kDeveloperOverride;
@@ -839,6 +851,7 @@ void Application::RefreshSpeechModelStatus() {
                                         QDir::toNativeSeparators(model_status.model_dir),
                                         installed,
                                         developer_override,
+                                        runtime_available,
                                         install_supported);
 }
 
@@ -849,6 +862,10 @@ void Application::DownloadSpeechModel() {
     }
     if (speech_model_install_watcher_.isRunning()) {
         ShowStatusMessage(QCoreApplication::translate("Application", "ASR model installation is already running"), 3000);
+        return;
+    }
+    if (!SpeechRuntimeAvailable()) {
+        ShowAlert(QCoreApplication::translate("Application", "This build does not include the speech recognition runtime"));
         return;
     }
     if (!AsrModelArchiveInstaller::Supported()) {
@@ -938,6 +955,10 @@ void Application::InstallSpeechModelArchive(const QString &archive_path) {
     }
     if (speech_model_install_watcher_.isRunning()) {
         ShowStatusMessage(QCoreApplication::translate("Application", "ASR model installation is already running"), 3000);
+        return;
+    }
+    if (!SpeechRuntimeAvailable()) {
+        ShowAlert(QCoreApplication::translate("Application", "This build does not include the speech recognition runtime"));
         return;
     }
     if (!AsrModelArchiveInstaller::Supported()) {

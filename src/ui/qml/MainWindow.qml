@@ -74,6 +74,7 @@ ApplicationWindow {
         property string speechModelDirectory: ""
         property bool speechModelInstalled: false
         property bool speechModelDeveloperOverride: false
+        property bool speechModelRuntimeAvailable: false
         property bool speechModelInstallSupported: false
         property bool speechModelBusy: false
         property bool speechModelDownloadActive: false
@@ -940,6 +941,7 @@ ApplicationWindow {
         speechModelDirectory: bridge.speechModelDirectory
         speechModelInstalled: bridge.speechModelInstalled
         speechModelDeveloperOverride: bridge.speechModelDeveloperOverride
+        speechModelRuntimeAvailable: bridge.speechModelRuntimeAvailable
         speechModelInstallSupported: bridge.speechModelInstallSupported
         speechModelBusy: bridge.speechModelBusy
         speechModelDownloadActive: bridge.speechModelDownloadActive

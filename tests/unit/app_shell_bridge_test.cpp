@@ -129,6 +129,7 @@ void AppShellBridgeTest::speech_model_state_tracks_status_and_requests() {
     QCOMPARE(bridge.SpeechModelStatusText(), QString());
     QVERIFY(!bridge.SpeechModelInstalled());
     QVERIFY(!bridge.SpeechModelDeveloperOverride());
+    QVERIFY(!bridge.SpeechModelRuntimeAvailable());
     QVERIFY(!bridge.SpeechModelInstallSupported());
     QVERIFY(!bridge.SpeechModelBusy());
     QVERIFY(!bridge.SpeechModelDownloadActive());
@@ -158,6 +159,7 @@ void AppShellBridgeTest::speech_model_state_tracks_status_and_requests() {
                                 QStringLiteral("/tmp/model"),
                                 true,
                                 false,
+                                true,
                                 true);
 
     QCOMPARE(status_spy.size(), 1);
@@ -175,6 +177,7 @@ void AppShellBridgeTest::speech_model_state_tracks_status_and_requests() {
     QCOMPARE(bridge.SpeechModelDirectory(), QStringLiteral("/tmp/model"));
     QVERIFY(bridge.SpeechModelInstalled());
     QVERIFY(!bridge.SpeechModelDeveloperOverride());
+    QVERIFY(bridge.SpeechModelRuntimeAvailable());
     QVERIFY(bridge.SpeechModelInstallSupported());
 
     bridge.SetSpeechModelBusy(true);

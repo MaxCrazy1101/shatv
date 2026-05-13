@@ -28,6 +28,7 @@ Window {
     property string speechModelDirectory: ""
     property bool speechModelInstalled: false
     property bool speechModelDeveloperOverride: false
+    property bool speechModelRuntimeAvailable: false
     property bool speechModelInstallSupported: false
     property bool speechModelBusy: false
     property bool speechModelDetailsVisible: false
@@ -72,6 +73,10 @@ Window {
     function displayValue(value) {
         return value.length > 0 ? value : qsTr("Unknown")
     }
+
+    readonly property bool speechModelActionsAvailable: speechModelRuntimeAvailable
+        && speechModelInstallSupported
+        && !speechModelDeveloperOverride
 
     Shortcut {
         sequence: "Escape"
@@ -245,12 +250,14 @@ Window {
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: Shell.Theme.spacingSm
+                            visible: root.speechModelRuntimeAvailable
 
                             Controls.ThemedToolButton {
                                 text: qsTr("Download")
-                                enabled: root.speechModelInstallSupported
-                                    && !root.speechModelBusy
+                                visible: root.speechModelInstallSupported
                                     && !root.speechModelDeveloperOverride
+                                enabled: root.speechModelActionsAvailable
+                                    && !root.speechModelBusy
                                 onClicked: root.downloadSpeechModelRequested()
                             }
 
@@ -263,9 +270,10 @@ Window {
 
                             Controls.ThemedToolButton {
                                 text: qsTr("Install Archive")
-                                enabled: root.speechModelInstallSupported
-                                    && !root.speechModelBusy
+                                visible: root.speechModelInstallSupported
                                     && !root.speechModelDeveloperOverride
+                                enabled: root.speechModelActionsAvailable
+                                    && !root.speechModelBusy
                                 onClicked: speechModelArchiveDialog.open()
                             }
 
@@ -277,9 +285,11 @@ Window {
 
                             Controls.ThemedToolButton {
                                 text: qsTr("Delete")
-                                enabled: root.speechModelInstalled
-                                    && !root.speechModelBusy
+                                visible: root.speechModelInstallSupported
                                     && !root.speechModelDeveloperOverride
+                                enabled: root.speechModelInstalled
+                                    && root.speechModelActionsAvailable
+                                    && !root.speechModelBusy
                                 onClicked: root.deleteSpeechModelRequested()
                             }
 
@@ -298,7 +308,8 @@ Window {
                         ColumnLayout {
                             Layout.fillWidth: true
                             spacing: Shell.Theme.spacingSm
-                            visible: root.speechModelOperationText.length > 0
+                            visible: root.speechModelRuntimeAvailable
+                                && root.speechModelOperationText.length > 0
 
                             Label {
                                 Layout.fillWidth: true

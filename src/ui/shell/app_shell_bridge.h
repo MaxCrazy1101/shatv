@@ -71,6 +71,7 @@ class AppShellBridge final : public QObject {
     Q_PROPERTY(QString speechModelDirectory READ SpeechModelDirectory NOTIFY SpeechModelStatusChanged)
     Q_PROPERTY(bool speechModelInstalled READ SpeechModelInstalled NOTIFY SpeechModelStatusChanged)
     Q_PROPERTY(bool speechModelDeveloperOverride READ SpeechModelDeveloperOverride NOTIFY SpeechModelStatusChanged)
+    Q_PROPERTY(bool speechModelRuntimeAvailable READ SpeechModelRuntimeAvailable NOTIFY SpeechModelStatusChanged)
     Q_PROPERTY(bool speechModelInstallSupported READ SpeechModelInstallSupported NOTIFY SpeechModelStatusChanged)
     Q_PROPERTY(bool speechModelBusy READ SpeechModelBusy NOTIFY SpeechModelBusyChanged)
     Q_PROPERTY(bool speechModelDownloadActive READ SpeechModelDownloadActive NOTIFY SpeechModelOperationChanged)
@@ -129,6 +130,7 @@ class AppShellBridge final : public QObject {
     QString SpeechModelDirectory() const;
     bool SpeechModelInstalled() const;
     bool SpeechModelDeveloperOverride() const;
+    bool SpeechModelRuntimeAvailable() const;
     bool SpeechModelInstallSupported() const;
     bool SpeechModelBusy() const;
     bool SpeechModelDownloadActive() const;
@@ -163,6 +165,7 @@ class AppShellBridge final : public QObject {
                               const QString &directory,
                               bool installed,
                               bool developer_override,
+                              bool runtime_available,
                               bool install_supported);
     void SetSpeechModelBusy(bool busy);
     void SetSpeechModelOperation(bool download_active, double progress, const QString &operation_text);
@@ -285,6 +288,7 @@ class AppShellBridge final : public QObject {
     QString speech_model_directory_;
     bool speech_model_installed_ = false;
     bool speech_model_developer_override_ = false;
+    bool speech_model_runtime_available_ = false;
     bool speech_model_install_supported_ = false;
     bool speech_model_busy_ = false;
     bool speech_model_download_active_ = false;
