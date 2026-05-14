@@ -3,6 +3,8 @@ name: ci
 on:
   push:
     branches: [main]
+    tags:
+      - 'v*'
   pull_request:
 
 permissions:
@@ -266,22 +268,38 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-      - name: Publish alpha release asset
+      - name: Publish release assets
         if: github.event_name != 'pull_request'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = "alpha"
+          $title = "Alpha"
+          $notes = "Continuously updated ShaTV alpha build."
+          if ($env:GITHUB_REF_TYPE -eq "tag") {
+            $tag = $env:GITHUB_REF_NAME
+            $title = "ShaTV $($tag.TrimStart('v'))"
+            $notes = "ShaTV $tag release build."
+          }
+
           gh release view $tag *> $null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag `
-              --target "$env:GITHUB_SHA" `
-              --title "Alpha" `
-              --notes "Continuously updated ShaTV alpha build." `
-              --prerelease
+            $createArgs = @(
+              "release", "create", $tag,
+              "--target", "$env:GITHUB_SHA",
+              "--title", $title,
+              "--notes", $notes
+            )
+            if ($tag -eq "alpha" -or $tag.Contains("-")) {
+              $createArgs += "--prerelease"
+            }
+            gh @createArgs
             if ($LASTEXITCODE -ne 0) {
-              exit $LASTEXITCODE
+              gh release view $tag *> $null
+              if ($LASTEXITCODE -ne 0) {
+                exit $LASTEXITCODE
+              }
             }
           }
 
@@ -400,7 +418,7 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-      - name: Publish Linux alpha release assets
+      - name: Publish Linux release assets
         if: github.event_name != 'pull_request'
         shell: bash
         env:
@@ -409,12 +427,25 @@ jobs:
           set -euo pipefail
 
           tag="alpha"
+          title="Alpha"
+          notes="Continuously updated ShaTV alpha build."
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+            tag="$GITHUB_REF_NAME"
+            title="ShaTV ${tag#v}"
+            notes="ShaTV $tag release build."
+          fi
+
           if ! gh release view "$tag" >/dev/null 2>&1; then
-            gh release create "$tag" \
-              --target "$GITHUB_SHA" \
-              --title "Alpha" \
-              --notes "Continuously updated ShaTV alpha build." \
-              --prerelease || gh release view "$tag" >/dev/null
+            create_args=(
+              release create "$tag"
+              --target "$GITHUB_SHA"
+              --title "$title"
+              --notes "$notes"
+            )
+            if [ "$tag" = "alpha" ] || [[ "$tag" == *-* ]]; then
+              create_args+=(--prerelease)
+            fi
+            gh "${create_args[@]}" || gh release view "$tag" >/dev/null
           fi
 
           gh release upload "$tag" "$GITHUB_WORKSPACE/$LINUX_DEB" --clobber

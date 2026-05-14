@@ -99,14 +99,131 @@ appstreamcli validate --no-net /usr/share/metainfo/top.shanana.shatv.metainfo.xm
 sudo pacman -Rns shatv-git
 ```
 
-### Binary AUR packages
+### Binary AUR package draft: `shatv-bin`
 
-Reserve `shatv-bin` for a future binary AUR package. Do not use `shatv-bin`
-for the first source package.
+`shatv-bin` should be published only for immutable versioned releases, not for
+the continuously overwritten `alpha` release. The package should consume a fixed
+release asset URL and a fixed `sha256sums` value.
 
-Reserve `shatv-asr-bin` only if an ASR-capable binary package intentionally
-consumes upstream binary sherpa-onnx/ONNX Runtime artifacts. Binary packages
-must still exclude model archives and extracted model files.
+The binary package should match the current AUR source-package policy:
+
+- package name: `shatv-bin`;
+- default ASR support enabled;
+- install `/usr/bin/shatv`;
+- provide `shatv` and `shatv-asr`;
+- conflict with `shatv`, `shatv-git`, `shatv-asr`, and `shatv-asr-bin`;
+- exclude ASR model archives and extracted model files.
+
+The release asset used by `shatv-bin` should be built in an Arch Linux container
+rather than repacked from the Ubuntu `.deb`. The asset should contain the
+install prefix payload directly:
+
+```text
+usr/bin/shatv
+usr/lib/shatv/...
+usr/share/applications/top.shanana.shatv.desktop
+usr/share/metainfo/top.shanana.shatv.metainfo.xml
+usr/share/icons/...
+usr/share/doc/shatv/...
+```
+
+Suggested release asset names:
+
+- `shatv-arch-x86_64-asr.tar.zst`
+- `SHA256SUMS`
+
+`shatv-bin` should depend on Arch runtime packages for Qt, FFmpeg, libarchive,
+and other system libraries. It should not depend on AUR `sherpa-onnx` or
+`onnxruntime` if the release asset intentionally bundles the selected
+sherpa-onnx/ONNX Runtime shared libraries under `/usr/lib/shatv`.
+
+Recommended `shatv-bin` dependency direction:
+
+- runtime `depends`: `qt6-base`, `qt6-declarative`, `qt6-multimedia`,
+  `qt6-shadertools`, `ffmpeg`, `libarchive`, `zlib`;
+- no runtime dependency on `sherpa-onnx` or `onnxruntime` while ASR native
+  libraries are bundled in the release asset.
+
+The initial `PKGBUILD` shape should be:
+
+```bash
+pkgname=shatv-bin
+pkgver=0.1.0_alpha
+pkgrel=1
+_release_tag=v0.1.0-alpha
+pkgdesc='Qt-based IPTV player with bundled sherpa-onnx speech recognition'
+arch=('x86_64')
+url='https://github.com/MaxCrazy1101/shatv'
+license=('MIT')
+depends=(
+  'ffmpeg'
+  'gcc-libs'
+  'glibc'
+  'hicolor-icon-theme'
+  'libarchive'
+  'qt6-base'
+  'qt6-declarative'
+  'qt6-multimedia'
+  'qt6-shadertools'
+  'zlib'
+)
+provides=('shatv' 'shatv-asr')
+conflicts=('shatv' 'shatv-git' 'shatv-asr' 'shatv-asr-bin')
+source=("https://github.com/MaxCrazy1101/shatv/releases/download/${_release_tag}/shatv-arch-x86_64-asr.tar.zst")
+sha256sums=('...')
+
+package() {
+  cp -a "$srcdir/usr" "$pkgdir/"
+}
+```
+
+Use `_release_tag` so the AUR `pkgver` can use Arch-compatible underscores
+without guessing the upstream GitHub tag name.
+
+### `shatv-bin` release workflow
+
+The dedicated `shatv-bin` workflow runs on immutable version tags. It should
+not run on pull requests, branch pushes, or the mutable `alpha` release.
+
+Trigger:
+
+```yaml
+on:
+  push:
+    tags:
+      - 'v*'
+```
+
+Required behavior:
+
+1. Ignore the mutable `alpha` tag.
+2. Build the ASR-enabled binary payload in an Arch Linux container.
+3. Create `shatv-arch-x86_64-asr.tar.zst` from the installed `usr/` payload.
+4. Compute `sha256sum` for the tarball.
+5. Create the versioned GitHub release if it does not already exist.
+6. Upload the tarball and `SHA256SUMS` to the versioned GitHub release.
+7. Generate `shatv-bin/PKGBUILD` and `.SRCINFO` with the release tag and hash.
+8. Push those two files to `ssh://aur@aur.archlinux.org/shatv-bin.git`.
+
+Required repository secrets:
+
+- `AUR_SSH_PRIVATE_KEY`: SSH private key for the AUR account that maintains
+  `shatv-bin`.
+
+The workflow should use a pinned `aur.archlinux.org` host key in
+`known_hosts`. Do not use `StrictHostKeyChecking=no`.
+
+Draft safety rules:
+
+- fail if the release tag is `alpha`;
+- fail if the release asset already exists with a different checksum;
+- fail if `.SRCINFO` was not generated from the same `PKGBUILD`;
+- fail if `shatv-bin` would point at a mutable release asset;
+- do not publish `shatv-bin` from pull requests or branch pushes.
+
+Reserve `shatv-asr-bin` only if the project later needs both non-ASR and ASR
+binary AUR packages. Under the current policy, `shatv-bin` is the ASR-capable
+binary package.
 
 ### Publication requirements
 
