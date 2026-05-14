@@ -141,11 +141,25 @@ jobs:
           $downloadedArchive = Get-Item $archive
           Write-Host "Downloaded sherpa-onnx archive bytes=$($downloadedArchive.Length) seconds=$($downloadTimer.Elapsed.TotalSeconds)"
 
+          $sevenZip = (Get-Command 7z.exe -ErrorAction SilentlyContinue).Source
+          if (-not $sevenZip) {
+            $sevenZip = (Get-Command 7z -ErrorAction SilentlyContinue).Source
+          }
+          if (-not $sevenZip) {
+            throw "7-Zip executable is required to extract $archive"
+          }
+
           $extractTimer = [System.Diagnostics.Stopwatch]::StartNew()
-          tar -xjf $archive -C deps/sherpa
+          & $sevenZip x $archive "-odeps/sherpa" -y
+          $tarArchive = "deps/sherpa/sherpa-onnx.tar"
+          if (-not (Test-Path $tarArchive)) {
+            throw "Expected intermediate tar archive missing: $tarArchive"
+          }
+          & $sevenZip x $tarArchive "-odeps/sherpa" -y
           $extractTimer.Stop()
           Write-Host "Extracted sherpa-onnx runtime seconds=$($extractTimer.Elapsed.TotalSeconds)"
           Remove-Item $archive -Force
+          Remove-Item $tarArchive -Force
 
           $sdkRoot = "$PWD/deps/sherpa/$env:SHERPA_ONNX_PACKAGE"
           if (-not (Test-Path "$sdkRoot/include/sherpa-onnx/c-api/c-api.h")) {
