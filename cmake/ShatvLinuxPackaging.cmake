@@ -2,7 +2,7 @@ if(NOT UNIX OR APPLE)
     return()
 endif()
 
-set(SHATV_LINUX_PACKAGE_DISTRIBUTION "ubuntu-24.04" CACHE STRING "Linux distribution label used in package asset names")
+set(SHATV_LINUX_PACKAGE_DISTRIBUTION "ubuntu-26.04" CACHE STRING "Linux distribution label used in package asset names")
 set(SHATV_LINUX_PACKAGE_CONTACT "MaxCrazy <alex02newton@gmail.com>" CACHE STRING "Linux package maintainer/contact")
 
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|amd64)$")
@@ -26,16 +26,15 @@ if(SHATV_ENABLE_ASR)
 ")
     set(_shatv_extra_sources
 "## sherpa-onnx
+- License: Apache-2.0
 - Binary source: ASR package build input
 - Upstream source: https://github.com/k2-fsa/sherpa-onnx
 
 ## ONNX Runtime
+- License: MIT
 - Bundled with the selected sherpa-onnx binary package.
 - Upstream source: https://github.com/microsoft/onnxruntime
 
-## libarchive
-- System dependency on Debian/Ubuntu.
-- Upstream source: https://github.com/libarchive/libarchive
 ")
 else()
     set(_shatv_deb_package_name "shatv")
@@ -93,6 +92,8 @@ install(FILES
     DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/${SHATV_DEBIAN_PACKAGE_NAME}
 )
 install(FILES
+        ${CMAKE_SOURCE_DIR}/packaging/licenses/MIT.txt
+        ${CMAKE_SOURCE_DIR}/packaging/licenses/Apache-2.0.txt
         ${CMAKE_SOURCE_DIR}/packaging/licenses/LGPL-2.1.txt
         ${CMAKE_SOURCE_DIR}/packaging/licenses/LGPL-3.0.txt
     DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/${SHATV_DEBIAN_PACKAGE_NAME}/licenses

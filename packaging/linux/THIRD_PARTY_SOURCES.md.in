@@ -3,11 +3,26 @@
 This package bundles or depends on the following third-party components.
 
 ## Qt
+- License: LGPL-3.0 or commercial
 - Source releases: https://download.qt.io/official_releases/qt/
 - Debian/Ubuntu package source: use `apt source qt6-base`, `apt source qt6-declarative`, and related Qt 6 source packages for the target distribution.
 
 ## FFmpeg
+- License: LGPL-2.1 or GPL (components vary by distribution build)
 - Debian/Ubuntu package source: use `apt source ffmpeg` for the target distribution.
 - Upstream source: https://github.com/FFmpeg/FFmpeg
+
+## libarchive
+- License: BSD-style
+- Debian/Ubuntu package source: use `apt source libarchive` for the target distribution.
+- Upstream source: https://github.com/libarchive/libarchive
+
+## toml11
+- License: MIT
+- Upstream source: https://github.com/ToruNiina/toml11
+
+## Material Symbols
+- License: Apache-2.0
+- Upstream source: https://github.com/google/material-design-icons
 
 @SHATV_LINUX_PACKAGE_EXTRA_SOURCES@

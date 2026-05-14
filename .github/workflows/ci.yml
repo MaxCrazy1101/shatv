@@ -96,6 +96,8 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path "$env:PACKAGE_DIR/licenses" | Out-Null
+          Copy-Item "packaging/licenses/MIT.txt" "$env:PACKAGE_DIR/licenses/MIT.txt"
+          Copy-Item "packaging/licenses/Apache-2.0.txt" "$env:PACKAGE_DIR/licenses/Apache-2.0.txt"
           Copy-Item "packaging/licenses/LGPL-3.0.txt" "$env:PACKAGE_DIR/licenses/LGPL-3.0.txt"
           Copy-Item "packaging/licenses/LGPL-2.1.txt" "$env:PACKAGE_DIR/licenses/LGPL-2.1.txt"
 
@@ -191,6 +193,8 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path "$env:ASR_PACKAGE_DIR/licenses" | Out-Null
+          Copy-Item "packaging/licenses/MIT.txt" "$env:ASR_PACKAGE_DIR/licenses/MIT.txt"
+          Copy-Item "packaging/licenses/Apache-2.0.txt" "$env:ASR_PACKAGE_DIR/licenses/Apache-2.0.txt"
           Copy-Item "packaging/licenses/LGPL-3.0.txt" "$env:ASR_PACKAGE_DIR/licenses/LGPL-3.0.txt"
           Copy-Item "packaging/licenses/LGPL-2.1.txt" "$env:ASR_PACKAGE_DIR/licenses/LGPL-2.1.txt"
 
@@ -208,14 +212,17 @@ jobs:
 
           ## sherpa-onnx
           - Version: $env:SHERPA_ONNX_VERSION
+          - License: Apache-2.0
           - Binary source: $env:SHERPA_ONNX_URL
           - Upstream source: https://github.com/k2-fsa/sherpa-onnx
 
           ## ONNX Runtime
+          - License: MIT
           - Bundled with the selected sherpa-onnx binary package.
           - Upstream source: https://github.com/microsoft/onnxruntime
 
           ## libarchive
+          - License: BSD-style
           - Package: libarchive:x64-windows from vcpkg
           - Upstream source: https://github.com/libarchive/libarchive
           "@
@@ -269,8 +276,9 @@ jobs:
     env:
       BUILD_DIR: build-linux
       ASR_BUILD_DIR: build-linux-asr
-      LINUX_DEB: shatv-ubuntu-24.04-amd64.deb
-      LINUX_ASR_DEB: shatv-ubuntu-24.04-amd64-asr.deb
+      LINUX_CONTAINER_IMAGE: ubuntu:26.04
+      LINUX_DEB: shatv-ubuntu-26.04-amd64.deb
+      LINUX_ASR_DEB: shatv-ubuntu-26.04-amd64-asr.deb
       SHERPA_ONNX_VERSION: v1.13.1
       SHERPA_ONNX_PACKAGE: sherpa-onnx-v1.13.1-linux-x64-shared-no-tts
       SHERPA_ONNX_URL: https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.1/sherpa-onnx-v1.13.1-linux-x64-shared-no-tts.tar.bz2
@@ -278,99 +286,87 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install Linux build dependencies
+      - name: Build Linux packages in Ubuntu 26.04
         shell: bash
         run: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential \
-            bzip2 \
-            cmake \
-            curl \
-            dpkg-dev \
-            file \
-            libavcodec-dev \
-            libavformat-dev \
-            libavutil-dev \
-            libgl1-mesa-dev \
-            libswresample-dev \
-            libswscale-dev \
-            libvulkan-dev \
-            libxkbcommon-dev \
-            ninja-build \
-            pkg-config \
-            qt6-base-dev \
-            qt6-declarative-dev \
-            qt6-multimedia-dev \
-            qt6-shadertools-dev \
-            qt6-tools-dev-tools \
-            zlib1g-dev
+          docker run --rm \
+            -e ASR_BUILD_DIR \
+            -e BUILD_DIR \
+            -e LINUX_ASR_DEB \
+            -e LINUX_DEB \
+            -e SHERPA_ONNX_PACKAGE \
+            -e SHERPA_ONNX_URL \
+            -e GITHUB_WORKSPACE=/workspace \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            -w /workspace \
+            "$LINUX_CONTAINER_IMAGE" \
+            bash -lc '
+              set -euo pipefail
+              export DEBIAN_FRONTEND=noninteractive
 
-      - name: Configure Linux package
-        shell: bash
-        run: |
-          set -euo pipefail
-          cmake -S . -B "$BUILD_DIR" -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX=/usr \
-            -DBUILD_TESTING=OFF \
-            -DSHATV_FETCH_TOML11=ON \
-            -DSHATV_LINUX_PACKAGE_DISTRIBUTION=ubuntu-24.04
+              apt-get update
+              apt-get install -y --no-install-recommends \
+                build-essential \
+                bzip2 \
+                ca-certificates \
+                cmake \
+                curl \
+                dpkg-dev \
+                file \
+                git \
+                libarchive-dev \
+                libavcodec-dev \
+                libavformat-dev \
+                libavutil-dev \
+                libgl1-mesa-dev \
+                libswresample-dev \
+                libswscale-dev \
+                libvulkan-dev \
+                libxkbcommon-dev \
+                ninja-build \
+                pkg-config \
+                qt6-base-dev \
+                qt6-declarative-dev \
+                qt6-multimedia-dev \
+                qt6-shadertools-dev \
+                qt6-tools-dev \
+                qt6-tools-dev-tools \
+                zlib1g-dev
 
-      - name: Build Linux package
-        shell: bash
-        run: cmake --build "$BUILD_DIR" --target package --config Release
+              git config --global --add safe.directory /workspace
 
-      - name: Stage Linux package
-        shell: bash
-        run: |
-          set -euo pipefail
-          cp "$BUILD_DIR/$LINUX_DEB" "$GITHUB_WORKSPACE/$LINUX_DEB"
+              cmake -S . -B "$BUILD_DIR" -G Ninja \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_INSTALL_PREFIX=/usr \
+                -DBUILD_TESTING=OFF \
+                -DSHATV_FETCH_TOML11=ON \
+                -DSHATV_LINUX_PACKAGE_DISTRIBUTION=ubuntu-26.04
+              cmake --build "$BUILD_DIR" --target package --config Release
+              cp "$BUILD_DIR/$LINUX_DEB" "$GITHUB_WORKSPACE/$LINUX_DEB"
 
-      - name: Install Linux ASR dependencies
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get install -y --no-install-recommends libarchive-dev
+              mkdir -p deps/sherpa
+              curl -L "$SHERPA_ONNX_URL" -o deps/sherpa/sherpa-onnx.tar.bz2
+              tar -xjf deps/sherpa/sherpa-onnx.tar.bz2 -C deps/sherpa
 
-      - name: Download Linux sherpa-onnx runtime
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p deps/sherpa
-          curl -L "$SHERPA_ONNX_URL" -o deps/sherpa/sherpa-onnx.tar.bz2
-          tar -xjf deps/sherpa/sherpa-onnx.tar.bz2 -C deps/sherpa
+              sdk_root="$PWD/deps/sherpa/$SHERPA_ONNX_PACKAGE"
+              test -f "$sdk_root/include/sherpa-onnx/c-api/c-api.h"
+              test -f "$sdk_root/lib/libsherpa-onnx-c-api.so"
+              test -f "$sdk_root/lib/libonnxruntime.so"
 
-          sdk_root="$PWD/deps/sherpa/$SHERPA_ONNX_PACKAGE"
-          test -f "$sdk_root/include/sherpa-onnx/c-api/c-api.h"
-          test -f "$sdk_root/lib/libsherpa-onnx-c-api.so"
-          test -f "$sdk_root/lib/libonnxruntime.so"
-
-      - name: Configure Linux ASR package
-        shell: bash
-        run: |
-          set -euo pipefail
-          cmake -S . -B "$ASR_BUILD_DIR" -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX=/usr \
-            -DBUILD_TESTING=OFF \
-            -DSHATV_FETCH_TOML11=ON \
-            -DSHATV_ENABLE_ASR=ON \
-            -DSHATV_REQUIRE_LIBARCHIVE=ON \
-            -DSHATV_INSTALL_BUNDLED_ASR_RUNTIME=ON \
-            -DSHATV_SHERPA_ONNX_ROOT="$PWD/deps/sherpa/$SHERPA_ONNX_PACKAGE" \
-            -DSHATV_LINUX_PACKAGE_DISTRIBUTION=ubuntu-24.04
-
-      - name: Build Linux ASR package
-        shell: bash
-        run: cmake --build "$ASR_BUILD_DIR" --target package --config Release
-
-      - name: Stage Linux ASR package
-        shell: bash
-        run: |
-          set -euo pipefail
-          cp "$ASR_BUILD_DIR/$LINUX_ASR_DEB" "$GITHUB_WORKSPACE/$LINUX_ASR_DEB"
+              cmake -S . -B "$ASR_BUILD_DIR" -G Ninja \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_INSTALL_PREFIX=/usr \
+                -DBUILD_TESTING=OFF \
+                -DSHATV_FETCH_TOML11=ON \
+                -DSHATV_ENABLE_ASR=ON \
+                -DSHATV_REQUIRE_LIBARCHIVE=ON \
+                -DSHATV_INSTALL_BUNDLED_ASR_RUNTIME=ON \
+                -DSHATV_SHERPA_ONNX_ROOT="$PWD/deps/sherpa/$SHERPA_ONNX_PACKAGE" \
+                -DSHATV_LINUX_PACKAGE_DISTRIBUTION=ubuntu-26.04
+              cmake --build "$ASR_BUILD_DIR" --target package --config Release
+              cp "$ASR_BUILD_DIR/$LINUX_ASR_DEB" "$GITHUB_WORKSPACE/$LINUX_ASR_DEB"
+            '
 
       - name: Upload pull request Linux artifacts
         if: github.event_name == 'pull_request'

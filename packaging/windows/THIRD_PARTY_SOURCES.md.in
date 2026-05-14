@@ -12,3 +12,11 @@ This package bundles or depends on the following third-party components.
 - License: LGPL-2.1 or GPL (components vary)
 - Binary source: @FFMPEG_URL@
 - Upstream source: https://github.com/FFmpeg/FFmpeg
+
+## toml11
+- License: MIT
+- Upstream source: https://github.com/ToruNiina/toml11
+
+## Material Symbols
+- License: Apache-2.0
+- Upstream source: https://github.com/google/material-design-icons
