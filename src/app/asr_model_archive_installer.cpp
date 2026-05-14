@@ -222,7 +222,7 @@ bool ExtractArchiveWithLibArchive(const QString &archive_path,
             return false;
         }
 
-        const mode_t file_type = archive_entry_filetype(entry);
+        const auto file_type = archive_entry_filetype(entry);
         if (file_type == AE_IFDIR) {
             if (!QDir().mkpath(destination_path)) {
                 if (error_message != nullptr) {
