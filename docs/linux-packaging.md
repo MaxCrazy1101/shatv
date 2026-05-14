@@ -51,29 +51,37 @@ yet.
 Arch Linux AUR packaging should be a source-build path, not a repack of the
 Debian package and not a GitHub Release binary artifact.
 
-### First package: `shatv-git`
+### AUR package: `shatv-git`
 
-The first AUR package should be `shatv-git`:
+The AUR source package should be `shatv-git`:
 
 - build from the upstream Git repository;
 - require the upstream Git repository to be anonymously cloneable before AUR
   publication;
 - install through the same CMake install rules used by the Debian package;
-- keep `SHATV_ENABLE_ASR=OFF`;
+- enable `SHATV_ENABLE_ASR=ON`;
+- use `/usr` as `SHATV_SHERPA_ONNX_ROOT` and `SHATV_ONNXRUNTIME_ROOT`;
+- depend on the Arch/AUR `sherpa-onnx` and `onnxruntime` package contracts
+  instead of bundling native ASR libraries;
 - install `/usr/bin/shatv`, `top.shanana.shatv.desktop`,
   `top.shanana.shatv.metainfo.xml`, the placeholder icon, and package notices;
 - do not include ASR model archives or extracted model files.
-- provide `shatv`;
-- conflict with `shatv` and the future binary package name `shatv-bin`.
+- provide `shatv` and `shatv-asr`;
+- conflict with `shatv`, `shatv-bin`, `shatv-asr`, and `shatv-asr-bin`.
 
 Recommended Arch dependencies:
 
 - runtime `depends`: `qt6-base`, `qt6-declarative`, `qt6-multimedia`,
-  `qt6-shadertools`, `ffmpeg`, `libarchive`, `zlib`;
+  `qt6-shadertools`, `ffmpeg`, `libarchive`, `sherpa-onnx`, `onnxruntime`,
+  `zlib`;
 - build `makedepends`: `cmake`, `git`, `ninja`, `pkgconf`, `qt6-tools`,
   `toml11`;
 - validation `checkdepends`: `desktop-file-utils`, `appstream`, optionally
   `namcap`.
+
+`onnxruntime` may be satisfied by a provider package such as
+`onnxruntime-cuda`. The package should keep that dependency as the virtual
+`onnxruntime` name so pacman can resolve the provider.
 
 Expected local validation:
 
@@ -91,24 +99,14 @@ appstreamcli validate --no-net /usr/share/metainfo/top.shanana.shatv.metainfo.xm
 sudo pacman -Rns shatv-git
 ```
 
-### Binary and ASR-capable AUR packages
+### Binary AUR packages
 
 Reserve `shatv-bin` for a future binary AUR package. Do not use `shatv-bin`
 for the first source package.
 
-Defer ASR-capable AUR packages until the native ASR dependency path is decided
-for Arch. The current release package bundles sherpa-onnx and ONNX Runtime for
-ASR-capable artifacts, but the AUR package should not depend on an unpublished
-or unstable local SDK path.
-
-Later options:
-
-- `shatv-asr`: source-build ShaTV package that depends on verified Arch/AUR
-  `sherpa-onnx` and `onnxruntime` packages;
-- `shatv-asr-bin`: only if an ASR-capable package intentionally consumes upstream binary
-  sherpa-onnx/ONNX Runtime artifacts.
-
-Both ASR options must still exclude model archives and extracted model files.
+Reserve `shatv-asr-bin` only if an ASR-capable binary package intentionally
+consumes upstream binary sherpa-onnx/ONNX Runtime artifacts. Binary packages
+must still exclude model archives and extracted model files.
 
 ### Publication requirements
 
