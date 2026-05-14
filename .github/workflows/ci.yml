@@ -119,23 +119,33 @@ jobs:
       - name: Install ASR Windows dependencies
         shell: pwsh
         run: |
-          $vcpkgRoot = $env:VCPKG_INSTALLATION_ROOT
-          if (-not $vcpkgRoot) {
-            $vcpkgRoot = "C:\vcpkg"
-          }
+          $vcpkgRoot = "C:\vcpkg"
+          $env:VCPKG_ROOT = $vcpkgRoot
           $vcpkgExe = Join-Path $vcpkgRoot "vcpkg.exe"
           if (-not (Test-Path $vcpkgExe)) {
             throw "vcpkg.exe not found: $vcpkgExe"
           }
 
-          & $vcpkgExe install libarchive:x64-windows --clean-after-build
+          & $vcpkgExe install "libarchive[core,bzip2]:x64-windows" --clean-after-build --vcpkg-root "$vcpkgRoot"
 
       - name: Download sherpa-onnx runtime
         shell: pwsh
+        timeout-minutes: 10
         run: |
           New-Item -ItemType Directory -Force -Path deps/sherpa | Out-Null
-          Invoke-WebRequest $env:SHERPA_ONNX_URL -OutFile deps/sherpa/sherpa-onnx.tar.bz2
-          tar -xjf deps/sherpa/sherpa-onnx.tar.bz2 -C deps/sherpa
+          $archive = "deps/sherpa/sherpa-onnx.tar.bz2"
+
+          $downloadTimer = [System.Diagnostics.Stopwatch]::StartNew()
+          curl.exe -L --fail --retry 5 --retry-delay 5 --connect-timeout 30 --max-time 300 --output $archive $env:SHERPA_ONNX_URL
+          $downloadTimer.Stop()
+          $downloadedArchive = Get-Item $archive
+          Write-Host "Downloaded sherpa-onnx archive bytes=$($downloadedArchive.Length) seconds=$($downloadTimer.Elapsed.TotalSeconds)"
+
+          $extractTimer = [System.Diagnostics.Stopwatch]::StartNew()
+          tar -xjf $archive -C deps/sherpa
+          $extractTimer.Stop()
+          Write-Host "Extracted sherpa-onnx runtime seconds=$($extractTimer.Elapsed.TotalSeconds)"
+          Remove-Item $archive -Force
 
           $sdkRoot = "$PWD/deps/sherpa/$env:SHERPA_ONNX_PACKAGE"
           if (-not (Test-Path "$sdkRoot/include/sherpa-onnx/c-api/c-api.h")) {
@@ -151,10 +161,8 @@ jobs:
       - name: Configure ASR build
         shell: pwsh
         run: |
-          $vcpkgRoot = $env:VCPKG_INSTALLATION_ROOT
-          if (-not $vcpkgRoot) {
-            $vcpkgRoot = "C:\vcpkg"
-          }
+          $vcpkgRoot = "C:\vcpkg"
+          $env:VCPKG_ROOT = $vcpkgRoot
 
           cmake -S . -B $env:ASR_BUILD_DIR -G Ninja -DCMAKE_BUILD_TYPE=Release `
             -DCMAKE_TOOLCHAIN_FILE="$vcpkgRoot/scripts/buildsystems/vcpkg.cmake" `
@@ -174,10 +182,8 @@ jobs:
       - name: Prepare ASR package root
         shell: pwsh
         run: |
-          $vcpkgRoot = $env:VCPKG_INSTALLATION_ROOT
-          if (-not $vcpkgRoot) {
-            $vcpkgRoot = "C:\vcpkg"
-          }
+          $vcpkgRoot = "C:\vcpkg"
+          $env:VCPKG_ROOT = $vcpkgRoot
 
           New-Item -ItemType Directory -Force -Path $env:ASR_PACKAGE_DIR | Out-Null
           Copy-Item "$env:ASR_BUILD_DIR/src/shatv.exe" "$env:ASR_PACKAGE_DIR/"
@@ -327,6 +333,7 @@ jobs:
                 ninja-build \
                 pkg-config \
                 qt6-base-dev \
+                qt6-base-private-dev \
                 qt6-declarative-dev \
                 qt6-multimedia-dev \
                 qt6-shadertools-dev \
