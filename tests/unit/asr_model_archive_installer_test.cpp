@@ -78,6 +78,7 @@ class AsrModelArchiveInstallerTest final : public QObject {
    private slots:
     void installs_tar_bz2_archive_after_required_file_validation();
     void rejects_path_traversal_and_preserves_existing_install();
+    void rejects_unsafe_manifest_id();
     void rejects_archive_missing_required_files();
 };
 
@@ -148,6 +149,35 @@ void AsrModelArchiveInstallerTest::rejects_path_traversal_and_preserves_existing
     QVERIFY(result.error_message.contains(QStringLiteral("Unsafe archive entry path")));
     QCOMPARE(ReadFile(QDir(existing_model_dir).filePath(manifest.files.encoder_name)), QByteArray("old encoder"));
     QVERIFY(!QFileInfo(temp_dir.filePath(QStringLiteral("evil.txt"))).exists());
+#endif
+}
+
+void AsrModelArchiveInstallerTest::rejects_unsafe_manifest_id() {
+    if (!AsrModelArchiveInstaller::Supported()) {
+        QSKIP("libarchive support is not available in this build");
+    }
+
+#if SHATV_HAS_LIBARCHIVE
+    QTemporaryDir temp_dir;
+    QVERIFY(temp_dir.isValid());
+    AsrModelManifest manifest = AsrModelService::DefaultManifest();
+    manifest.id = QStringLiteral("../outside");
+
+    const QString archive_path = temp_dir.filePath(QStringLiteral("model.tar.bz2"));
+    WriteTarBz2Archive(archive_path,
+                       {
+                           {QStringLiteral("model/") + manifest.files.encoder_name, QByteArray("encoder")},
+                           {QStringLiteral("model/") + manifest.files.decoder_name, QByteArray("decoder")},
+                           {QStringLiteral("model/") + manifest.files.tokens_name, QByteArray("tokens")},
+                       });
+
+    const QString model_root = temp_dir.filePath(QStringLiteral("models"));
+    const AsrModelArchiveInstaller installer(model_root);
+    const auto result = installer.InstallVerifiedArchive(archive_path, manifest);
+
+    QVERIFY(!result.success);
+    QVERIFY(result.error_message.contains(QStringLiteral("Unsafe ASR model id")));
+    QVERIFY(!QFileInfo(temp_dir.filePath(QStringLiteral("outside"))).exists());
 #endif
 }
 

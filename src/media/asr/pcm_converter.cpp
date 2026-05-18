@@ -47,13 +47,6 @@ bool BuildInputLayout(const AVFrame &frame,
     return true;
 }
 
-int InputChannelCount(const AVFrame &frame) {
-    if (av_channel_layout_check(&frame.ch_layout) != 0) {
-        return frame.ch_layout.nb_channels;
-    }
-    return frame.ch_layout.nb_channels;
-}
-
 }  // namespace
 
 PcmConverter::~PcmConverter() {
@@ -71,7 +64,7 @@ bool PcmConverter::ConvertFrame(const AVFrame &frame, PcmChunk *chunk, QString *
     chunk->sample_rate = kAsrSampleRate;
     chunk->channel_count = kAsrChannelCount;
 
-    const int input_channel_count = InputChannelCount(frame);
+    const int input_channel_count = frame.ch_layout.nb_channels;
     if (frame.sample_rate <= 0 || frame.nb_samples <= 0 || frame.extended_data == nullptr ||
         input_channel_count <= 0 || av_get_sample_fmt_name(static_cast<AVSampleFormat>(frame.format)) == nullptr) {
         if (error_message != nullptr) {

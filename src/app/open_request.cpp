@@ -1,5 +1,7 @@
 #include "app/open_request.h"
 
+#include <QtGlobal>
+
 namespace shatv::app {
 
 QString OpenRequestKindToken(OpenRequestKind request_kind) {
@@ -15,7 +17,7 @@ QString OpenRequestKindToken(OpenRequestKind request_kind) {
         case OpenRequestKind::kStartupOpenUrl:
             return QStringLiteral("startup_open_url");
     }
-    return QString();
+    Q_UNREACHABLE_RETURN(QString());
 }
 
 std::optional<OpenRequestKind> OpenRequestKindFromToken(const QString &token) {

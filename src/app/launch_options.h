@@ -10,7 +10,6 @@
 namespace shatv::app {
 
 struct LaunchOptions {
-    bool smoke_test = false;
     bool ffmpeg_audio_smoke = false;
     bool ffmpeg_smoke = false;
     QString open_url_argument;

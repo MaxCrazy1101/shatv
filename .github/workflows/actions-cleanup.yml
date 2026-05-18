@@ -6,11 +6,11 @@ on:
       delete_artifacts:
         description: Delete all workflow artifacts
         type: boolean
-        default: true
+        default: false
       delete_caches:
         description: Delete all workflow caches
         type: boolean
-        default: true
+        default: false
 
 permissions:
   actions: write

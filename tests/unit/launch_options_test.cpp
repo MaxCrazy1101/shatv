@@ -28,7 +28,6 @@ class LaunchOptionsTest : public QObject {
     void parse_open_media_argument();
     void parse_ffmpeg_audio_smoke_flag();
     void parse_ffmpeg_smoke_flag();
-    void parse_smoke_test_flag();
     void build_startup_channel_from_open_url_argument();
     void build_startup_channel_from_local_media();
     void build_startup_channel_from_http_url();
@@ -51,7 +50,6 @@ void LaunchOptionsTest::parse_open_media_argument() {
     const LaunchOptions options =
         ParseLaunchOptions({"shatv", "--open-media", "./docs/file_example_MP4_1920_18MG.mp4"});
 
-    QCOMPARE(options.smoke_test, false);
     QCOMPARE(options.ffmpeg_audio_smoke, false);
     QCOMPARE(options.open_media_argument, QString("./docs/file_example_MP4_1920_18MG.mp4"));
 }
@@ -61,22 +59,12 @@ void LaunchOptionsTest::parse_ffmpeg_audio_smoke_flag() {
 
     QCOMPARE(options.ffmpeg_audio_smoke, true);
     QCOMPARE(options.ffmpeg_smoke, false);
-    QCOMPARE(options.smoke_test, false);
 }
 
 void LaunchOptionsTest::parse_ffmpeg_smoke_flag() {
     const LaunchOptions options = ParseLaunchOptions({"shatv", "--ffmpeg-smoke"});
 
     QCOMPARE(options.ffmpeg_smoke, true);
-    QCOMPARE(options.ffmpeg_audio_smoke, false);
-    QCOMPARE(options.smoke_test, false);
-}
-
-void LaunchOptionsTest::parse_smoke_test_flag() {
-    const LaunchOptions options = ParseLaunchOptions({"shatv", "--smoke-test"});
-
-    QCOMPARE(options.smoke_test, true);
-    QCOMPARE(options.ffmpeg_smoke, false);
     QCOMPARE(options.ffmpeg_audio_smoke, false);
 }
 

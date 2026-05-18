@@ -1,8 +1,11 @@
-# ASR Model Acquisition Probe
+# ASR Model Acquisition And Runtime
 
 ## Scope
 
-M3.1 keeps speech recognition out of the playback path. The normal ShaTV build does not require sherpa-onnx, ONNX Runtime, or model files. An ASR-enabled development build only adds the standalone `shatv_asr_probe` executable.
+The normal ShaTV build does not require sherpa-onnx, ONNX Runtime, libarchive,
+or model files. An ASR-enabled build adds the runtime speech subtitle path,
+model archive installation support, and the standalone `shatv_asr_probe`
+diagnostic tool.
 
 ## Native Dependency Policy
 
@@ -11,7 +14,8 @@ M3.1 keeps speech recognition out of the playback path. The normal ShaTV build d
 - Set `SHATV_ONNXRUNTIME_ROOT` only when ONNX Runtime is supplied separately from the sherpa-onnx SDK.
 - ShaTV does not require AUR packages as the development path.
 - ShaTV does not use `FetchContent` to build sherpa-onnx or ONNX Runtime.
-- ShaTV does not runtime-download native ASR libraries in M3.1. Runtime library deployment is a later plugin/bundle decision.
+- ShaTV does not runtime-download native ASR libraries. ASR packages bundle the
+  required sherpa-onnx and ONNX Runtime libraries at package build time.
 
 Example configure command:
 
@@ -29,7 +33,7 @@ If ONNX Runtime is supplied outside the sherpa-onnx SDK, add:
   -DSHATV_ONNXRUNTIME_ROOT=/opt/onnxruntime
 ```
 
-## Manual Probe Flow
+## Model Package
 
 The first model candidate is the int8 bilingual Chinese/English streaming Paraformer package. The probe expects these files by default:
 
@@ -47,9 +51,11 @@ Candidate package notes:
 - The first probe uses CPU provider and 16 kHz feature extraction.
 - The model package license and attribution requirements still need final review before bundling or offering an in-app download.
 
-The probe calls sherpa-onnx through the C API. The C++ wrapper and example I/O
-helpers are not part of ShaTV's ASR runtime boundary because some shared SDK
-packages may not export every C++ helper symbol consistently.
+The runtime and probe call sherpa-onnx through the C API. The C++ wrapper and
+example I/O helpers are not part of ShaTV's ASR runtime boundary because some
+shared SDK packages may not export every C++ helper symbol consistently.
+
+## Manual Probe Flow
 
 Run the probe against a manually downloaded model directory and a local mono speech WAV fixture:
 
@@ -84,11 +90,11 @@ cmake -B build-asr \
 ctest --test-dir build-asr -R shatv_asr_probe --output-on-failure
 ```
 
-## Playback Worker Probe
+## Playback Runtime
 
-M3.3 adds a playback-side worker boundary, but it still does not expose subtitles
-in QML. When `SHATV_ENABLE_ASR=ON`, playback starts one ASR worker session per
-source attempt only if the runtime model directory is provided:
+When `SHATV_ENABLE_ASR=ON`, playback starts one ASR worker session per source
+attempt only if a valid runtime model directory is available. Recognized text is
+published through `AppShellBridge` and displayed by the QML subtitle overlay.
 
 ```bash
 SHATV_ASR_MODEL_DIR=/path/to/sherpa-onnx-streaming-paraformer-bilingual-zh-en \
@@ -108,6 +114,23 @@ Optional runtime overrides:
 The worker queue is bounded and non-blocking. Queue overflow returns an explicit
 ASR error, stops the current ASR session, and clears subtitle state instead of
 blocking FFmpeg decode or silently dropping stale ASR input.
+
+## In-App Model Management
+
+The ASR package exposes model status, download, cancel, local archive install,
+and delete actions in the Settings window. Downloaded archives are stored in the
+application cache, verified by SHA-256, extracted with libarchive, and installed
+under the application-managed ASR model directory.
+
+The default manifest uses the streaming Paraformer int8 file names:
+
+- `encoder.int8.onnx`
+- `decoder.int8.onnx`
+- `tokens.txt`
+
+Manifest ids are used as installation directory names and must be ASCII
+`A-Z`, `a-z`, `0-9`, `.`, `_`, or `-`. Unsafe ids are rejected instead of being
+sanitized silently.
 
 ## M3.5 Benchmark Run
 

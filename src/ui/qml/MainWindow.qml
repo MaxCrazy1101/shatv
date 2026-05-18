@@ -22,90 +22,7 @@ ApplicationWindow {
     color: Shell.Theme.surfaceDim
     flags: Qt.Window | Qt.FramelessWindowHint | (root.alwaysOnTop ? Qt.WindowStaysOnTopHint : 0)
 
-    QtObject {
-        id: bridgeFallback
-
-        property var channelModel: null
-        property var availableGroups: []
-        property string currentGroupFilter: ""
-        property string searchText: ""
-        property var recentItems: []
-        property string statusMessage: ""
-        property string currentChannelName: ""
-        property bool hasProgrammeInfo: false
-        property string currentProgrammeTitle: ""
-        property string currentProgrammeTimeText: ""
-        property real currentProgrammeProgress: 0
-        property bool currentProgrammeProgressAvailable: false
-        property string nextProgrammeTitle: ""
-        property string nextProgrammeTimeText: ""
-        property string playbackStateText: ""
-        property string playbackStateToken: "idle"
-        property bool playing: false
-        property bool muted: false
-        property int volume: 50
-        property string configuredUserAgent: ""
-        property string configuredEpgUrl: ""
-        property string appVersion: ""
-        property string buildId: ""
-        property string logFilePath: ""
-        property string logsDirectoryPath: ""
-        property string alertMessage: ""
-        property bool alertVisible: false
-        property string speechSubtitleText: ""
-        property bool speechSubtitleEnabled: false
-        property bool speechSubtitleAvailable: false
-        property string speechSubtitleUnavailableReason: ""
-        property bool speechSubtitleActive: false
-        property bool speechSubtitleFinal: false
-        property int speechSubtitleLatencyMs: -1
-        property string speechSubtitleStatusText: ""
-        property string speechModelStatusToken: ""
-        property string speechModelStatusText: ""
-        property string speechModelStatusDetail: ""
-        property string speechModelName: ""
-        property string speechModelVersion: ""
-        property string speechModelSourceUrl: ""
-        property string speechModelArchiveSizeText: ""
-        property string speechModelInstalledSizeText: ""
-        property string speechModelChecksum: ""
-        property string speechModelLicense: ""
-        property string speechModelAttribution: ""
-        property string speechModelDirectory: ""
-        property bool speechModelInstalled: false
-        property bool speechModelDeveloperOverride: false
-        property bool speechModelRuntimeAvailable: false
-        property bool speechModelInstallSupported: false
-        property bool speechModelBusy: false
-        property bool speechModelDownloadActive: false
-        property real speechModelProgress: -1
-        property string speechModelOperationText: ""
-
-        function activateChannelRow(row) {}
-        function setSearchText(text) {}
-        function setGroupFilter(group) {}
-        function requestPlayPause() {}
-        function requestStop() {}
-        function toggleMute() {}
-        function setVolume(volume) {}
-        function submitOpenFile(path) {}
-        function submitOpenUrl(urlText) {}
-        function submitNetworkSettings(userAgent, epgUrl) {}
-        function openLogsFolder() {}
-        function copyDiagnosticsToClipboard() {}
-        function openRecentAt(index) {}
-        function dismissAlert() {}
-        function toggleSpeechSubtitleEnabled() {}
-        function refreshSpeechModelStatus() {}
-        function downloadSpeechModel() {}
-        function cancelSpeechModelDownload() {}
-        function installSpeechModelArchive(archiveUrl) {}
-        function deleteSpeechModel() {}
-    }
-
-    readonly property var bridge: (typeof appShellBridge !== "undefined" && appShellBridge !== null)
-        ? appShellBridge
-        : bridgeFallback
+    readonly property var bridge: appShellBridge
     readonly property bool fullscreenActive: visibility === Window.FullScreen
     readonly property bool canResizeWindow: !root.fullscreenActive && visibility !== Window.Maximized
     property int lastNonFullscreenVisibility: Window.Windowed
@@ -438,33 +355,6 @@ ApplicationWindow {
             return Qt.SizeVerCursor
         }
         return Qt.ArrowCursor
-    }
-
-    component HeaderActionButton: ToolButton {
-        id: control
-
-        implicitHeight: Shell.Theme.titleBarHeight - Shell.Theme.spacingSm
-        leftPadding: Shell.Theme.spacingMd
-        rightPadding: Shell.Theme.spacingMd
-        topPadding: Shell.Theme.spacingSm
-        bottomPadding: Shell.Theme.spacingSm
-        hoverEnabled: true
-
-        contentItem: Text {
-            text: control.text
-            font: control.font
-            color: Shell.Theme.textPrimary
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-            elide: Text.ElideRight
-        }
-
-        background: Rectangle {
-            radius: Shell.Theme.radiusSm
-            color: control.down
-                ? Shell.Theme.surfaceContainerHighest
-                : (control.hovered ? Shell.Theme.controlSurfaceHover : "transparent")
-        }
     }
 
     component HeaderIconButton: ToolButton {

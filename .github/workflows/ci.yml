@@ -303,8 +303,36 @@ jobs:
             }
           }
 
-          gh release upload $tag "$env:GITHUB_WORKSPACE/$env:PACKAGE_ARCHIVE" --clobber
-          gh release upload $tag "$env:GITHUB_WORKSPACE/$env:ASR_PACKAGE_ARCHIVE" --clobber
+          function Upload-ReleaseAsset {
+            param([string]$AssetPath)
+
+            if ($tag -eq "alpha") {
+              gh release upload $tag $AssetPath --clobber
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              return
+            }
+
+            $assetName = Split-Path $AssetPath -Leaf
+            $downloadDir = Join-Path $env:RUNNER_TEMP ([System.Guid]::NewGuid().ToString())
+            New-Item -ItemType Directory -Force -Path $downloadDir | Out-Null
+            gh release download $tag --pattern $assetName --dir $downloadDir *> $null
+            if ($LASTEXITCODE -eq 0) {
+              $existingPath = Join-Path $downloadDir $assetName
+              $existingHash = (Get-FileHash $existingPath -Algorithm SHA256).Hash.ToLowerInvariant()
+              $newHash = (Get-FileHash $AssetPath -Algorithm SHA256).Hash.ToLowerInvariant()
+              if ($existingHash -eq $newHash) {
+                Write-Host "Release asset $assetName already exists with matching SHA256."
+                return
+              }
+              throw "Release asset $assetName already exists with different SHA256."
+            }
+
+            gh release upload $tag $AssetPath
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+          Upload-ReleaseAsset "$env:GITHUB_WORKSPACE/$env:PACKAGE_ARCHIVE"
+          Upload-ReleaseAsset "$env:GITHUB_WORKSPACE/$env:ASR_PACKAGE_ARCHIVE"
 
   build-linux-deb:
     runs-on: ubuntu-24.04
@@ -448,5 +476,33 @@ jobs:
             gh "${create_args[@]}" || gh release view "$tag" >/dev/null
           fi
 
-          gh release upload "$tag" "$GITHUB_WORKSPACE/$LINUX_DEB" --clobber
-          gh release upload "$tag" "$GITHUB_WORKSPACE/$LINUX_ASR_DEB" --clobber
+          upload_release_asset() {
+            local asset_path="$1"
+            local asset_name
+            asset_name="$(basename "$asset_path")"
+
+            if [ "$tag" = "alpha" ]; then
+              gh release upload "$tag" "$asset_path" --clobber
+              return
+            fi
+
+            local download_dir
+            download_dir="$(mktemp -d)"
+            if gh release download "$tag" --pattern "$asset_name" --dir "$download_dir" >/dev/null 2>&1; then
+              local existing_hash
+              local new_hash
+              existing_hash="$(sha256sum "$download_dir/$asset_name" | awk '{print $1}')"
+              new_hash="$(sha256sum "$asset_path" | awk '{print $1}')"
+              if [ "$existing_hash" = "$new_hash" ]; then
+                echo "Release asset $asset_name already exists with matching SHA256."
+                return
+              fi
+              echo "::error::Release asset $asset_name already exists with different SHA256."
+              exit 1
+            fi
+
+            gh release upload "$tag" "$asset_path"
+          }
+
+          upload_release_asset "$GITHUB_WORKSPACE/$LINUX_DEB"
+          upload_release_asset "$GITHUB_WORKSPACE/$LINUX_ASR_DEB"

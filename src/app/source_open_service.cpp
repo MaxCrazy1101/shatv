@@ -10,6 +10,7 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QTimer>
+#include <QtGlobal>
 
 #include "app/launch_options.h"
 #include "app/logging.h"
@@ -18,6 +19,8 @@
 namespace shatv::app {
 
 namespace {
+
+constexpr int kNetworkTransferTimeoutMillis = 30000;
 
 bool SupportsHttpHeaders(const QUrl &url) {
     if (!url.isValid() || url.isLocalFile()) {
@@ -87,7 +90,7 @@ domain::SourceOrigin OriginForRequest(OpenRequestKind request_kind) {
         case OpenRequestKind::kStartupOpenUrl:
             return domain::SourceOrigin::kStartupArgument;
     }
-    return domain::SourceOrigin::kManualOpenFile;
+    Q_UNREACHABLE_RETURN(domain::SourceOrigin::kManualOpenFile);
 }
 
 OpenRequestKind RecentRequestKindFor(OpenRequestKind request_kind) {
@@ -102,7 +105,7 @@ OpenRequestKind RecentRequestKindFor(OpenRequestKind request_kind) {
         case OpenRequestKind::kUrlText:
             return request_kind;
     }
-    return OpenRequestKind::kFilePath;
+    Q_UNREACHABLE_RETURN(OpenRequestKind::kFilePath);
 }
 
 OpenErrorResolution BuildError(const QString &message) {
@@ -203,6 +206,7 @@ void SourceOpenService::ResolveRemotePlaylist(const QUrl &url,
                                               int attempt,
                                               OpenResolutionCallback callback) {
     QNetworkRequest request(url);
+    request.setTransferTimeout(kNetworkTransferTimeoutMillis);
     if (!context.user_agent.isEmpty()) {
         request.setHeader(QNetworkRequest::UserAgentHeader, context.user_agent);
     }

@@ -247,11 +247,19 @@ void FfmpegPlayerBackend::Load(const domain::MediaSourceDescriptor &source) {
 }
 
 void FfmpegPlayerBackend::Play() {
+    if (current_source_.url.isEmpty() || worker_thread_ == nullptr || !worker_thread_->isRunning()) {
+        EmitControlSnapshot(tr("No active playback"));
+        return;
+    }
     audio_output_.Resume();
     EmitSnapshot(domain::PlaybackState::kPlaying, tr("Playing %1").arg(current_source_.name));
 }
 
 void FfmpegPlayerBackend::Pause() {
+    if (current_source_.url.isEmpty() || worker_thread_ == nullptr || !worker_thread_->isRunning()) {
+        EmitControlSnapshot(tr("No active playback"));
+        return;
+    }
     audio_output_.Pause();
     EmitSnapshot(domain::PlaybackState::kPaused, tr("Paused %1").arg(current_source_.name));
 }

@@ -49,6 +49,8 @@ namespace shatv::app {
 
 namespace {
 
+constexpr int kNetworkTransferTimeoutMillis = 30000;
+
 std::vector<domain::Channel> ExtractChannels(const std::vector<domain::ResolvedChannel> &resolved_channels) {
     std::vector<domain::Channel> channels;
     channels.reserve(resolved_channels.size());
@@ -384,7 +386,7 @@ Application::~Application() {
         ffmpeg_video_item_->SetBackend(nullptr);
     }
 
-    if (!options_.smoke_test && !options_.ffmpeg_audio_smoke && !options_.ffmpeg_smoke && !settings_.Save()) {
+    if (!options_.ffmpeg_audio_smoke && !options_.ffmpeg_smoke && !settings_.Save()) {
         qCWarning(log_config) << "Config save failed on exit";
     }
 
@@ -400,9 +402,7 @@ int Application::Run() {
     Q_ASSERT(root_window_ != nullptr);
     root_window_->show();
 
-    if (options_.smoke_test) {
-        SetupFfmpegSmokeScenario();
-    } else if (options_.ffmpeg_audio_smoke) {
+    if (options_.ffmpeg_audio_smoke) {
         SetupFfmpegAudioSmokeScenario();
     } else if (options_.ffmpeg_smoke) {
         SetupFfmpegSmokeScenario();
@@ -588,6 +588,7 @@ void Application::ReloadEpg() {
     }
 
     QNetworkRequest request(epg_url);
+    request.setTransferTimeout(kNetworkTransferTimeoutMillis);
     if (!settings_.UserAgent().isEmpty()) {
         request.setHeader(QNetworkRequest::UserAgentHeader, settings_.UserAgent());
     }
@@ -684,7 +685,7 @@ const domain::ResolvedChannel *Application::FindResolvedChannelBySourceRow(int r
 }
 
 void Application::RememberRecentItem(const RecentOpenItem &item) {
-    if (options_.smoke_test || options_.ffmpeg_audio_smoke || options_.ffmpeg_smoke) {
+    if (options_.ffmpeg_audio_smoke || options_.ffmpeg_smoke) {
         return;
     }
 
@@ -801,7 +802,7 @@ void Application::UpdateSpeechSubtitleEnabled(bool enabled) {
 
     const bool previous_enabled = settings_.SpeechSubtitleEnabled();
     settings_.SetSpeechSubtitleEnabled(enabled);
-    if (!options_.smoke_test && !options_.ffmpeg_audio_smoke && !options_.ffmpeg_smoke && !settings_.Save()) {
+    if (!options_.ffmpeg_audio_smoke && !options_.ffmpeg_smoke && !settings_.Save()) {
         settings_.SetSpeechSubtitleEnabled(previous_enabled);
         qCWarning(log_config).noquote()
             << "Speech subtitle preference save failed path="

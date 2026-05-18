@@ -21,6 +21,7 @@ constexpr char kAsrModelDirEnvName[] = "SHATV_ASR_MODEL_DIR";
 constexpr char kAsrEncoderNameEnvName[] = "SHATV_ASR_ENCODER_NAME";
 constexpr char kAsrDecoderNameEnvName[] = "SHATV_ASR_DECODER_NAME";
 constexpr char kAsrTokensNameEnvName[] = "SHATV_ASR_TOKENS_NAME";
+constexpr int kNetworkTransferTimeoutMillis = 30000;
 
 QString EnvironmentValue(const char *name) {
     return qEnvironmentVariable(name).trimmed();
@@ -132,6 +133,23 @@ bool Sha256Matches(const QString &path, const QString &expected_sha256, QString 
 
 }  // namespace
 
+bool IsSafeAsrModelId(const QString &id) {
+    const QString value = id.trimmed();
+    if (value.isEmpty() || value == QStringLiteral(".") || value == QStringLiteral("..")) {
+        return false;
+    }
+    for (const QChar ch : value) {
+        const ushort code = ch.unicode();
+        const bool ascii_letter = (code >= 'A' && code <= 'Z') || (code >= 'a' && code <= 'z');
+        const bool ascii_digit = code >= '0' && code <= '9';
+        const bool safe_punctuation = ch == QLatin1Char('-') || ch == QLatin1Char('_') || ch == QLatin1Char('.');
+        if (!ascii_letter && !ascii_digit && !safe_punctuation) {
+            return false;
+        }
+    }
+    return true;
+}
+
 bool AsrModelStatus::Available() const {
     return status == AsrModelInstallStatus::kInstalled ||
            status == AsrModelInstallStatus::kDeveloperOverride;
@@ -190,6 +208,12 @@ std::optional<AsrModelManifest> AsrModelService::ManifestFromJson(const QByteArr
     AsrModelManifest manifest;
     manifest.id = RequiredString(object, "id", error_message);
     if (manifest.id.isEmpty()) {
+        return std::nullopt;
+    }
+    if (!IsSafeAsrModelId(manifest.id)) {
+        if (error_message != nullptr) {
+            *error_message = QStringLiteral("manifest field id contains unsafe path characters");
+        }
         return std::nullopt;
     }
     manifest.version = RequiredString(object, "version", error_message);
@@ -262,7 +286,7 @@ AsrModelFileSet AsrModelService::EffectiveFiles() const {
 }
 
 QString AsrModelService::InstallDirectory() const {
-    if (model_root_.isEmpty()) {
+    if (model_root_.isEmpty() || !IsSafeAsrModelId(manifest_.id)) {
         return {};
     }
     return QDir(model_root_).filePath(manifest_.id);
@@ -399,6 +423,10 @@ void AsrModelArchiveDownloader::Start(const AsrModelManifest &manifest) {
             FinishWithSuccess();
             return;
         }
+        if (!hash_error.isEmpty()) {
+            FinishWithFailure(hash_error);
+            return;
+        }
     }
 
     const QUrl source_url(manifest.source_url);
@@ -423,6 +451,7 @@ void AsrModelArchiveDownloader::Start(const AsrModelManifest &manifest) {
 
     QNetworkRequest request(source_url);
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+    request.setTransferTimeout(kNetworkTransferTimeoutMillis);
     reply_ = network_manager_->get(request);
     connect(reply_, &QNetworkReply::readyRead, this, &AsrModelArchiveDownloader::OnReadyRead);
     connect(reply_, &QNetworkReply::downloadProgress, this, &AsrModelArchiveDownloader::OnDownloadProgress);

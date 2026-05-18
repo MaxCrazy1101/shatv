@@ -156,8 +156,6 @@ qt_add_resources(shatv_app shatv_app_main_window_qml
         ui/qml/controls/WindowControlButton.qml
         ui/qml/fonts/MaterialSymbolsOutlined-Regular.ttf
         ui/qml/fonts/MaterialSymbolsOutlined_Filled-Regular.ttf
-        ui/qml/dialogs/AboutDialog.qml
-        ui/qml/dialogs/NetworkSettingsDialog.qml
         ui/qml/dialogs/SettingsWindow.qml
         ui/qml/dialogs/OpenUrlDialog.qml
 )
@@ -176,8 +174,6 @@ if(TARGET Qt6::lrelease)
             ${CMAKE_CURRENT_SOURCE_DIR}/ui/qml/controls/ThemedComboBox.qml
             ${CMAKE_CURRENT_SOURCE_DIR}/ui/qml/controls/ThemedSlider.qml
             ${CMAKE_CURRENT_SOURCE_DIR}/ui/qml/controls/WindowControlButton.qml
-            ${CMAKE_CURRENT_SOURCE_DIR}/ui/qml/dialogs/AboutDialog.qml
-            ${CMAKE_CURRENT_SOURCE_DIR}/ui/qml/dialogs/NetworkSettingsDialog.qml
             ${CMAKE_CURRENT_SOURCE_DIR}/ui/qml/dialogs/SettingsWindow.qml
             ${CMAKE_CURRENT_SOURCE_DIR}/ui/qml/dialogs/OpenUrlDialog.qml
         TS_FILES

@@ -54,6 +54,10 @@ bool ReadValue(int argc, char **argv, int *index, std::string *value, std::strin
     return true;
 }
 
+bool IsSupportedProvider(const std::string &provider) {
+    return provider == "cpu" || provider == "cuda" || provider == "coreml";
+}
+
 bool ParseOptions(int argc, char **argv, ProbeOptions *options, std::string *error_message) {
     for (int i = 1; i < argc; ++i) {
         const std::string argument = argv[i];
@@ -120,6 +124,10 @@ bool ParseOptions(int argc, char **argv, ProbeOptions *options, std::string *err
     }
     if (options->num_threads <= 0) {
         *error_message = "--num-threads must be greater than zero";
+        return false;
+    }
+    if (!IsSupportedProvider(options->provider)) {
+        *error_message = "unsupported ASR provider: " + options->provider;
         return false;
     }
     return true;

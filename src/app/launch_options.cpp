@@ -48,7 +48,6 @@ QString ChannelNameFromUrl(const QUrl &url) {
 
 LaunchOptions ParseLaunchOptions(const QStringList &arguments) {
     LaunchOptions options;
-    options.smoke_test = arguments.contains("--smoke-test");
     options.ffmpeg_audio_smoke = arguments.contains("--ffmpeg-audio-smoke");
     options.ffmpeg_smoke = arguments.contains("--ffmpeg-smoke");
     options.open_url_argument = FindOptionValue(arguments, "--open-url");

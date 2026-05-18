@@ -62,6 +62,8 @@ struct AsrModelArchiveDownloadResult {
     qint64 bytes_total = -1;
 };
 
+bool IsSafeAsrModelId(const QString &id);
+
 class AsrModelService final {
    public:
     explicit AsrModelService(QString model_root = DefaultModelRoot(),

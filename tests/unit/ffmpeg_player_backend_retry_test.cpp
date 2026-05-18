@@ -100,7 +100,8 @@ class FfmpegPlayerBackendRetryTest final : public QObject {
     void playlist_live_policy_retries_until_max_attempts();
     void playlist_live_eof_reconnects_with_controllable_fixture();
     void video_only_playback_paces_frames_by_pts();
-    void volume_and_mute_keep_latest_playback_state();
+    void play_without_active_source_does_not_emit_playing();
+    void volume_and_mute_keep_latest_control_state_without_playback();
 };
 
 void FfmpegPlayerBackendRetryTest::initTestCase() {
@@ -227,7 +228,19 @@ void FfmpegPlayerBackendRetryTest::video_only_playback_paces_frames_by_pts() {
     QVERIFY2(elapsed_timer.elapsed() >= 800, qPrintable(QStringLiteral("elapsed=%1ms").arg(elapsed_timer.elapsed())));
 }
 
-void FfmpegPlayerBackendRetryTest::volume_and_mute_keep_latest_playback_state() {
+void FfmpegPlayerBackendRetryTest::play_without_active_source_does_not_emit_playing() {
+    FfmpegPlayerBackend backend;
+    QSignalSpy spy(&backend, &FfmpegPlayerBackend::SnapshotChanged);
+
+    backend.Play();
+
+    QCOMPARE(spy.count(), 1);
+    const PlayerSnapshot snapshot = LastSnapshotFromSpy(spy);
+    QCOMPARE(snapshot.state, PlaybackState::kIdle);
+    QCOMPARE(snapshot.message, QStringLiteral("No active playback"));
+}
+
+void FfmpegPlayerBackendRetryTest::volume_and_mute_keep_latest_control_state_without_playback() {
     FfmpegPlayerBackend backend;
     QSignalSpy spy(&backend, &FfmpegPlayerBackend::SnapshotChanged);
 
@@ -237,14 +250,14 @@ void FfmpegPlayerBackendRetryTest::volume_and_mute_keep_latest_playback_state() 
     backend.SetMuted(true);
     QCOMPARE(spy.count(), 1);
     PlayerSnapshot snapshot = LastSnapshotFromSpy(spy);
-    QCOMPARE(snapshot.state, PlaybackState::kPlaying);
+    QCOMPARE(snapshot.state, PlaybackState::kIdle);
     QVERIFY(snapshot.muted);
 
     spy.clear();
     backend.SetVolume(25);
     QCOMPARE(spy.count(), 1);
     snapshot = LastSnapshotFromSpy(spy);
-    QCOMPARE(snapshot.state, PlaybackState::kPlaying);
+    QCOMPARE(snapshot.state, PlaybackState::kIdle);
     QCOMPARE(snapshot.volume, 25);
     QVERIFY(snapshot.muted);
 
@@ -254,7 +267,7 @@ void FfmpegPlayerBackendRetryTest::volume_and_mute_keep_latest_playback_state() 
     backend.SetMuted(false);
     QCOMPARE(spy.count(), 1);
     snapshot = LastSnapshotFromSpy(spy);
-    QCOMPARE(snapshot.state, PlaybackState::kPaused);
+    QCOMPARE(snapshot.state, PlaybackState::kIdle);
     QVERIFY(!snapshot.muted);
     QCOMPARE(snapshot.volume, 25);
 }

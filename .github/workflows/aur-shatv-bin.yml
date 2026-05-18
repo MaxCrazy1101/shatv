@@ -176,8 +176,32 @@ jobs:
 
           test -f "$ARCH_TARBALL"
           test -f "$SHA256SUMS_FILE"
-          gh release upload "$tag" "$ARCH_TARBALL" --clobber
-          gh release upload "$tag" "$SHA256SUMS_FILE" --clobber
+
+          upload_release_asset() {
+            local asset_path="$1"
+            local asset_name
+            asset_name="$(basename "$asset_path")"
+
+            local download_dir
+            download_dir="$(mktemp -d)"
+            if gh release download "$tag" --pattern "$asset_name" --dir "$download_dir" >/dev/null 2>&1; then
+              local existing_hash
+              local new_hash
+              existing_hash="$(sha256sum "$download_dir/$asset_name" | awk '{print $1}')"
+              new_hash="$(sha256sum "$asset_path" | awk '{print $1}')"
+              if [ "$existing_hash" = "$new_hash" ]; then
+                echo "Release asset $asset_name already exists with matching SHA256."
+                return
+              fi
+              echo "::error::Release asset $asset_name already exists with different SHA256."
+              exit 1
+            fi
+
+            gh release upload "$tag" "$asset_path"
+          }
+
+          upload_release_asset "$ARCH_TARBALL"
+          upload_release_asset "$SHA256SUMS_FILE"
 
       - name: Publish shatv-bin to AUR
         shell: bash
@@ -198,11 +222,7 @@ jobs:
           export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/aur -o IdentitiesOnly=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts -o StrictHostKeyChecking=yes"
 
           rm -rf aur-shatv-bin
-          if ! git clone ssh://aur@aur.archlinux.org/shatv-bin.git aur-shatv-bin; then
-            mkdir aur-shatv-bin
-            git -C aur-shatv-bin init
-            git -C aur-shatv-bin remote add origin ssh://aur@aur.archlinux.org/shatv-bin.git
-          fi
+          git clone ssh://aur@aur.archlinux.org/shatv-bin.git aur-shatv-bin
 
           cp shatv-bin-aur/PKGBUILD aur-shatv-bin/PKGBUILD
           cp shatv-bin-aur/.SRCINFO aur-shatv-bin/.SRCINFO

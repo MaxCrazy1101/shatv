@@ -1,239 +1,186 @@
 # ShaTV
 
-ShaTV 是一个跨平台 IPTV 播放器项目，当前阶段采用 `Qt6 Widgets + libmpv render API` 构建桌面播放器壳，并保留 `FakePlayerBackend` 作为骨架 smoke 路径。
+ShaTV is a cross-platform IPTV player built with C++20, Qt 6 Quick/QML, and an
+FFmpeg playback core. The current application uses a pure QML shell, a C++
+`AppShellBridge`, and `VideoPresenterItem` for video presentation.
 
-当前已具备以下基础能力：
+Current capabilities:
 
-- `Qt6` 应用启动与窗口拉起
-- 最小应用分层：`app / application / domain / player / ui`
-- `MainWindow -> PlayerController -> PlayerBackend` 的垂直切片
-- `QOpenGLWidget + libmpv render API` 的真实视频渲染链路
-- `FakePlayerBackend` 与 `MpvPlayerBackend` 双后端验证路径
-- `mpv` 事件归一化与最小自动重试
-- `QtTest` 单元测试
-- 菜单栏打开本地文件 / 输入链接
-- 基于 `config.toml` 的持久化 `User-Agent` 配置
-- `clang-format` / `clang-tidy` / `CMake` 工程化配置
+- Open local media files, direct HTTP/HTTPS media URLs, local M3U playlists, and
+  remote M3U playlists.
+- Persist network settings such as `User-Agent` and EPG URL in `config.toml`.
+- Play through the FFmpeg demux/decode/audio/video pipeline.
+- Display channel list, recent items, programme information, and playback state
+  in QML.
+- Build optional ASR-enabled packages with sherpa-onnx, ONNX Runtime supplied by
+  the sherpa-onnx SDK, and libarchive.
+- Package Windows portable archives and Ubuntu `.deb` artifacts through
+  `.github/workflows/ci.yml`.
 
-## 目录结构
+## Source Layout
 
 ```text
 .
-├── .clang-format
-├── .clang-tidy
-├── .gitignore
 ├── CMakeLists.txt
-├── TODO.md
-├── README.md
 ├── docs
-│   └── architecture.md
+│   ├── architecture.md
+│   ├── asr-model-acquisition.md
+│   └── linux-packaging.md
+├── packaging
+├── scripts
 ├── src
 │   ├── app
 │   ├── application
 │   ├── domain
+│   ├── media
 │   ├── player
-│   ├── ui
-│   └── CMakeLists.txt
+│   ├── tools
+│   └── ui
 ├── tests
-│   ├── unit
-│   └── CMakeLists.txt
-└── toolchain.cmake
+│   └── unit
+└── translations
 ```
 
-## 构建与测试
+## Dependencies
 
-常规构建：
+Linux development packages:
+
+- Qt 6 Core, Network, Qml, Quick, QuickControls2, QuickDialogs2, Multimedia,
+  ShaderTools, and LinguistTools.
+- FFmpeg libraries: `libavformat`, `libavcodec`, `libavutil`, `libswresample`,
+  and `libswscale`.
+- `toml11`, or configure with `-DSHATV_FETCH_TOML11=ON`.
+- `zlib`.
+- Optional ASR install support: `libarchive`.
+
+The base build does not require sherpa-onnx, ONNX Runtime, libarchive, or model
+files. ASR support is enabled explicitly with `-DSHATV_ENABLE_ASR=ON`.
+
+## Build And Test
+
+Configure a normal development build:
 
 ```bash
-cmake -S . -B build -DBUILD_TESTING=OFF
-cmake --build build
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON
+cmake --build build -j2
+timeout 60s ctest --test-dir build --output-on-failure
 ```
 
-依赖说明：
-
-- 需要系统已安装 `libmpv`
-- 需要系统已安装 `toml11`，例如 Arch Linux 可执行 `sudo pacman -S toml11`
-
-如需启用测试：
-
-```bash
-cmake -S . -B build-tests -DBUILD_TESTING=ON
-cmake --build build-tests
-ctest --test-dir build-tests --output-on-failure
-```
-
-说明：
-
-- `build/` 默认只生成客户端目标
-- `build-tests/` 用于单独启用测试，避免在同一个构建目录里切换 `BUILD_TESTING` 产生旧 target 残留
-
-手动验证 smoke 模式：
-
-```bash
-./build/src/shatv --smoke-test
-```
-
-手动验证 `libmpv` smoke：
-
-```bash
-env QT_QPA_PLATFORM=offscreen SHATV_SMOKE_MEDIA=/absolute/path/to/local.mp4 ./build/src/shatv --mpv-smoke
-```
-
-普通模式下直接打开本地文件或 URL：
-
-```bash
-./build/src/shatv --open-media ./docs/file_example_MP4_1920_18MG.mp4
-./build/src/shatv --open-media ~/下载/iptv.m3u
-./build/src/shatv --open-media http://127.0.0.1:8080/live.m3u8
-./build/src/shatv --open-url http://127.0.0.1:8080/index.m3u8
-./build/src/shatv --open-url 'https://live.example.com/iptv.m3u?userid=123&token=456'
-```
-
-本地 `.m3u` 文件可通过菜单 `文件 -> 打开文件...` 导入为完整频道列表，并自动播放第一项。
-
-远程 `.m3u` 链接也可通过菜单 `文件 -> 打开链接...` 导入，导入请求会复用已保存的 `User-Agent`。
-
-桌面环境启动：
+Run the application:
 
 ```bash
 ./build/src/shatv
 ```
 
-桌面菜单入口：
+Run FFmpeg smoke modes with local fixtures:
 
-- `文件 -> 打开文件...`：打开本地媒体文件，并替换当前左侧频道列表
-- `文件 -> 打开链接...`：输入 `http://` 或 `https://` 链接，并立即播放
-- `文件 -> 最近打开`：展示最近 `5` 条文件或链接记录，启动后可再次选择打开
-- `设置 -> 网络设置...`：配置持久化 `User-Agent`
+```bash
+timeout 20s env QT_QPA_PLATFORM=offscreen \
+  SHATV_FFMPEG_AUDIO_SMOKE_MEDIA=/absolute/path/to/audio.wav \
+  ./build/src/shatv --ffmpeg-audio-smoke
 
-多语言支持：
+timeout 20s env QT_QPA_PLATFORM=offscreen \
+  SHATV_FFMPEG_SMOKE_MEDIA=/absolute/path/to/video.mp4 \
+  ./build/src/shatv --ffmpeg-smoke
+```
 
-- 当前内置 `zh_CN` 翻译资源
-- 应用启动时会根据系统 locale 自动加载可用翻译
+Open media from the command line:
 
-配置文件位置：
+```bash
+./build/src/shatv --open-media ./local-media/sample.mp4
+./build/src/shatv --open-media ./local-media/playlist.m3u
+./build/src/shatv --open-media http://127.0.0.1:8080/live.m3u8
+./build/src/shatv --open-url http://127.0.0.1:8080/index.m3u8
+```
+
+## Configuration
+
+ShaTV stores user settings in the platform config location. On Linux this is
+typically:
 
 ```text
 ~/.config/shatv/config.toml
 ```
 
-最小配置示例：
+Minimal example:
 
 ```toml
 [network]
 user_agent = "ShaTV Custom UA/1.0"
+epg_url = "https://example.invalid/guide.xml"
 ```
 
-该 `User-Agent` 会对所有远程 HTTP/HLS 播放统一生效，包括：
+The configured `User-Agent` is used for remote playlist fetches, EPG downloads,
+and HTTP/HLS playback descriptors.
 
-- `--open-url`
-- 菜单“打开链接...”
-- 远程频道列表项
+## ASR Build
 
-如需显式使用仓库内工具链文件：
+ASR-enabled builds require an extracted sherpa-onnx SDK:
 
 ```bash
-cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake -DBUILD_TESTING=OFF
-cmake --build build
+cmake -S . -B build-asr \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DBUILD_TESTING=ON \
+  -DSHATV_ENABLE_ASR=ON \
+  -DSHATV_REQUIRE_LIBARCHIVE=ON \
+  -DSHATV_SHERPA_ONNX_ROOT=/path/to/sherpa-onnx-sdk
+
+cmake --build build-asr -j2
+timeout 60s ctest --test-dir build-asr --output-on-failure
 ```
 
-如需在工具链配置下启用测试：
+The selected sherpa-onnx SDK is expected to provide the C API header/library and
+ONNX Runtime runtime/import libraries. Do not configure ASR by fetching or
+building sherpa-onnx inside this repository.
 
-```bash
-cmake -S . -B build-tests -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake -DBUILD_TESTING=ON
-cmake --build build-tests
-ctest --test-dir build-tests --output-on-failure
-```
+Model acquisition and runtime details are tracked in
+[docs/asr-model-acquisition.md](docs/asr-model-acquisition.md).
 
-## Windows 构建
+## Windows Packaging
 
-仓库提供 [`.github/workflows/windows-portable.yml`](.github/workflows/windows-portable.yml)，会在 `push` 和 `pull_request` 上使用 `windows-latest` 构建 `Release`，并上传 `shatv-windows-x64-portable.zip` artifact。
+Windows CI is defined in [.github/workflows/ci.yml](.github/workflows/ci.yml).
+It builds:
 
-当前 CI 固定使用 shinchiro 的 `20260411` `mpv-dev` Windows 预编译包：
+- `shatv-windows-x64.zip`
+- `shatv-windows-x64-asr.zip`
 
-- 发布页：`https://github.com/shinchiro/mpv-winbuild-cmake/releases/tag/20260411`
-- 二进制直链：`https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/20260411/mpv-dev-x86_64-v3-20260411-git-3e3048a.7z`
+The workflow uses MSVC 2022, Qt 6.10.3 from `install-qt-action`, BtbN FFmpeg
+shared builds, sherpa-onnx prebuilt runtime packages for ASR, and vcpkg
+libarchive for the ASR package.
 
-Windows 便携包解压后至少包含：
-
-- `shatv.exe`
-- Qt runtime 与 `windeployqt` 收集到的插件
-- `platforms/qwindows.dll`
-- `qml/QtQuick/Controls/`
-- `qml/QtQuick/Layouts/`
-- `libmpv-2.dll`
-- `NOTICE.txt`
-- `THIRD_PARTY_SOURCES.md`
-- `licenses/`
-
-Windows CI 打包阶段不再依赖外网拉取 GNU 许可证正文，artifact 使用仓库内的 [packaging/licenses/LGPL-3.0.txt](/home/alex/code/shatv/packaging/licenses/LGPL-3.0.txt) 和 [packaging/licenses/LGPL-2.1.txt](/home/alex/code/shatv/packaging/licenses/LGPL-2.1.txt)。
-
-本地 Windows 构建前提：
-
-- Visual Studio 2022 / MSVC x64 工具链
-- Qt `6.8.2` MSVC 2022 x64
-- Ninja
-- 上述 shinchiro `mpv-dev` 预编译包
-
-shinchiro 当前 `mpv-dev` 包自带头文件和 `libmpv-2.dll`，但不直接提供 MSVC 可用的 `mpv.lib`。CI 会在 workflow 内根据 DLL 导出表生成 import library，本地如果也走 MSVC，需要先执行同样的步骤：
+For local Windows packaging, always run `windeployqt` with the QML directory:
 
 ```powershell
-$exports = & dumpbin /exports C:\deps\mpv\libmpv-2.dll |
-  Select-String '^\s+\d+\s+[0-9A-F]+\s+[0-9A-F]+\s+\S+$' |
-  ForEach-Object { $_.Line -replace '^\s+\d+\s+[0-9A-F]+\s+[0-9A-F]+\s+', '    ' }
-
-@(
-  'LIBRARY libmpv-2.dll'
-  'EXPORTS'
-) + $exports | Set-Content C:\deps\mpv\libmpv.def
-
-lib /def:C:\deps\mpv\libmpv.def /machine:x64 /out:C:\deps\mpv\mpv.lib
-```
-
-生成 `mpv.lib` 后可以配置并编译：
-
-```powershell
-cmake -S . -B build-windows -G Ninja -DCMAKE_BUILD_TYPE=Release `
-  -DCMAKE_PREFIX_PATH=C:/Qt/6.8.2/msvc2022_64 `
-  -DBUILD_TESTING=OFF `
-  -DSHATV_MPV_INCLUDE_DIR=C:/deps/mpv/include `
-  -DSHATV_MPV_LIBRARY=C:/deps/mpv/mpv.lib `
-  -DSHATV_MPV_DLL=C:/deps/mpv/libmpv-2.dll
-cmake --build build-windows --target shatv --config Release
 windeployqt.exe --release --qmldir C:/path/to/shatv/src/ui/qml build-windows/src/shatv.exe
-cmake -DPORTABLE_PACKAGE_DIR=C:/path/to/shatv/build-windows/src `
-  -P packaging/windows/validate-portable-package.cmake
 ```
 
-`--qmldir` 不能省略。当前主界面 `MainWindow.qml` 通过资源路径加载，并依赖 `QtQuick.Controls` / `QtQuick.Layouts`；如果只运行 `windeployqt.exe --release shatv.exe`，Windows 便携包里通常不会带上这些 QML 模块，启动时会报：
+`--qmldir` is required so the portable package contains the QML modules used by
+`MainWindow.qml`.
 
-```text
-module "QtQuick.Controls" is not installed
-module "QtQuick.Layouts" is not installed
-```
+## Linux Packaging
 
-## 本地 HLS 测试
+Linux packaging details are in [docs/linux-packaging.md](docs/linux-packaging.md).
+The CI workflow currently builds Ubuntu 26.04 `.deb` packages for the base and
+ASR variants. AUR source package guidance is documented for `shatv-git`, and
+binary release guidance is documented for `shatv-bin`.
 
-仓库不保存第三方测试视频文件。请将本地媒体文件放在仓库外，或放到已忽略的 `local-media/` 目录，再运行：
+## Local HLS Test
+
+The repository does not store third-party test videos. Put local media outside
+the repository or under ignored `local-media/`, then run:
 
 ```bash
 bash scripts/start_local_hls_test.sh /absolute/path/to/input.mp4
 ```
 
-脚本会：
+The script starts an FFmpeg HLS loop and serves it at:
 
-- 使用 `ffmpeg` 将本地文件循环转成 HLS
-- 在 `http://127.0.0.1:8080/index.m3u8` 提供本地测试流
-- 在退出时清理 `ffmpeg` 和 `python3 -m http.server` 进程
-
-示例：
-
-```bash
-mkdir -p local-media
-bash scripts/start_local_hls_test.sh ./local-media/sample.mp4
+```text
+http://127.0.0.1:8080/index.m3u8
 ```
 
-## 设计文档
+## Documentation
 
-- [核心设计](docs/architecture.md)
-- [执行清单](TODO.md)
+- [Architecture](docs/architecture.md)
+- [ASR model acquisition](docs/asr-model-acquisition.md)
+- [Linux packaging](docs/linux-packaging.md)

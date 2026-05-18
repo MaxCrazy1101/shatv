@@ -1,5 +1,7 @@
 #include "domain/media_source.h"
 
+#include <QtGlobal>
+
 namespace shatv::domain {
 
 RetryPolicy RetryPolicyForSourceKind(SourceKind source_kind) {
@@ -28,7 +30,7 @@ RetryPolicy RetryPolicyForSourceKind(SourceKind source_kind) {
                 .backoff = RetryBackoff::kIncreasing,
             };
     }
-    return RetryPolicy{};
+    Q_UNREACHABLE_RETURN(RetryPolicy{});
 }
 
 }  // namespace shatv::domain

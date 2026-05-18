@@ -167,6 +167,7 @@ class AsrModelServiceTest final : public QObject {
     void initTestCase();
     void default_manifest_matches_downloaded_archive_file_names();
     void parses_manifest_json();
+    void rejects_manifest_json_with_unsafe_id();
     void rejects_manifest_json_with_missing_required_field();
     void reports_not_installed_for_missing_app_managed_directory();
     void reports_incomplete_with_missing_required_files();
@@ -176,6 +177,7 @@ class AsrModelServiceTest final : public QObject {
     void invalid_environment_directory_does_not_fall_back_to_app_managed_model();
     void default_storage_roots_use_separate_model_and_archive_directories();
     void empty_default_model_root_reports_unavailable_directory();
+    void unsafe_manifest_id_disables_app_managed_install_directory();
     void downloads_archive_to_cache_and_verifies_sha256();
     void reuses_existing_archive_cache_after_sha256_verification();
     void checksum_mismatch_removes_part_and_preserves_existing_archive();
@@ -232,6 +234,32 @@ void AsrModelServiceTest::parses_manifest_json() {
     QCOMPARE(manifest->files.encoder_name, QStringLiteral("encoder.onnx"));
     QCOMPARE(manifest->files.decoder_name, QStringLiteral("decoder.onnx"));
     QCOMPARE(manifest->files.tokens_name, QStringLiteral("tokens.txt"));
+}
+
+void AsrModelServiceTest::rejects_manifest_json_with_unsafe_id() {
+    QString error_message;
+    const auto manifest = AsrModelService::ManifestFromJson(R"json(
+        {
+          "id": "../outside",
+          "version": "v1",
+          "display_name": "Display",
+          "source_url": "https://example.invalid/model.zip",
+          "archive_size_bytes": 123,
+          "installed_size_bytes": 456,
+          "archive_sha256": "abc",
+          "license": "license",
+          "attribution": "source",
+          "files": {
+            "encoder": "encoder.onnx",
+            "decoder": "decoder.onnx",
+            "tokens": "tokens.txt"
+          }
+        }
+    )json",
+                                                            &error_message);
+
+    QVERIFY(!manifest.has_value());
+    QCOMPARE(error_message, QStringLiteral("manifest field id contains unsafe path characters"));
 }
 
 void AsrModelServiceTest::rejects_manifest_json_with_missing_required_field() {
@@ -397,6 +425,25 @@ void AsrModelServiceTest::empty_default_model_root_reports_unavailable_directory
     QCOMPARE(EnumValue(status.source), EnumValue(AsrModelInstallSource::kAppManaged));
     QCOMPARE(status.message, QStringLiteral("ASR model directory is unavailable"));
     QVERIFY(!status.Available());
+}
+
+void AsrModelServiceTest::unsafe_manifest_id_disables_app_managed_install_directory() {
+    ScopedEnvironmentVariable model_dir_env("SHATV_ASR_MODEL_DIR");
+    ScopedEnvironmentVariable encoder_env("SHATV_ASR_ENCODER_NAME");
+    ScopedEnvironmentVariable decoder_env("SHATV_ASR_DECODER_NAME");
+    ScopedEnvironmentVariable tokens_env("SHATV_ASR_TOKENS_NAME");
+    QTemporaryDir temp_dir;
+    QVERIFY(temp_dir.isValid());
+
+    AsrModelManifest manifest = AsrModelService::DefaultManifest();
+    manifest.id = QStringLiteral("../outside");
+
+    const AsrModelService service(temp_dir.filePath(QStringLiteral("models")), manifest);
+    const auto status = service.InstalledModelStatus();
+
+    QCOMPARE(service.InstallDirectory(), QString{});
+    QCOMPARE(EnumValue(status.status), EnumValue(AsrModelInstallStatus::kIncomplete));
+    QCOMPARE(status.message, QStringLiteral("ASR model directory is unavailable"));
 }
 
 void AsrModelServiceTest::downloads_archive_to_cache_and_verifies_sha256() {

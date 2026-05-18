@@ -1,5 +1,7 @@
 #include "app/asr_model_archive_installer.h"
 
+#include "app/asr_model_service.h"
+
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
@@ -313,6 +315,13 @@ bool ActivateModelDirectory(const QString &model_dir,
                             const QString &model_root,
                             const AsrModelManifest &manifest,
                             QString *error_message) {
+    if (!IsSafeAsrModelId(manifest.id)) {
+        if (error_message != nullptr) {
+            *error_message = QStringLiteral("Unsafe ASR model id: %1").arg(manifest.id);
+        }
+        return false;
+    }
+
     const QString safe_id = SafeFileName(manifest.id);
     const QDir root_dir(model_root);
     const QString final_dir = root_dir.filePath(manifest.id);
