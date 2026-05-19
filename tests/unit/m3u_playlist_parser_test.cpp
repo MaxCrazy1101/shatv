@@ -1,6 +1,6 @@
-#include <QtTest>
-
 #include "app/m3u_playlist_parser.h"
+
+#include <QtTest>
 
 namespace {
 

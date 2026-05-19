@@ -1,8 +1,7 @@
 #include "app/epg_service.h"
 
-#include <algorithm>
-
 #include <QHash>
+#include <algorithm>
 
 namespace shatv::app {
 

@@ -1,14 +1,13 @@
 #pragma once
 
-#include <memory>
-#include <optional>
-#include <vector>
-
-#include <QGuiApplication>
 #include <QFutureWatcher>
+#include <QGuiApplication>
 #include <QPointer>
 #include <QString>
 #include <QTimer>
+#include <memory>
+#include <optional>
+#include <vector>
 
 #include "app/app_settings.h"
 #include "app/asr_model_archive_installer.h"
@@ -34,7 +33,7 @@ class PlayerBackend;
 namespace shatv::ui::models {
 class ChannelFilterModel;
 class ChannelListModel;
-}
+}  // namespace shatv::ui::models
 
 namespace shatv::ui::shell {
 class AppShellBridge;

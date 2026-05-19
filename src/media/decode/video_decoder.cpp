@@ -22,11 +22,7 @@ namespace {
 
 constexpr AVPixelFormat kOutputPixelFormat = AV_PIX_FMT_YUV420P;
 
-void CopyPlane(const uint8_t *source,
-               int source_stride,
-               int width,
-               int height,
-               QByteArray *destination) {
+void CopyPlane(const uint8_t *source, int source_stride, int width, int height, QByteArray *destination) {
     destination->resize(width * height);
     for (int row = 0; row < height; ++row) {
         std::memcpy(destination->data() + row * width, source + row * source_stride, static_cast<std::size_t>(width));
@@ -39,8 +35,7 @@ VideoDecoder::~VideoDecoder() {
     Close();
 }
 
-bool VideoDecoder::Open(const AVCodecParameters *codec_parameters,
-                        double stream_time_base_seconds,
+bool VideoDecoder::Open(const AVCodecParameters *codec_parameters, double stream_time_base_seconds,
                         QString *error_message) {
     Close();
     stream_time_base_seconds_ = stream_time_base_seconds;
@@ -71,8 +66,8 @@ bool VideoDecoder::Open(const AVCodecParameters *codec_parameters,
     const int copy_result = avcodec_parameters_to_context(codec_context_, codec_parameters);
     if (copy_result < 0) {
         if (error_message != nullptr) {
-            *error_message = QStringLiteral("avcodec_parameters_to_context failed: %1")
-                                 .arg(FfmpegErrorString(copy_result));
+            *error_message =
+                QStringLiteral("avcodec_parameters_to_context failed: %1").arg(FfmpegErrorString(copy_result));
         }
         Close();
         return false;
@@ -97,8 +92,7 @@ void VideoDecoder::Close() {
     }
 }
 
-bool VideoDecoder::DecodePacket(const AVPacket &packet,
-                                std::vector<media::video::VideoFrame> *frames,
+bool VideoDecoder::DecodePacket(const AVPacket &packet, std::vector<media::video::VideoFrame> *frames,
                                 QString *error_message) {
     if (codec_context_ == nullptr || frames == nullptr) {
         if (error_message != nullptr) {
@@ -110,8 +104,7 @@ bool VideoDecoder::DecodePacket(const AVPacket &packet,
     const int send_result = avcodec_send_packet(codec_context_, &packet);
     if (send_result < 0) {
         if (error_message != nullptr) {
-            *error_message = QStringLiteral("avcodec_send_packet failed: %1")
-                                 .arg(FfmpegErrorString(send_result));
+            *error_message = QStringLiteral("avcodec_send_packet failed: %1").arg(FfmpegErrorString(send_result));
         }
         return false;
     }
@@ -127,8 +120,7 @@ bool VideoDecoder::Flush(std::vector<media::video::VideoFrame> *frames, QString 
     const int send_result = avcodec_send_packet(codec_context_, nullptr);
     if (send_result < 0) {
         if (error_message != nullptr) {
-            *error_message = QStringLiteral("avcodec_send_packet flush failed: %1")
-                                 .arg(FfmpegErrorString(send_result));
+            *error_message = QStringLiteral("avcodec_send_packet flush failed: %1").arg(FfmpegErrorString(send_result));
         }
         return false;
     }
@@ -154,8 +146,8 @@ bool VideoDecoder::ReceiveFrames(std::vector<media::video::VideoFrame> *frames, 
         if (receive_result < 0) {
             av_frame_free(&raw_frame);
             if (error_message != nullptr) {
-                *error_message = QStringLiteral("avcodec_receive_frame failed: %1")
-                                     .arg(FfmpegErrorString(receive_result));
+                *error_message =
+                    QStringLiteral("avcodec_receive_frame failed: %1").arg(FfmpegErrorString(receive_result));
             }
             return false;
         }
@@ -170,9 +162,7 @@ bool VideoDecoder::ReceiveFrames(std::vector<media::video::VideoFrame> *frames, 
     }
 }
 
-bool VideoDecoder::ConvertFrame(const AVFrame &frame,
-                                media::video::VideoFrame *video_frame,
-                                QString *error_message) {
+bool VideoDecoder::ConvertFrame(const AVFrame &frame, media::video::VideoFrame *video_frame, QString *error_message) {
     if (video_frame == nullptr || frame.width <= 0 || frame.height <= 0) {
         if (error_message != nullptr) {
             *error_message = QStringLiteral("invalid decoded video frame");
@@ -184,7 +174,8 @@ bool VideoDecoder::ConvertFrame(const AVFrame &frame,
     const int chroma_height = (frame.height + 1) / 2;
     video_frame->size = QSize(frame.width, frame.height);
     if (frame.best_effort_timestamp != AV_NOPTS_VALUE && stream_time_base_seconds_ > 0.0) {
-        video_frame->pts_usecs = static_cast<qint64>(frame.best_effort_timestamp * stream_time_base_seconds_ * 1000000.0);
+        video_frame->pts_usecs =
+            static_cast<qint64>(frame.best_effort_timestamp * stream_time_base_seconds_ * 1000000.0);
     }
     video_frame->y_plane.resize(frame.width * frame.height);
     video_frame->u_plane.resize(chroma_width * chroma_height);
@@ -200,16 +191,8 @@ bool VideoDecoder::ConvertFrame(const AVFrame &frame,
     if (sws_context_ == nullptr || scaler_width_ != frame.width || scaler_height_ != frame.height ||
         scaler_format_ != frame.format) {
         ResetScaler();
-        sws_context_ = sws_getContext(frame.width,
-                                      frame.height,
-                                      static_cast<AVPixelFormat>(frame.format),
-                                      frame.width,
-                                      frame.height,
-                                      kOutputPixelFormat,
-                                      SWS_BILINEAR,
-                                      nullptr,
-                                      nullptr,
-                                      nullptr);
+        sws_context_ = sws_getContext(frame.width, frame.height, static_cast<AVPixelFormat>(frame.format), frame.width,
+                                      frame.height, kOutputPixelFormat, SWS_BILINEAR, nullptr, nullptr, nullptr);
         if (sws_context_ == nullptr) {
             if (error_message != nullptr) {
                 *error_message = QStringLiteral("sws_getContext failed");
@@ -234,8 +217,8 @@ bool VideoDecoder::ConvertFrame(const AVFrame &frame,
         0,
     };
 
-    const int scaled_height =
-        sws_scale(sws_context_, frame.data, frame.linesize, 0, frame.height, destination_data.data(), destination_linesize.data());
+    const int scaled_height = sws_scale(sws_context_, frame.data, frame.linesize, 0, frame.height,
+                                        destination_data.data(), destination_linesize.data());
     if (scaled_height != frame.height) {
         if (error_message != nullptr) {
             *error_message = QStringLiteral("sws_scale failed");

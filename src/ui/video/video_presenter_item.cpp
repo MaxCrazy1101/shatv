@@ -1,16 +1,16 @@
 #include "ui/video/video_presenter_item.h"
 
-#include <array>
-#include <memory>
+#include <QtQml/qqml.h>
+#include <rhi/qrhi.h>
+#include <rhi/qshader.h>
+#include <rhi/qshaderbaker.h>
 
 #include <QMatrix4x4>
 #include <QMetaObject>
 #include <QQuickWindow>
 #include <QThreadStorage>
-#include <QtQml/qqml.h>
-#include <rhi/qshader.h>
-#include <rhi/qshaderbaker.h>
-#include <rhi/qrhi.h>
+#include <array>
+#include <memory>
 
 #include "app/logging.h"
 #include "player/ffmpeg_player_backend.h"
@@ -119,21 +119,17 @@ VideoShaders *ThreadLocalVideoShaders() {
 // - StretchToFill: no correction (1.0, 1.0)
 // - CropToFill: fill viewport (may crop)
 // - NativeSize: no correction (1.0, 1.0)
-QVector2D CalculateAspectRatioScale(VideoAspectRatioMode mode,
-                                     const QSize &frame_size,
-                                     const QSize &viewport_size) {
+QVector2D CalculateAspectRatioScale(VideoAspectRatioMode mode, const QSize &frame_size, const QSize &viewport_size) {
     if (mode == VideoPresenterItem::StretchToFill || mode == VideoPresenterItem::NativeSize) {
         return {1.0F, 1.0F};
     }
 
-    if (!frame_size.isValid() || !viewport_size.isValid() || frame_size.isEmpty() ||
-        viewport_size.isEmpty()) {
+    if (!frame_size.isValid() || !viewport_size.isValid() || frame_size.isEmpty() || viewport_size.isEmpty()) {
         return {1.0F, 1.0F};
     }
 
     const float frame_aspect = static_cast<float>(frame_size.width()) / frame_size.height();
-    const float viewport_aspect =
-        static_cast<float>(viewport_size.width()) / viewport_size.height();
+    const float viewport_aspect = static_cast<float>(viewport_size.width()) / viewport_size.height();
 
     if (mode == VideoPresenterItem::PreserveAspectRatio) {
         if (frame_aspect > viewport_aspect) {
@@ -164,8 +160,7 @@ class VideoPresenterRenderer final : public QQuickRhiItemRenderer {
         fragment_shader_ = shaders->fragment;
 
         ResetPipeline();
-        vertex_buffer_.reset(rhi()->newBuffer(QRhiBuffer::Immutable,
-                                              QRhiBuffer::VertexBuffer,
+        vertex_buffer_.reset(rhi()->newBuffer(QRhiBuffer::Immutable, QRhiBuffer::VertexBuffer,
                                               static_cast<quint32>(sizeof(Vertex) * kQuadVertices.size())));
         vertex_buffer_->create();
 
@@ -173,11 +168,8 @@ class VideoPresenterRenderer final : public QQuickRhiItemRenderer {
         vertex_uniform_buffer_->create();
         fragment_uniform_buffer_.reset(rhi()->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, 16));
         fragment_uniform_buffer_->create();
-        sampler_.reset(rhi()->newSampler(QRhiSampler::Linear,
-                                         QRhiSampler::Linear,
-                                         QRhiSampler::None,
-                                         QRhiSampler::ClampToEdge,
-                                         QRhiSampler::ClampToEdge));
+        sampler_.reset(rhi()->newSampler(QRhiSampler::Linear, QRhiSampler::Linear, QRhiSampler::None,
+                                         QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge));
         sampler_->create();
 
         QRhiResourceUpdateBatch *updates = rhi()->nextResourceUpdateBatch();
@@ -205,8 +197,7 @@ class VideoPresenterRenderer final : public QQuickRhiItemRenderer {
         // Build MVP with aspect ratio correction.
         Matrix4x4 mvp = rhi()->clipSpaceCorrMatrix();
         const QSize viewport_size = renderTarget()->pixelSize();
-        const QVector2D scale =
-            CalculateAspectRatioScale(aspect_ratio_mode_, current_frame_.size, viewport_size);
+        const QVector2D scale = CalculateAspectRatioScale(aspect_ratio_mode_, current_frame_.size, viewport_size);
         Matrix4x4 scale_matrix;
         scale_matrix.scale(scale.x(), scale.y(), 1.0F);
         mvp = scale_matrix * mvp;
@@ -261,10 +252,7 @@ class VideoPresenterRenderer final : public QQuickRhiItemRenderer {
         ResetPipeline();
     }
 
-    void UploadPlane(QRhiResourceUpdateBatch *updates,
-                     QRhiTexture *texture,
-                     const QByteArray &plane,
-                     int width,
+    void UploadPlane(QRhiResourceUpdateBatch *updates, QRhiTexture *texture, const QByteArray &plane, int width,
                      int height) {
         QRhiTextureSubresourceUploadDescription subresource(plane);
         subresource.setDataStride(static_cast<quint32>(width));
@@ -285,11 +273,16 @@ class VideoPresenterRenderer final : public QQuickRhiItemRenderer {
 
         shader_resource_bindings_.reset(rhi()->newShaderResourceBindings());
         shader_resource_bindings_->setBindings({
-            QRhiShaderResourceBinding::uniformBuffer(0, QRhiShaderResourceBinding::VertexStage, vertex_uniform_buffer_.get()),
-            QRhiShaderResourceBinding::sampledTexture(1, QRhiShaderResourceBinding::FragmentStage, y_texture_.get(), sampler_.get()),
-            QRhiShaderResourceBinding::sampledTexture(2, QRhiShaderResourceBinding::FragmentStage, u_texture_.get(), sampler_.get()),
-            QRhiShaderResourceBinding::sampledTexture(3, QRhiShaderResourceBinding::FragmentStage, v_texture_.get(), sampler_.get()),
-            QRhiShaderResourceBinding::uniformBuffer(4, QRhiShaderResourceBinding::FragmentStage, fragment_uniform_buffer_.get()),
+            QRhiShaderResourceBinding::uniformBuffer(0, QRhiShaderResourceBinding::VertexStage,
+                                                     vertex_uniform_buffer_.get()),
+            QRhiShaderResourceBinding::sampledTexture(1, QRhiShaderResourceBinding::FragmentStage, y_texture_.get(),
+                                                      sampler_.get()),
+            QRhiShaderResourceBinding::sampledTexture(2, QRhiShaderResourceBinding::FragmentStage, u_texture_.get(),
+                                                      sampler_.get()),
+            QRhiShaderResourceBinding::sampledTexture(3, QRhiShaderResourceBinding::FragmentStage, v_texture_.get(),
+                                                      sampler_.get()),
+            QRhiShaderResourceBinding::uniformBuffer(4, QRhiShaderResourceBinding::FragmentStage,
+                                                     fragment_uniform_buffer_.get()),
         });
         if (!shader_resource_bindings_->create()) {
             return false;
@@ -393,12 +386,15 @@ QQuickRhiItemRenderer *VideoPresenterItem::createRenderer() {
 }
 
 void VideoPresenterItem::PresentVideoFrame(const media::video::VideoFrame &frame) {
-    QMetaObject::invokeMethod(this, [this, frame]() {
-        pending_frame_ = frame;
-        has_pending_frame_ = true;
-        ApplyReady(true);
-        update();
-    }, Qt::QueuedConnection);
+    QMetaObject::invokeMethod(
+        this,
+        [this, frame]() {
+            pending_frame_ = frame;
+            has_pending_frame_ = true;
+            ApplyReady(true);
+            update();
+        },
+        Qt::QueuedConnection);
 }
 
 bool VideoPresenterItem::TakePendingFrame(media::video::VideoFrame *frame) {

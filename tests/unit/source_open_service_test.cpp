@@ -1,14 +1,13 @@
-#include <cstddef>
-#include <optional>
-#include <variant>
+#include "app/source_open_service.h"
 
-#include <QtTest>
 #include <QDir>
 #include <QFile>
 #include <QNetworkAccessManager>
 #include <QTemporaryDir>
-
-#include "app/source_open_service.h"
+#include <QtTest>
+#include <cstddef>
+#include <optional>
+#include <variant>
 
 namespace {
 
@@ -40,13 +39,11 @@ class SourceOpenServiceTest final : public QObject {
     void resolves_recent_url_through_replay_request_kind();
 };
 
-std::optional<OpenResolution> ResolveSync(SourceOpenService &service,
-                                          OpenRequest request,
+std::optional<OpenResolution> ResolveSync(SourceOpenService &service, OpenRequest request,
                                           const SourceOpenContext &context) {
     std::optional<OpenResolution> result;
-    service.Resolve(std::move(request), context, [&result](OpenResolution resolution) {
-        result = std::move(resolution);
-    });
+    service.Resolve(std::move(request), context,
+                    [&result](OpenResolution resolution) { result = std::move(resolution); });
     return result;
 }
 
@@ -61,18 +58,17 @@ void SourceOpenServiceTest::resolves_local_media_file_to_direct_descriptor() {
 
     QNetworkAccessManager network_manager;
     SourceOpenService service(&network_manager);
-    const std::optional<OpenResolution> resolution = ResolveSync(
-        service,
-        OpenRequest{
-            .request_kind = OpenRequestKind::kFilePath,
-            .target = media_path,
-            .label = {},
-            .replay_request_kind = std::nullopt,
-        },
-        SourceOpenContext{
-            .current_directory = temp_dir.path(),
-            .user_agent = "ShaTV Test/1.0",
-        });
+    const std::optional<OpenResolution> resolution = ResolveSync(service,
+                                                                 OpenRequest{
+                                                                     .request_kind = OpenRequestKind::kFilePath,
+                                                                     .target = media_path,
+                                                                     .label = {},
+                                                                     .replay_request_kind = std::nullopt,
+                                                                 },
+                                                                 SourceOpenContext{
+                                                                     .current_directory = temp_dir.path(),
+                                                                     .user_agent = "ShaTV Test/1.0",
+                                                                 });
 
     QVERIFY(resolution.has_value());
     const auto *direct = std::get_if<DirectMediaResolution>(&*resolution);
@@ -91,18 +87,17 @@ void SourceOpenServiceTest::resolves_local_media_file_to_direct_descriptor() {
 void SourceOpenServiceTest::resolves_direct_remote_media_with_user_agent_and_retry_policy() {
     QNetworkAccessManager network_manager;
     SourceOpenService service(&network_manager);
-    const std::optional<OpenResolution> resolution = ResolveSync(
-        service,
-        OpenRequest{
-            .request_kind = OpenRequestKind::kUrlText,
-            .target = "https://example.com/live.m3u8",
-            .label = {},
-            .replay_request_kind = std::nullopt,
-        },
-        SourceOpenContext{
-            .current_directory = QDir::currentPath(),
-            .user_agent = "ShaTV Test/1.0",
-        });
+    const std::optional<OpenResolution> resolution = ResolveSync(service,
+                                                                 OpenRequest{
+                                                                     .request_kind = OpenRequestKind::kUrlText,
+                                                                     .target = "https://example.com/live.m3u8",
+                                                                     .label = {},
+                                                                     .replay_request_kind = std::nullopt,
+                                                                 },
+                                                                 SourceOpenContext{
+                                                                     .current_directory = QDir::currentPath(),
+                                                                     .user_agent = "ShaTV Test/1.0",
+                                                                 });
 
     QVERIFY(resolution.has_value());
     const auto *direct = std::get_if<DirectMediaResolution>(&*resolution);
@@ -134,18 +129,17 @@ void SourceOpenServiceTest::resolves_local_playlist_to_descriptor_backed_channel
 
     QNetworkAccessManager network_manager;
     SourceOpenService service(&network_manager);
-    const std::optional<OpenResolution> resolution = ResolveSync(
-        service,
-        OpenRequest{
-            .request_kind = OpenRequestKind::kFilePath,
-            .target = playlist_path,
-            .label = {},
-            .replay_request_kind = std::nullopt,
-        },
-        SourceOpenContext{
-            .current_directory = temp_dir.path(),
-            .user_agent = "ShaTV Test/1.0",
-        });
+    const std::optional<OpenResolution> resolution = ResolveSync(service,
+                                                                 OpenRequest{
+                                                                     .request_kind = OpenRequestKind::kFilePath,
+                                                                     .target = playlist_path,
+                                                                     .label = {},
+                                                                     .replay_request_kind = std::nullopt,
+                                                                 },
+                                                                 SourceOpenContext{
+                                                                     .current_directory = temp_dir.path(),
+                                                                     .user_agent = "ShaTV Test/1.0",
+                                                                 });
 
     QVERIFY(resolution.has_value());
     const auto *channel_list = std::get_if<ChannelListResolution>(&*resolution);
@@ -171,18 +165,17 @@ void SourceOpenServiceTest::resolves_local_playlist_to_descriptor_backed_channel
 void SourceOpenServiceTest::rejects_remote_root_url() {
     QNetworkAccessManager network_manager;
     SourceOpenService service(&network_manager);
-    const std::optional<OpenResolution> resolution = ResolveSync(
-        service,
-        OpenRequest{
-            .request_kind = OpenRequestKind::kUrlText,
-            .target = "https://example.com/",
-            .label = {},
-            .replay_request_kind = std::nullopt,
-        },
-        SourceOpenContext{
-            .current_directory = QDir::currentPath(),
-            .user_agent = "ShaTV Test/1.0",
-        });
+    const std::optional<OpenResolution> resolution = ResolveSync(service,
+                                                                 OpenRequest{
+                                                                     .request_kind = OpenRequestKind::kUrlText,
+                                                                     .target = "https://example.com/",
+                                                                     .label = {},
+                                                                     .replay_request_kind = std::nullopt,
+                                                                 },
+                                                                 SourceOpenContext{
+                                                                     .current_directory = QDir::currentPath(),
+                                                                     .user_agent = "ShaTV Test/1.0",
+                                                                 });
 
     QVERIFY(resolution.has_value());
     const auto *error = std::get_if<OpenErrorResolution>(&*resolution);
@@ -193,18 +186,17 @@ void SourceOpenServiceTest::rejects_remote_root_url() {
 void SourceOpenServiceTest::resolves_recent_url_through_replay_request_kind() {
     QNetworkAccessManager network_manager;
     SourceOpenService service(&network_manager);
-    const std::optional<OpenResolution> resolution = ResolveSync(
-        service,
-        OpenRequest{
-            .request_kind = OpenRequestKind::kRecentItem,
-            .target = "https://example.com/recent-live.m3u8",
-            .label = {},
-            .replay_request_kind = OpenRequestKind::kUrlText,
-        },
-        SourceOpenContext{
-            .current_directory = QDir::currentPath(),
-            .user_agent = "ShaTV Test/1.0",
-        });
+    const std::optional<OpenResolution> resolution = ResolveSync(service,
+                                                                 OpenRequest{
+                                                                     .request_kind = OpenRequestKind::kRecentItem,
+                                                                     .target = "https://example.com/recent-live.m3u8",
+                                                                     .label = {},
+                                                                     .replay_request_kind = OpenRequestKind::kUrlText,
+                                                                 },
+                                                                 SourceOpenContext{
+                                                                     .current_directory = QDir::currentPath(),
+                                                                     .user_agent = "ShaTV Test/1.0",
+                                                                 });
 
     QVERIFY(resolution.has_value());
     const auto *direct = std::get_if<DirectMediaResolution>(&*resolution);

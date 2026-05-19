@@ -10,7 +10,6 @@
 #include <QNetworkRequest>
 #include <QStandardPaths>
 #include <QUrl>
-
 #include <utility>
 
 namespace shatv::app {
@@ -74,8 +73,7 @@ QString SafeFileName(QString value) {
     QString safe;
     safe.reserve(value.size());
     for (const QChar ch : value) {
-        safe.append(ch.isLetterOrNumber() || ch == QLatin1Char('-') || ch == QLatin1Char('_') ||
-                            ch == QLatin1Char('.')
+        safe.append(ch.isLetterOrNumber() || ch == QLatin1Char('-') || ch == QLatin1Char('_') || ch == QLatin1Char('.')
                         ? ch
                         : QLatin1Char('_'));
     }
@@ -120,7 +118,8 @@ bool FileSha256(const QString &path, QString *sha256, QString *error_message) {
     return true;
 }
 
-bool Sha256Matches(const QString &path, const QString &expected_sha256, QString *actual_sha256, QString *error_message) {
+bool Sha256Matches(const QString &path, const QString &expected_sha256, QString *actual_sha256,
+                   QString *error_message) {
     QString actual;
     if (!FileSha256(path, &actual, error_message)) {
         return false;
@@ -151,8 +150,7 @@ bool IsSafeAsrModelId(const QString &id) {
 }
 
 bool AsrModelStatus::Available() const {
-    return status == AsrModelInstallStatus::kInstalled ||
-           status == AsrModelInstallStatus::kDeveloperOverride;
+    return status == AsrModelInstallStatus::kInstalled || status == AsrModelInstallStatus::kDeveloperOverride;
 }
 
 AsrModelService::AsrModelService(QString model_root, AsrModelManifest manifest)
@@ -186,11 +184,12 @@ AsrModelManifest AsrModelService::DefaultManifest() {
         .archive_sha256 = QStringLiteral("5462a1fce42693deae572af1e8c4687124b12aa85fe61ff4d3168bb5280e205f"),
         .license = QStringLiteral("review-required"),
         .attribution = QStringLiteral("csukuangfj/sherpa-onnx-streaming-paraformer-bilingual-zh-en"),
-        .files = AsrModelFileSet{
-            .encoder_name = QStringLiteral("encoder.int8.onnx"),
-            .decoder_name = QStringLiteral("decoder.int8.onnx"),
-            .tokens_name = QStringLiteral("tokens.txt"),
-        },
+        .files =
+            AsrModelFileSet{
+                .encoder_name = QStringLiteral("encoder.int8.onnx"),
+                .decoder_name = QStringLiteral("decoder.int8.onnx"),
+                .tokens_name = QStringLiteral("tokens.txt"),
+            },
     };
 }
 
@@ -300,8 +299,7 @@ AsrModelStatus AsrModelService::InstalledModelStatus() const {
     return StatusForDirectory(InstallDirectory(), AsrModelInstallSource::kAppManaged, false);
 }
 
-AsrModelStatus AsrModelService::StatusForDirectory(const QString &model_dir,
-                                                   AsrModelInstallSource source,
+AsrModelStatus AsrModelService::StatusForDirectory(const QString &model_dir, AsrModelInstallSource source,
                                                    bool directory_required) const {
     AsrModelStatus status;
     status.source = source;
@@ -314,11 +312,11 @@ AsrModelStatus AsrModelService::StatusForDirectory(const QString &model_dir,
 
     const QFileInfo dir_info(model_dir);
     if (!dir_info.isDir()) {
-        status.status = directory_required ? AsrModelInstallStatus::kIncomplete
-                                           : AsrModelInstallStatus::kNotInstalled;
-        status.message = directory_required
-                             ? QStringLiteral("ASR model directory is missing: %1").arg(QDir::toNativeSeparators(model_dir))
-                             : QStringLiteral("ASR model is not installed");
+        status.status = directory_required ? AsrModelInstallStatus::kIncomplete : AsrModelInstallStatus::kNotInstalled;
+        status.message =
+            directory_required
+                ? QStringLiteral("ASR model directory is missing: %1").arg(QDir::toNativeSeparators(model_dir))
+                : QStringLiteral("ASR model is not installed");
         return status;
     }
 
@@ -337,19 +335,15 @@ AsrModelStatus AsrModelService::StatusForDirectory(const QString &model_dir,
         return status;
     }
 
-    status.status = source == AsrModelInstallSource::kDeveloperOverride
-                        ? AsrModelInstallStatus::kDeveloperOverride
-                        : AsrModelInstallStatus::kInstalled;
+    status.status = source == AsrModelInstallSource::kDeveloperOverride ? AsrModelInstallStatus::kDeveloperOverride
+                                                                        : AsrModelInstallStatus::kInstalled;
     status.message.clear();
     return status;
 }
 
-AsrModelArchiveDownloader::AsrModelArchiveDownloader(QNetworkAccessManager *network_manager,
-                                                     QString archive_cache_root,
+AsrModelArchiveDownloader::AsrModelArchiveDownloader(QNetworkAccessManager *network_manager, QString archive_cache_root,
                                                      QObject *parent)
-    : QObject(parent),
-      network_manager_(network_manager),
-      archive_cache_root_(std::move(archive_cache_root)) {}
+    : QObject(parent), network_manager_(network_manager), archive_cache_root_(std::move(archive_cache_root)) {}
 
 AsrModelArchiveDownloader::~AsrModelArchiveDownloader() {
     if (reply_ == nullptr) {
@@ -372,9 +366,8 @@ QString AsrModelArchiveDownloader::ArchivePath(const AsrModelManifest &manifest)
     const QString checksum_suffix = manifest.archive_sha256.trimmed().isEmpty()
                                         ? QStringLiteral("unverified")
                                         : manifest.archive_sha256.trimmed().toLower();
-    const QString archive_file_name = QStringLiteral("%1-%2%3")
-                                          .arg(SafeFileName(manifest.id), SafeFileName(checksum_suffix),
-                                               ArchiveSuffixFromUrl(manifest.source_url));
+    const QString archive_file_name = QStringLiteral("%1-%2%3").arg(
+        SafeFileName(manifest.id), SafeFileName(checksum_suffix), ArchiveSuffixFromUrl(manifest.source_url));
     return QDir(archive_cache_root_).filePath(archive_file_name);
 }
 
@@ -445,7 +438,8 @@ void AsrModelArchiveDownloader::Start(const AsrModelManifest &manifest) {
     QFile::remove(part_path_);
     output_file_.setFileName(part_path_);
     if (!output_file_.open(QIODevice::WriteOnly)) {
-        FinishWithFailure(QStringLiteral("Failed to write ASR model archive cache: %1").arg(output_file_.errorString()));
+        FinishWithFailure(
+            QStringLiteral("Failed to write ASR model archive cache: %1").arg(output_file_.errorString()));
         return;
     }
 
@@ -455,9 +449,7 @@ void AsrModelArchiveDownloader::Start(const AsrModelManifest &manifest) {
     reply_ = network_manager_->get(request);
     connect(reply_, &QNetworkReply::readyRead, this, &AsrModelArchiveDownloader::OnReadyRead);
     connect(reply_, &QNetworkReply::downloadProgress, this, &AsrModelArchiveDownloader::OnDownloadProgress);
-    connect(reply_, &QNetworkReply::finished, this, [this, manifest]() {
-        OnFinished(manifest);
-    });
+    connect(reply_, &QNetworkReply::finished, this, [this, manifest]() { OnFinished(manifest); });
 }
 
 void AsrModelArchiveDownloader::Cancel() {
@@ -480,7 +472,8 @@ void AsrModelArchiveDownloader::OnReadyRead() {
 
     const qint64 written = output_file_.write(bytes);
     if (written != bytes.size()) {
-        FinishWithFailure(QStringLiteral("Failed to write ASR model archive cache: %1").arg(output_file_.errorString()));
+        FinishWithFailure(
+            QStringLiteral("Failed to write ASR model archive cache: %1").arg(output_file_.errorString()));
         return;
     }
 
@@ -521,7 +514,8 @@ void AsrModelArchiveDownloader::OnFinished(const AsrModelManifest &manifest) {
     }
 
     if (!output_file_.flush()) {
-        FinishWithFailure(QStringLiteral("Failed to flush ASR model archive cache: %1").arg(output_file_.errorString()));
+        FinishWithFailure(
+            QStringLiteral("Failed to flush ASR model archive cache: %1").arg(output_file_.errorString()));
         return;
     }
     output_file_.close();

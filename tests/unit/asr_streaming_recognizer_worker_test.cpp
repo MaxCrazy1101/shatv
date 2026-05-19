@@ -1,14 +1,12 @@
+#include <QByteArray>
+#include <QFile>
 #include <QtTest>
-
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <mutex>
 #include <utility>
 #include <vector>
-
-#include <QByteArray>
-#include <QFile>
 
 #include "media/asr/streaming_recognizer_worker.h"
 
@@ -44,10 +42,8 @@ bool ReadPcm16MonoWave(const QString &path, WaveFixture *wave, QString *error_me
     }
 
     const QByteArray data = file.readAll();
-    if (data.size() < 44 ||
-        std::memcmp(data.constData(), "RIFF", 4) != 0 ||
-        std::memcmp(data.constData() + 8, "WAVE", 4) != 0 ||
-        std::memcmp(data.constData() + 12, "fmt ", 4) != 0) {
+    if (data.size() < 44 || std::memcmp(data.constData(), "RIFF", 4) != 0 ||
+        std::memcmp(data.constData() + 8, "WAVE", 4) != 0 || std::memcmp(data.constData() + 12, "fmt ", 4) != 0) {
         *error_message = QStringLiteral("fixture is not a canonical RIFF/WAVE file: %1").arg(path);
         return false;
     }
@@ -62,8 +58,7 @@ bool ReadPcm16MonoWave(const QString &path, WaveFixture *wave, QString *error_me
     }
 
     qsizetype data_chunk_offset = 36;
-    while (data_chunk_offset + 8 <= data.size() &&
-           std::memcmp(data.constData() + data_chunk_offset, "data", 4) != 0) {
+    while (data_chunk_offset + 8 <= data.size() && std::memcmp(data.constData() + data_chunk_offset, "data", 4) != 0) {
         data_chunk_offset += 8 + static_cast<qsizetype>(ReadU32Le(data, data_chunk_offset + 4));
     }
     if (data_chunk_offset + 8 > data.size()) {
@@ -84,16 +79,13 @@ bool ReadPcm16MonoWave(const QString &path, WaveFixture *wave, QString *error_me
     for (qsizetype offset = pcm_offset; offset < pcm_offset + pcm_size; offset += 2) {
         const auto lo = static_cast<unsigned char>(data.at(offset));
         const auto hi = static_cast<unsigned char>(data.at(offset + 1));
-        const int16_t sample = static_cast<int16_t>(static_cast<uint16_t>(lo) |
-                                                   static_cast<uint16_t>(hi << 8));
+        const int16_t sample = static_cast<int16_t>(static_cast<uint16_t>(lo) | static_cast<uint16_t>(hi << 8));
         wave->samples.push_back(static_cast<float>(sample) / 32768.0F);
     }
     return true;
 }
 
-bool EnqueueSamples(StreamingRecognizerWorker *worker,
-                    const std::vector<float> &samples,
-                    int sample_rate,
+bool EnqueueSamples(StreamingRecognizerWorker *worker, const std::vector<float> &samples, int sample_rate,
                     QString *error_message) {
     constexpr std::size_t kChunkSamples = 3200;
     for (std::size_t offset = 0; offset < samples.size(); offset += kChunkSamples) {
@@ -156,9 +148,7 @@ void AsrStreamingRecognizerWorkerTest::recognizes_fixture_when_configured() {
     config.model_dir = QString::fromUtf8(SHATV_ASR_WORKER_MODEL_DIR);
     config.max_queued_chunks = 128;
     config.benchmark_logging = true;
-    config.result_callback = [&last_text,
-                              &final_text,
-                              &emitted_texts,
+    config.result_callback = [&last_text, &final_text, &emitted_texts,
                               &result_mutex](const StreamingRecognitionResult &result) {
         std::lock_guard<std::mutex> lock(result_mutex);
         last_text = result.text;

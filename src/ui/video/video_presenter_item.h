@@ -15,7 +15,8 @@ namespace shatv::ui::video {
 class VideoPresenterItem : public QQuickRhiItem, public shatv::player::VideoFrameSink {
     Q_OBJECT
     Q_PROPERTY(bool ready READ ready NOTIFY readyChanged)
-    Q_PROPERTY(VideoAspectRatioMode aspectRatioMode READ aspectRatioMode WRITE setAspectRatioMode NOTIFY aspectRatioModeChanged)
+    Q_PROPERTY(VideoAspectRatioMode aspectRatioMode READ aspectRatioMode WRITE setAspectRatioMode NOTIFY
+                   aspectRatioModeChanged)
 
    public:
     enum VideoAspectRatioMode {

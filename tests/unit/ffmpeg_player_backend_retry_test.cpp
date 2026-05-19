@@ -1,10 +1,10 @@
-#include <QtTest>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
 #include <QSignalSpy>
 #include <QTemporaryDir>
+#include <QtTest>
 
 #include "domain/media_source.h"
 #include "domain/player_snapshot.h"
@@ -122,7 +122,8 @@ void FfmpegPlayerBackendRetryTest::corrupt_local_media_surfaces_error_without_re
     backend.SetVideoOnlyMode(true);
     QSignalSpy spy(&backend, &FfmpegPlayerBackend::SnapshotChanged);
 
-    backend.Load(LocalMediaSource(corrupt_path, SourceKind::kLocalFile, RetryPolicyForSourceKind(SourceKind::kLocalFile)));
+    backend.Load(
+        LocalMediaSource(corrupt_path, SourceKind::kLocalFile, RetryPolicyForSourceKind(SourceKind::kLocalFile)));
 
     QTRY_VERIFY_WITH_TIMEOUT(HasState(spy, PlaybackState::kError), 3000);
     QVERIFY(!HasState(spy, PlaybackState::kPlaying));
@@ -195,8 +196,7 @@ void FfmpegPlayerBackendRetryTest::playlist_live_eof_reconnects_with_controllabl
     backend.SetVideoOnlyMode(true);
     QSignalSpy spy(&backend, &FfmpegPlayerBackend::SnapshotChanged);
 
-    backend.Load(LocalMediaSource(fixture_path,
-                                  SourceKind::kPlaylistChannelLive,
+    backend.Load(LocalMediaSource(fixture_path, SourceKind::kPlaylistChannelLive,
                                   RetryPolicy{
                                       .max_attempts = 2,
                                       .initial_delay_ms = 1,
@@ -219,9 +219,8 @@ void FfmpegPlayerBackendRetryTest::video_only_playback_paces_frames_by_pts() {
 
     QElapsedTimer elapsed_timer;
     elapsed_timer.start();
-    backend.Load(LocalMediaSource(fixture_path,
-                                  SourceKind::kLocalFile,
-                                  RetryPolicyForSourceKind(SourceKind::kLocalFile)));
+    backend.Load(
+        LocalMediaSource(fixture_path, SourceKind::kLocalFile, RetryPolicyForSourceKind(SourceKind::kLocalFile)));
 
     QTRY_VERIFY_WITH_TIMEOUT(HasState(spy, PlaybackState::kIdle), 4000);
     QVERIFY(HasState(spy, PlaybackState::kPlaying));

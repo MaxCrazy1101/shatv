@@ -1,8 +1,7 @@
 #pragma once
 
-#include <vector>
-
 #include <QString>
+#include <vector>
 
 struct AVFrame;
 struct SwrContext;

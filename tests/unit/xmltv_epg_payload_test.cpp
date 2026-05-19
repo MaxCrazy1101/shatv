@@ -1,8 +1,8 @@
-#include <QtTest>
+#include "app/xmltv_epg_payload.h"
 
 #include <zlib.h>
 
-#include "app/xmltv_epg_payload.h"
+#include <QtTest>
 
 namespace {
 

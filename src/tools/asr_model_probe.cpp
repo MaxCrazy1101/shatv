@@ -29,20 +29,19 @@ struct WaveFixture {
 };
 
 void PrintUsage(const char *program_name) {
-    std::cerr
-        << "Usage: " << program_name << " --model-dir <dir> --audio-file <wav> [options]\n"
-        << "\n"
-        << "Required files default to a streaming Paraformer int8 model layout:\n"
-        << "  <dir>/encoder.int8.onnx\n"
-        << "  <dir>/decoder.int8.onnx\n"
-        << "  <dir>/tokens.txt\n"
-        << "\n"
-        << "Options:\n"
-        << "  --encoder-name <file>  Override encoder file name\n"
-        << "  --decoder-name <file>  Override decoder file name\n"
-        << "  --tokens-name <file>   Override tokens file name\n"
-        << "  --provider <name>      ONNX Runtime provider, default cpu\n"
-        << "  --num-threads <n>      Inference thread count, default 1\n";
+    std::cerr << "Usage: " << program_name << " --model-dir <dir> --audio-file <wav> [options]\n"
+              << "\n"
+              << "Required files default to a streaming Paraformer int8 model layout:\n"
+              << "  <dir>/encoder.int8.onnx\n"
+              << "  <dir>/decoder.int8.onnx\n"
+              << "  <dir>/tokens.txt\n"
+              << "\n"
+              << "Options:\n"
+              << "  --encoder-name <file>  Override encoder file name\n"
+              << "  --decoder-name <file>  Override decoder file name\n"
+              << "  --tokens-name <file>   Override tokens file name\n"
+              << "  --provider <name>      ONNX Runtime provider, default cpu\n"
+              << "  --num-threads <n>      Inference thread count, default 1\n";
 }
 
 bool ReadValue(int argc, char **argv, int *index, std::string *value, std::string *error_message) {
@@ -101,8 +100,7 @@ bool ParseOptions(int argc, char **argv, ProbeOptions *options, std::string *err
             }
             char *end = nullptr;
             const long parsed_value = std::strtol(value.c_str(), &end, 10);
-            if (end == value.c_str() || *end != '\0' ||
-                parsed_value > std::numeric_limits<int32_t>::max() ||
+            if (end == value.c_str() || *end != '\0' || parsed_value > std::numeric_limits<int32_t>::max() ||
                 parsed_value < std::numeric_limits<int32_t>::min()) {
                 *error_message = "--num-threads must be an integer";
                 return false;
@@ -176,8 +174,7 @@ bool ReadPcm16Wave(const std::filesystem::path &path, WaveFixture *wave, std::st
     std::array<char, 4> wave_id{};
     if (!ReadExact(&stream, riff_id.data(), riff_id.size()) ||
         !ReadExact(&stream, riff_size.data(), riff_size.size()) ||
-        !ReadExact(&stream, wave_id.data(), wave_id.size()) ||
-        std::string(riff_id.data(), riff_id.size()) != "RIFF" ||
+        !ReadExact(&stream, wave_id.data(), wave_id.size()) || std::string(riff_id.data(), riff_id.size()) != "RIFF" ||
         std::string(wave_id.data(), wave_id.size()) != "WAVE") {
         *error_message = "fixture is not a RIFF/WAVE file: " + path.string();
         return false;
@@ -286,13 +283,10 @@ bool ReadPcm16Wave(const std::filesystem::path &path, WaveFixture *wave, std::st
             const std::size_t sample_offset = offset + static_cast<std::size_t>(channel) * sizeof(int16_t);
             const auto lo = static_cast<unsigned char>(pcm_bytes[sample_offset]);
             const auto hi = static_cast<unsigned char>(pcm_bytes[sample_offset + 1]);
-            const int16_t sample = static_cast<int16_t>(static_cast<uint16_t>(lo) |
-                                                        static_cast<uint16_t>(hi << 8));
+            const int16_t sample = static_cast<int16_t>(static_cast<uint16_t>(lo) | static_cast<uint16_t>(hi << 8));
             mixed_sample += sample;
         }
-        const float mono_sample = static_cast<float>(mixed_sample) /
-                                  static_cast<float>(channel_count) /
-                                  32768.0F;
+        const float mono_sample = static_cast<float>(mixed_sample) / static_cast<float>(channel_count) / 32768.0F;
         wave->samples.push_back(mono_sample);
     }
 
@@ -324,10 +318,8 @@ int main(int argc, char **argv) {
     const std::string tokens_path_text = tokens_path.string();
 
     // 先验证模型和音频夹具存在，避免 sherpa-onnx 初始化阶段给出含混的底层错误。
-    if (!RequireRegularFile(encoder_path, &error_message) ||
-        !RequireRegularFile(decoder_path, &error_message) ||
-        !RequireRegularFile(tokens_path, &error_message) ||
-        !RequireRegularFile(options.audio_file, &error_message)) {
+    if (!RequireRegularFile(encoder_path, &error_message) || !RequireRegularFile(decoder_path, &error_message) ||
+        !RequireRegularFile(tokens_path, &error_message) || !RequireRegularFile(options.audio_file, &error_message)) {
         std::cerr << "ShaTV ASR probe error: " << error_message << '\n';
         return EXIT_FAILURE;
     }
@@ -362,33 +354,23 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
-    using OnlineRecognizerPtr = std::unique_ptr<
-        const SherpaOnnxOnlineRecognizer,
-        decltype(&SherpaOnnxDestroyOnlineRecognizer)>;
-    OnlineRecognizerPtr recognizer(
-        SherpaOnnxCreateOnlineRecognizer(&config),
-        SherpaOnnxDestroyOnlineRecognizer);
+    using OnlineRecognizerPtr =
+        std::unique_ptr<const SherpaOnnxOnlineRecognizer, decltype(&SherpaOnnxDestroyOnlineRecognizer)>;
+    OnlineRecognizerPtr recognizer(SherpaOnnxCreateOnlineRecognizer(&config), SherpaOnnxDestroyOnlineRecognizer);
     if (!recognizer) {
         std::cerr << "ShaTV ASR probe error: failed to create sherpa-onnx online recognizer\n";
         return EXIT_FAILURE;
     }
 
-    using OnlineStreamPtr = std::unique_ptr<
-        const SherpaOnnxOnlineStream,
-        decltype(&SherpaOnnxDestroyOnlineStream)>;
-    OnlineStreamPtr stream(
-        SherpaOnnxCreateOnlineStream(recognizer.get()),
-        SherpaOnnxDestroyOnlineStream);
+    using OnlineStreamPtr = std::unique_ptr<const SherpaOnnxOnlineStream, decltype(&SherpaOnnxDestroyOnlineStream)>;
+    OnlineStreamPtr stream(SherpaOnnxCreateOnlineStream(recognizer.get()), SherpaOnnxDestroyOnlineStream);
     if (!stream) {
         std::cerr << "ShaTV ASR probe error: failed to create sherpa-onnx online stream\n";
         return EXIT_FAILURE;
     }
 
-    SherpaOnnxOnlineStreamAcceptWaveform(
-        stream.get(),
-        wave.sample_rate,
-        wave.samples.data(),
-        static_cast<int32_t>(wave.samples.size()));
+    SherpaOnnxOnlineStreamAcceptWaveform(stream.get(), wave.sample_rate, wave.samples.data(),
+                                         static_cast<int32_t>(wave.samples.size()));
     SherpaOnnxOnlineStreamSetOption(stream.get(), "is_final", "1");
     SherpaOnnxOnlineStreamInputFinished(stream.get());
 
@@ -396,15 +378,13 @@ int main(int argc, char **argv) {
         SherpaOnnxDecodeOnlineStream(recognizer.get(), stream.get());
     }
 
-    using OnlineResultPtr = std::unique_ptr<
-        const SherpaOnnxOnlineRecognizerResult,
-        decltype(&SherpaOnnxDestroyOnlineRecognizerResult)>;
-    OnlineResultPtr result(
-        SherpaOnnxGetOnlineStreamResult(recognizer.get(), stream.get()),
-        SherpaOnnxDestroyOnlineRecognizerResult);
+    using OnlineResultPtr =
+        std::unique_ptr<const SherpaOnnxOnlineRecognizerResult, decltype(&SherpaOnnxDestroyOnlineRecognizerResult)>;
+    OnlineResultPtr result(SherpaOnnxGetOnlineStreamResult(recognizer.get(), stream.get()),
+                           SherpaOnnxDestroyOnlineRecognizerResult);
     if (!result || result->text == nullptr || result->text[0] == '\0') {
-        std::cerr << "ShaTV ASR probe error: recognizer returned empty text for fixture: "
-                  << options.audio_file << '\n';
+        std::cerr << "ShaTV ASR probe error: recognizer returned empty text for fixture: " << options.audio_file
+                  << '\n';
         return EXIT_FAILURE;
     }
 

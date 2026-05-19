@@ -36,11 +36,8 @@ QVariant ChannelListModel::data(const QModelIndex &index, int role) const {
 
 QHash<int, QByteArray> ChannelListModel::roleNames() const {
     return {
-        {kIdRole, "channelId"},
-        {kNameRole, "channelName"},
-        {kGroupRole, "channelGroup"},
-        {kUrlRole, "channelUrl"},
-        {kCurrentRole, "isCurrent"},
+        {kIdRole, "channelId"},   {kNameRole, "channelName"},  {kGroupRole, "channelGroup"},
+        {kUrlRole, "channelUrl"}, {kCurrentRole, "isCurrent"},
     };
 }
 

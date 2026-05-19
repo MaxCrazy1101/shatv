@@ -1,11 +1,10 @@
 #pragma once
 
-#include <optional>
-#include <vector>
-
 #include <QDateTime>
 #include <QHash>
 #include <QString>
+#include <optional>
+#include <vector>
 
 #include "app/xmltv_epg_parser.h"
 #include "domain/channel.h"

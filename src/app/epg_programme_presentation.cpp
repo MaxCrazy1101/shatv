@@ -30,9 +30,8 @@ bool EpgProgrammePresentation::HasProgrammeInfo() const {
     return current.HasContent() || next.HasContent();
 }
 
-ProgrammePresentation BuildProgrammePresentation(const std::optional<XmltvProgramme> &programme,
-                                                  const QDateTime &now,
-                                                  bool include_progress) {
+ProgrammePresentation BuildProgrammePresentation(const std::optional<XmltvProgramme> &programme, const QDateTime &now,
+                                                 bool include_progress) {
     ProgrammePresentation presentation;
     if (!programme.has_value()) {
         return presentation;

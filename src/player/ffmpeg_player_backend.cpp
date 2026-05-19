@@ -1,16 +1,15 @@
 #include "player/ffmpeg_player_backend.h"
 
-#include <algorithm>
-#include <atomic>
-#include <memory>
-#include <utility>
-#include <vector>
-
 #include <QElapsedTimer>
 #include <QMetaObject>
 #include <QMutexLocker>
 #include <QThread>
 #include <QtGlobal>
+#include <algorithm>
+#include <atomic>
+#include <memory>
+#include <utility>
+#include <vector>
 
 #include "app/asr_model_service.h"
 #include "app/logging.h"
@@ -132,20 +131,20 @@ bool EnvironmentBool(const char *name, bool default_value, bool *value, QString 
     }
 
     const QString text = qEnvironmentVariable(name).trimmed().toLower();
-    if (text == QStringLiteral("1") || text == QStringLiteral("true") ||
-        text == QStringLiteral("yes") || text == QStringLiteral("on")) {
+    if (text == QStringLiteral("1") || text == QStringLiteral("true") || text == QStringLiteral("yes") ||
+        text == QStringLiteral("on")) {
         *value = true;
         return true;
     }
-    if (text == QStringLiteral("0") || text == QStringLiteral("false") ||
-        text == QStringLiteral("no") || text == QStringLiteral("off")) {
+    if (text == QStringLiteral("0") || text == QStringLiteral("false") || text == QStringLiteral("no") ||
+        text == QStringLiteral("off")) {
         *value = false;
         return true;
     }
 
     if (error_message != nullptr) {
-        *error_message = QStringLiteral("%1 must be one of 1/0/true/false/on/off/yes/no")
-                             .arg(QString::fromLatin1(name));
+        *error_message =
+            QStringLiteral("%1 must be one of 1/0/true/false/on/off/yes/no").arg(QString::fromLatin1(name));
     }
     return false;
 }
@@ -160,8 +159,7 @@ domain::RetryPolicy BackendRetryPolicy(const domain::MediaSourceDescriptor &sour
 
 class VideoOnlyPresentationClock final {
    public:
-    bool WaitUntilDue(const media::video::VideoFrame &frame,
-                      const std::atomic_bool &abort_requested,
+    bool WaitUntilDue(const media::video::VideoFrame &frame, const std::atomic_bool &abort_requested,
                       QString *error_message) {
         if (frame.pts_usecs < 0) {
             if (error_message != nullptr) {
@@ -214,11 +212,9 @@ FfmpegPlayerBackend::~FfmpegPlayerBackend() {
 }
 
 void FfmpegPlayerBackend::Load(const domain::MediaSourceDescriptor &source) {
-    qCInfo(app::log_ffmpeg).noquote()
-        << "FFmpeg load requested"
-        << "name=" << source.name
-        << "kind=" << SourceKindName(source.source_kind)
-        << "url=" << app::RedactUrlForLog(source.url);
+    qCInfo(app::log_ffmpeg).noquote() << "FFmpeg load requested"
+                                      << "name=" << source.name << "kind=" << SourceKindName(source.source_kind)
+                                      << "url=" << app::RedactUrlForLog(source.url);
     StopWorker();
     audio_output_.Stop();
     ClearSpeechSubtitle();
@@ -330,10 +326,8 @@ void PresentFrameToSink(std::atomic<VideoFrameSink *> *sink, const media::video:
     }
 }
 
-bool PresentVideoOnlyFrame(std::atomic<VideoFrameSink *> *sink,
-                           const media::video::VideoFrame &frame,
-                           VideoOnlyPresentationClock *presentation_clock,
-                           const std::atomic_bool &abort_requested,
+bool PresentVideoOnlyFrame(std::atomic<VideoFrameSink *> *sink, const media::video::VideoFrame &frame,
+                           VideoOnlyPresentationClock *presentation_clock, const std::atomic_bool &abort_requested,
                            QString *error_message) {
     if (!presentation_clock->WaitUntilDue(frame, abort_requested, error_message)) {
         return false;
@@ -370,9 +364,8 @@ bool FfmpegPlayerBackend::TapAsrAudioFrame(const AVFrame &frame, QString *error_
 
     QString enqueue_error;
     if (!asr_worker_->Enqueue(std::move(chunk), &enqueue_error)) {
-        qCWarning(app::log_ffmpeg).noquote()
-            << "ASR audio tap stopped"
-            << "reason=" << enqueue_error;
+        qCWarning(app::log_ffmpeg).noquote() << "ASR audio tap stopped"
+                                             << "reason=" << enqueue_error;
         worker_to_stop = StopAsrSessionLocked(AsrRuntimeState::kFailed);
         locker.unlock();
         if (worker_to_stop) {
@@ -407,10 +400,8 @@ void FfmpegPlayerBackend::RequestAsrStartup(const domain::MediaSourceDescriptor 
         } else if (!BuildAsrConfig(source, generation, &config, &config_error)) {
             asr_runtime_state_ = AsrRuntimeState::kFailed;
             should_stop_worker = true;
-            qCWarning(app::log_ffmpeg).noquote()
-                << "ASR async startup failed before launch"
-                << "name=" << source.name
-                << "reason=" << config_error;
+            qCWarning(app::log_ffmpeg).noquote() << "ASR async startup failed before launch"
+                                                 << "name=" << source.name << "reason=" << config_error;
         }
 
         if (should_stop_worker) {
@@ -428,12 +419,9 @@ void FfmpegPlayerBackend::RequestAsrStartup(const domain::MediaSourceDescriptor 
             .thread = std::thread([this, done, generation, source_name = source.name, config]() mutable {
                 QElapsedTimer elapsed_timer;
                 elapsed_timer.start();
-                qCInfo(app::log_ffmpeg).noquote()
-                    << "ASR async startup recognizer creation started"
-                    << "name=" << source_name
-                    << "generation=" << generation
-                    << "modelDir=" << config.model_dir
-                    << "provider=" << config.provider;
+                qCInfo(app::log_ffmpeg).noquote() << "ASR async startup recognizer creation started"
+                                                  << "name=" << source_name << "generation=" << generation
+                                                  << "modelDir=" << config.model_dir << "provider=" << config.provider;
 
                 auto worker = std::make_shared<media::asr::StreamingRecognizerWorker>();
                 QString startup_error;
@@ -441,14 +429,8 @@ void FfmpegPlayerBackend::RequestAsrStartup(const domain::MediaSourceDescriptor 
                     worker.reset();
                 }
 
-                CompleteAsrStartup(generation,
-                                    source_name,
-                                    config.model_dir,
-                                    config.provider,
-                                    config.max_queued_chunks,
-                                    elapsed_timer.elapsed(),
-                                    std::move(worker),
-                                    startup_error);
+                CompleteAsrStartup(generation, source_name, config.model_dir, config.provider, config.max_queued_chunks,
+                                   elapsed_timer.elapsed(), std::move(worker), startup_error);
                 done->store(true);
             }),
             .done = done,
@@ -457,16 +439,12 @@ void FfmpegPlayerBackend::RequestAsrStartup(const domain::MediaSourceDescriptor 
     if (worker_to_stop) {
         worker_to_stop->Stop();
     }
-    qCInfo(app::log_ffmpeg).noquote()
-        << "ASR async startup requested"
-        << "name=" << source.name
-        << "generation=" << generation;
+    qCInfo(app::log_ffmpeg).noquote() << "ASR async startup requested"
+                                      << "name=" << source.name << "generation=" << generation;
 }
 
-bool FfmpegPlayerBackend::BuildAsrConfig(const domain::MediaSourceDescriptor &source,
-                                         quint64 generation,
-                                         media::asr::StreamingRecognizerConfig *config,
-                                         QString *error_message) {
+bool FfmpegPlayerBackend::BuildAsrConfig(const domain::MediaSourceDescriptor &source, quint64 generation,
+                                         media::asr::StreamingRecognizerConfig *config, QString *error_message) {
     if (config == nullptr) {
         if (error_message != nullptr) {
             *error_message = QStringLiteral("missing ASR config output");
@@ -477,15 +455,13 @@ bool FfmpegPlayerBackend::BuildAsrConfig(const domain::MediaSourceDescriptor &so
     const app::AsrModelStatus model_status = model_service.InstalledModelStatus();
     if (!model_status.Available()) {
         if (error_message != nullptr) {
-            *error_message = model_status.message.isEmpty()
-                                 ? QStringLiteral("ASR model is not available")
-                                 : model_status.message;
+            *error_message =
+                model_status.message.isEmpty() ? QStringLiteral("ASR model is not available") : model_status.message;
         }
         qCInfo(app::log_ffmpeg).noquote()
             << "ASR async startup skipped"
             << "name=" << source.name
-            << "reason=" << (error_message == nullptr ? QStringLiteral("ASR model is not available")
-                                                       : *error_message);
+            << "reason=" << (error_message == nullptr ? QStringLiteral("ASR model is not available") : *error_message);
         return false;
     }
 
@@ -522,59 +498,43 @@ bool FfmpegPlayerBackend::BuildAsrConfig(const domain::MediaSourceDescriptor &so
     if (!EnvironmentBool("SHATV_ASR_BENCHMARK_LOG", false, &config->benchmark_logging, error_message)) {
         return false;
     }
-    config->result_callback = [this, generation, source_name = source.name](
-                                  const media::asr::StreamingRecognitionResult &result) {
+    config->result_callback = [this, generation,
+                               source_name = source.name](const media::asr::StreamingRecognitionResult &result) {
         HandleAsrRecognitionResult(generation, source_name, result);
     };
-    qCInfo(app::log_ffmpeg).noquote()
-        << "ASR config resolved"
-        << "name=" << source.name
-        << "modelSource=" << AsrModelSourceName(model_status.source)
-        << "modelDir=" << config->model_dir;
+    qCInfo(app::log_ffmpeg).noquote() << "ASR config resolved"
+                                      << "name=" << source.name
+                                      << "modelSource=" << AsrModelSourceName(model_status.source)
+                                      << "modelDir=" << config->model_dir;
     return true;
 }
 
-void FfmpegPlayerBackend::CompleteAsrStartup(quint64 generation,
-                                             const QString &source_name,
-                                             const QString &model_dir,
-                                             const QString &provider,
-                                             int max_queued_chunks,
-                                             qint64 elapsed_ms,
+void FfmpegPlayerBackend::CompleteAsrStartup(quint64 generation, const QString &source_name, const QString &model_dir,
+                                             const QString &provider, int max_queued_chunks, qint64 elapsed_ms,
                                              std::shared_ptr<media::asr::StreamingRecognizerWorker> worker,
                                              const QString &error_message) {
     std::shared_ptr<media::asr::StreamingRecognizerWorker> worker_to_stop;
     {
         QMutexLocker locker(&asr_mutex_);
-        if (generation != asr_generation_ ||
-            !speech_subtitle_enabled_.load() ||
+        if (generation != asr_generation_ || !speech_subtitle_enabled_.load() ||
             asr_runtime_state_ != AsrRuntimeState::kStarting) {
             worker_to_stop = std::move(worker);
-            qCInfo(app::log_ffmpeg).noquote()
-                << "ASR async startup discarded"
-                << "name=" << source_name
-                << "generation=" << generation
-                << "currentGeneration=" << asr_generation_
-                << "elapsedMs=" << elapsed_ms;
+            qCInfo(app::log_ffmpeg).noquote() << "ASR async startup discarded"
+                                              << "name=" << source_name << "generation=" << generation
+                                              << "currentGeneration=" << asr_generation_ << "elapsedMs=" << elapsed_ms;
         } else if (!worker) {
             asr_runtime_state_ = AsrRuntimeState::kFailed;
-            qCWarning(app::log_ffmpeg).noquote()
-                << "ASR async startup failed"
-                << "name=" << source_name
-                << "generation=" << generation
-                << "elapsedMs=" << elapsed_ms
-                << "reason=" << error_message;
+            qCWarning(app::log_ffmpeg).noquote() << "ASR async startup failed"
+                                                 << "name=" << source_name << "generation=" << generation
+                                                 << "elapsedMs=" << elapsed_ms << "reason=" << error_message;
         } else {
             asr_worker_ = std::move(worker);
             asr_pcm_converter_.Reset();
             asr_runtime_state_ = AsrRuntimeState::kActive;
             qCInfo(app::log_ffmpeg).noquote()
                 << "ASR async startup completed"
-                << "name=" << source_name
-                << "generation=" << generation
-                << "elapsedMs=" << elapsed_ms
-                << "modelDir=" << model_dir
-                << "provider=" << provider
-                << "maxQueuedChunks=" << max_queued_chunks;
+                << "name=" << source_name << "generation=" << generation << "elapsedMs=" << elapsed_ms
+                << "modelDir=" << model_dir << "provider=" << provider << "maxQueuedChunks=" << max_queued_chunks;
         }
     }
     if (worker_to_stop) {
@@ -582,25 +542,19 @@ void FfmpegPlayerBackend::CompleteAsrStartup(quint64 generation,
     }
 }
 
-void FfmpegPlayerBackend::HandleAsrRecognitionResult(
-    quint64 generation,
-    const QString &source_name,
-    const media::asr::StreamingRecognitionResult &result) {
+void FfmpegPlayerBackend::HandleAsrRecognitionResult(quint64 generation, const QString &source_name,
+                                                     const media::asr::StreamingRecognitionResult &result) {
     {
         QMutexLocker locker(&asr_mutex_);
-        if (generation != asr_generation_ ||
-            !speech_subtitle_enabled_.load() ||
+        if (generation != asr_generation_ || !speech_subtitle_enabled_.load() ||
             asr_runtime_state_ != AsrRuntimeState::kActive) {
             return;
         }
     }
 
-    qCInfo(app::log_ffmpeg).noquote()
-        << "ASR recognition result"
-        << "name=" << source_name
-        << "final=" << result.is_final
-        << "latencyMs=" << result.latency_ms
-        << "text=" << result.text;
+    qCInfo(app::log_ffmpeg).noquote() << "ASR recognition result"
+                                      << "name=" << source_name << "final=" << result.is_final
+                                      << "latencyMs=" << result.latency_ms << "text=" << result.text;
     EmitSpeechSubtitleResult(result.text, result.is_final, result.latency_ms);
 }
 
@@ -686,12 +640,9 @@ void FfmpegPlayerBackend::JoinAllAsrStartupThreads() {
 void FfmpegPlayerBackend::RunPlaybackSession(domain::MediaSourceDescriptor source) {
     int attempt = 1;
     while (!abort_requested_) {
-        qCInfo(app::log_ffmpeg).noquote()
-            << "FFmpeg playback attempt started"
-            << "name=" << source.name
-            << "kind=" << SourceKindName(source.source_kind)
-            << "attempt=" << attempt
-            << "url=" << app::RedactUrlForLog(source.url);
+        qCInfo(app::log_ffmpeg).noquote() << "FFmpeg playback attempt started"
+                                          << "name=" << source.name << "kind=" << SourceKindName(source.source_kind)
+                                          << "attempt=" << attempt << "url=" << app::RedactUrlForLog(source.url);
         video_frame_queue_.Clear();
         const PlaybackPipelineResult result =
             video_only_mode_.load() ? RunVideoPipeline(source) : RunMediaPipeline(source);
@@ -706,23 +657,18 @@ void FfmpegPlayerBackend::RunPlaybackSession(domain::MediaSourceDescriptor sourc
             if (ReconnectOnEndOfStream(source.source_kind)) {
                 const RetryDecision retry_decision = RetryDecisionForFailure(BackendRetryPolicy(source), attempt);
                 if (!retry_decision.should_retry) {
-                    qCWarning(app::log_ffmpeg).noquote()
-                        << "FFmpeg live stream ended without retry"
-                        << "name=" << source.name
-                        << "attempt=" << attempt;
-                    EmitSnapshotForSource(source,
-                                          domain::PlaybackState::kError,
+                    qCWarning(app::log_ffmpeg).noquote() << "FFmpeg live stream ended without retry"
+                                                         << "name=" << source.name << "attempt=" << attempt;
+                    EmitSnapshotForSource(source, domain::PlaybackState::kError,
                                           tr("FFmpeg live stream ended after %1 attempts").arg(attempt));
                     return;
                 }
 
                 qCInfo(app::log_ffmpeg).noquote()
                     << "FFmpeg live stream reconnect scheduled"
-                    << "name=" << source.name
-                    << "nextAttempt=" << retry_decision.next_attempt
+                    << "name=" << source.name << "nextAttempt=" << retry_decision.next_attempt
                     << "delayMs=" << retry_decision.delay_ms;
-                EmitSnapshotForSource(source,
-                                      domain::PlaybackState::kRetrying,
+                EmitSnapshotForSource(source, domain::PlaybackState::kRetrying,
                                       tr("Reconnecting %1 with FFmpeg (attempt %2/%3)")
                                           .arg(source.name)
                                           .arg(retry_decision.next_attempt)
@@ -742,21 +688,16 @@ void FfmpegPlayerBackend::RunPlaybackSession(domain::MediaSourceDescriptor sourc
         if (!retry_decision.should_retry) {
             qCWarning(app::log_ffmpeg).noquote()
                 << "FFmpeg playback failed"
-                << "name=" << source.name
-                << "attempt=" << attempt
-                << "reason=" << result.error_message;
+                << "name=" << source.name << "attempt=" << attempt << "reason=" << result.error_message;
             EmitSnapshotForSource(source, domain::PlaybackState::kError, result.error_message);
             return;
         }
 
         qCWarning(app::log_ffmpeg).noquote()
             << "FFmpeg playback retry scheduled"
-            << "name=" << source.name
-            << "nextAttempt=" << retry_decision.next_attempt
-            << "delayMs=" << retry_decision.delay_ms
-            << "reason=" << result.error_message;
-        EmitSnapshotForSource(source,
-                              domain::PlaybackState::kRetrying,
+            << "name=" << source.name << "nextAttempt=" << retry_decision.next_attempt
+            << "delayMs=" << retry_decision.delay_ms << "reason=" << result.error_message;
+        EmitSnapshotForSource(source, domain::PlaybackState::kRetrying,
                               tr("Retrying %1 with FFmpeg (attempt %2/%3)")
                                   .arg(source.name)
                                   .arg(retry_decision.next_attempt)
@@ -1035,8 +976,8 @@ PlaybackPipelineResult FfmpegPlayerBackend::RunVideoPipeline(domain::MediaSource
             video_frame_queue_.Push(std::move(frame));
             media::video::VideoFrame queued_frame;
             while (video_frame_queue_.TryPop(&queued_frame)) {
-                if (!PresentVideoOnlyFrame(
-                        &video_sink_, queued_frame, &presentation_clock, abort_requested_, &error_message)) {
+                if (!PresentVideoOnlyFrame(&video_sink_, queued_frame, &presentation_clock, abort_requested_,
+                                           &error_message)) {
                     return PipelineFailed(tr("FFmpeg video pacing failed: %1").arg(error_message));
                 }
                 if (abort_requested_) {
@@ -1072,10 +1013,8 @@ PlaybackPipelineResult FfmpegPlayerBackend::RunVideoPipeline(domain::MediaSource
     return abort_requested_ ? PipelineAborted() : PipelineFinished();
 }
 
-void FfmpegPlayerBackend::DrainVideoFrames(const domain::MediaSourceDescriptor &source,
-                                           bool *emitted_playing,
-                                           bool wait_for_due_frame,
-                                           qint64 *first_video_pts_usecs) {
+void FfmpegPlayerBackend::DrainVideoFrames(const domain::MediaSourceDescriptor &source, bool *emitted_playing,
+                                           bool wait_for_due_frame, qint64 *first_video_pts_usecs) {
     while (!abort_requested_) {
         media::video::VideoFrame frame;
         if (!video_frame_queue_.TryPeek(&frame)) {
@@ -1095,8 +1034,8 @@ void FfmpegPlayerBackend::DrainVideoFrames(const domain::MediaSourceDescriptor &
                 *first_video_pts_usecs = frame.pts_usecs;
             }
             const qint64 audio_clock_usecs = audio_output_.ProcessedUsecs();
-            const qint64 video_clock_usecs =
-                first_video_pts_usecs != nullptr ? std::max<qint64>(0, frame.pts_usecs - *first_video_pts_usecs)
+            const qint64 video_clock_usecs = first_video_pts_usecs != nullptr
+                                                 ? std::max<qint64>(0, frame.pts_usecs - *first_video_pts_usecs)
                                                  : frame.pts_usecs;
             const qint64 delta_usecs = video_clock_usecs - audio_clock_usecs;
             if (delta_usecs < -kVideoLateDropUsecs) {
@@ -1159,9 +1098,7 @@ void FfmpegPlayerBackend::EmitSnapshot(domain::PlaybackState state, const QStrin
 }
 
 void FfmpegPlayerBackend::EmitSnapshotForSource(const domain::MediaSourceDescriptor &source,
-                                                domain::PlaybackState state,
-                                                const QString &message,
-                                                int retry_count) {
+                                                domain::PlaybackState state, const QString &message, int retry_count) {
     domain::PlayerSnapshot snapshot;
     snapshot.state = state;
     snapshot.channel_id = source.id;

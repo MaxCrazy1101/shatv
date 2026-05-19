@@ -62,8 +62,7 @@ std::optional<QByteArray> InflateGzipPayload(const QByteArray &payload, QString 
 
 }  // namespace
 
-std::optional<QString> DecodeXmltvPayload(const QByteArray &payload,
-                                          const QString &source_name,
+std::optional<QString> DecodeXmltvPayload(const QByteArray &payload, const QString &source_name,
                                           QString *error_message) {
     if (error_message != nullptr) {
         error_message->clear();

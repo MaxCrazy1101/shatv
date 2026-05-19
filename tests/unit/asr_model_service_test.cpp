@@ -1,4 +1,4 @@
-#include <QtTest>
+#include "app/asr_model_service.h"
 
 #include <QByteArray>
 #include <QCryptographicHash>
@@ -12,15 +12,14 @@
 #include <QTemporaryDir>
 #include <QTimer>
 #include <QUrl>
-
-#include "app/asr_model_service.h"
+#include <QtTest>
 
 namespace {
 
+using shatv::app::AsrModelArchiveDownloader;
+using shatv::app::AsrModelArchiveDownloadResult;
 using shatv::app::AsrModelInstallSource;
 using shatv::app::AsrModelInstallStatus;
-using shatv::app::AsrModelArchiveDownloadResult;
-using shatv::app::AsrModelArchiveDownloader;
 using shatv::app::AsrModelManifest;
 using shatv::app::AsrModelService;
 
@@ -148,8 +147,7 @@ class HangingNetworkAccessManager final : public QNetworkAccessManager {
         : QNetworkAccessManager(parent), payload_(std::move(payload)) {}
 
    protected:
-    QNetworkReply *createRequest(Operation operation,
-                                 const QNetworkRequest &request,
+    QNetworkReply *createRequest(Operation operation, const QNetworkRequest &request,
                                  QIODevice *outgoing_data = nullptr) override {
         Q_UNUSED(operation);
         Q_UNUSED(outgoing_data);

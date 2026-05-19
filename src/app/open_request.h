@@ -1,11 +1,10 @@
 #pragma once
 
+#include <QString>
 #include <cstdint>
 #include <optional>
 #include <variant>
 #include <vector>
-
-#include <QString>
 
 #include "domain/media_source.h"
 

@@ -1,9 +1,8 @@
 #pragma once
 
-#include <atomic>
-
-#include <QtGlobal>
 #include <QString>
+#include <QtGlobal>
+#include <atomic>
 
 #include "domain/media_source.h"
 
@@ -33,9 +32,7 @@ class Demuxer final {
     Demuxer &operator=(const Demuxer &) = delete;
 
     bool Open(const domain::MediaSourceDescriptor &source, QString *error_message);
-    bool Open(const domain::MediaSourceDescriptor &source,
-              DemuxerOpenOptions options,
-              QString *error_message);
+    bool Open(const domain::MediaSourceDescriptor &source, DemuxerOpenOptions options, QString *error_message);
     void Close();
 
     ReadPacketResult ReadNextAudioPacket(AVPacket *packet, QString *error_message);
@@ -74,8 +71,7 @@ class Demuxer final {
 
     static int InterruptCallback(void *opaque);
 
-    bool ConfigureRemoteTimeouts(const domain::MediaSourceDescriptor &source,
-                                 RemoteTimeoutConfig *config,
+    bool ConfigureRemoteTimeouts(const domain::MediaSourceDescriptor &source, RemoteTimeoutConfig *config,
                                  QString *error_message) const;
     void BeginInterruptibleOperation(InterruptOperation operation, int timeout_ms);
     void EndInterruptibleOperation();

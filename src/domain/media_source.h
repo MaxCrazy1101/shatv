@@ -1,10 +1,9 @@
 #pragma once
 
-#include <cstdint>
-
 #include <QMetaType>
 #include <QString>
 #include <QUrl>
+#include <cstdint>
 
 #include "domain/channel.h"
 

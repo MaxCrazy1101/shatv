@@ -1,8 +1,8 @@
 #pragma once
 
+#include <QMetaType>
 #include <QString>
 #include <QUrl>
-#include <QMetaType>
 
 namespace shatv::domain {
 

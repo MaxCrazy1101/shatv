@@ -1,9 +1,8 @@
-#include <cstddef>
-
-#include <QtTest>
 #include <QFile>
 #include <QTemporaryDir>
 #include <QTextStream>
+#include <QtTest>
+#include <cstddef>
 
 #include "app/app_settings.h"
 #include "app/open_request.h"

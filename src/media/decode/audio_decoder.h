@@ -1,9 +1,8 @@
 #pragma once
 
+#include <QString>
 #include <memory>
 #include <vector>
-
-#include <QString>
 
 struct AVCodecContext;
 struct AVCodecParameters;

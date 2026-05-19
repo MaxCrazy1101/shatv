@@ -1,9 +1,8 @@
 #pragma once
 
-#include <optional>
-
 #include <QDateTime>
 #include <QString>
+#include <optional>
 
 #include "app/epg_service.h"
 #include "app/xmltv_epg_parser.h"
@@ -26,9 +25,8 @@ struct EpgProgrammePresentation {
     bool HasProgrammeInfo() const;
 };
 
-ProgrammePresentation BuildProgrammePresentation(const std::optional<XmltvProgramme> &programme,
-                                                  const QDateTime &now,
-                                                  bool include_progress);
+ProgrammePresentation BuildProgrammePresentation(const std::optional<XmltvProgramme> &programme, const QDateTime &now,
+                                                 bool include_progress);
 EpgProgrammePresentation BuildEpgProgrammePresentation(const ChannelEpgNowNext &now_next, const QDateTime &now);
 
 }  // namespace shatv::app

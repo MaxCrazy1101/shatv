@@ -1,9 +1,8 @@
 #pragma once
 
+#include <QMutex>
 #include <cstddef>
 #include <deque>
-
-#include <QMutex>
 
 #include "media/video/video_frame.h"
 

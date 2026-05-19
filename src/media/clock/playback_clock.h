@@ -1,8 +1,7 @@
 #pragma once
 
-#include <atomic>
-
 #include <QtGlobal>
+#include <atomic>
 
 namespace shatv::media::clock {
 

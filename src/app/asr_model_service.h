@@ -1,12 +1,11 @@
 #pragma once
 
-#include <optional>
-
 #include <QCryptographicHash>
 #include <QFile>
 #include <QObject>
 #include <QString>
 #include <QStringList>
+#include <optional>
 
 class QNetworkAccessManager;
 class QNetworkReply;
@@ -66,14 +65,12 @@ bool IsSafeAsrModelId(const QString &id);
 
 class AsrModelService final {
    public:
-    explicit AsrModelService(QString model_root = DefaultModelRoot(),
-                             AsrModelManifest manifest = DefaultManifest());
+    explicit AsrModelService(QString model_root = DefaultModelRoot(), AsrModelManifest manifest = DefaultManifest());
 
     static QString DefaultModelRoot();
     static QString DefaultArchiveCacheRoot();
     static AsrModelManifest DefaultManifest();
-    static std::optional<AsrModelManifest> ManifestFromJson(const QByteArray &json,
-                                                            QString *error_message = nullptr);
+    static std::optional<AsrModelManifest> ManifestFromJson(const QByteArray &json, QString *error_message = nullptr);
 
     const AsrModelManifest &SelectedManifest() const;
     AsrModelFileSet EffectiveFiles() const;
@@ -81,8 +78,7 @@ class AsrModelService final {
     AsrModelStatus InstalledModelStatus() const;
 
    private:
-    AsrModelStatus StatusForDirectory(const QString &model_dir,
-                                      AsrModelInstallSource source,
+    AsrModelStatus StatusForDirectory(const QString &model_dir, AsrModelInstallSource source,
                                       bool directory_required) const;
 
     QString model_root_;

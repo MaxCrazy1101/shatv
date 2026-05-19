@@ -1,9 +1,8 @@
 #include "media/video/video_frame_queue.h"
 
+#include <QMutexLocker>
 #include <algorithm>
 #include <utility>
-
-#include <QMutexLocker>
 
 namespace shatv::media::video {
 

@@ -48,8 +48,8 @@ bool AudioDecoder::Open(const AVCodecParameters *codec_parameters, QString *erro
     const int copy_result = avcodec_parameters_to_context(codec_context_, codec_parameters);
     if (copy_result < 0) {
         if (error_message != nullptr) {
-            *error_message = QStringLiteral("avcodec_parameters_to_context failed: %1")
-                                 .arg(FfmpegErrorString(copy_result));
+            *error_message =
+                QStringLiteral("avcodec_parameters_to_context failed: %1").arg(FfmpegErrorString(copy_result));
         }
         Close();
         return false;
@@ -84,8 +84,7 @@ bool AudioDecoder::DecodePacket(const AVPacket &packet, std::vector<AvFramePtr> 
     const int send_result = avcodec_send_packet(codec_context_, &packet);
     if (send_result < 0) {
         if (error_message != nullptr) {
-            *error_message = QStringLiteral("avcodec_send_packet failed: %1")
-                                 .arg(FfmpegErrorString(send_result));
+            *error_message = QStringLiteral("avcodec_send_packet failed: %1").arg(FfmpegErrorString(send_result));
         }
         return false;
     }
@@ -101,8 +100,7 @@ bool AudioDecoder::Flush(std::vector<AvFramePtr> *frames, QString *error_message
     const int send_result = avcodec_send_packet(codec_context_, nullptr);
     if (send_result < 0) {
         if (error_message != nullptr) {
-            *error_message = QStringLiteral("avcodec_send_packet flush failed: %1")
-                                 .arg(FfmpegErrorString(send_result));
+            *error_message = QStringLiteral("avcodec_send_packet flush failed: %1").arg(FfmpegErrorString(send_result));
         }
         return false;
     }
@@ -126,8 +124,8 @@ bool AudioDecoder::ReceiveFrames(std::vector<AvFramePtr> *frames, QString *error
         }
         if (receive_result < 0) {
             if (error_message != nullptr) {
-                *error_message = QStringLiteral("avcodec_receive_frame failed: %1")
-                                     .arg(FfmpegErrorString(receive_result));
+                *error_message =
+                    QStringLiteral("avcodec_receive_frame failed: %1").arg(FfmpegErrorString(receive_result));
             }
             return false;
         }

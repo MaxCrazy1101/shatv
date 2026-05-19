@@ -1,14 +1,13 @@
 #pragma once
 
-#include <vector>
-
 #include <QAbstractItemModel>
 #include <QModelIndex>
 #include <QObject>
 #include <QStringList>
-#include <QtGlobal>
 #include <QUrl>
 #include <QVariantList>
+#include <QtGlobal>
+#include <vector>
 
 #include "app/app_settings.h"
 #include "app/epg_programme_presentation.h"
@@ -33,7 +32,8 @@ class AppShellBridge final : public QObject {
     Q_PROPERTY(QString currentProgrammeTitle READ CurrentProgrammeTitle NOTIFY CurrentProgrammeTitleChanged)
     Q_PROPERTY(QString currentProgrammeTimeText READ CurrentProgrammeTimeText NOTIFY CurrentProgrammeTimeTextChanged)
     Q_PROPERTY(double currentProgrammeProgress READ CurrentProgrammeProgress NOTIFY CurrentProgrammeProgressChanged)
-    Q_PROPERTY(bool currentProgrammeProgressAvailable READ CurrentProgrammeProgressAvailable NOTIFY CurrentProgrammeProgressAvailableChanged)
+    Q_PROPERTY(bool currentProgrammeProgressAvailable READ CurrentProgrammeProgressAvailable NOTIFY
+                   CurrentProgrammeProgressAvailableChanged)
     Q_PROPERTY(QString nextProgrammeTitle READ NextProgrammeTitle NOTIFY NextProgrammeTitleChanged)
     Q_PROPERTY(QString nextProgrammeTimeText READ NextProgrammeTimeText NOTIFY NextProgrammeTimeTextChanged)
     Q_PROPERTY(QString playbackStateText READ PlaybackStateText NOTIFY PlaybackStateTextChanged)
@@ -52,7 +52,8 @@ class AppShellBridge final : public QObject {
     Q_PROPERTY(QString speechSubtitleText READ SpeechSubtitleText NOTIFY SpeechSubtitleTextChanged)
     Q_PROPERTY(bool speechSubtitleEnabled READ SpeechSubtitleEnabled NOTIFY SpeechSubtitleEnabledChanged)
     Q_PROPERTY(bool speechSubtitleAvailable READ SpeechSubtitleAvailable NOTIFY SpeechSubtitleAvailableChanged)
-    Q_PROPERTY(QString speechSubtitleUnavailableReason READ SpeechSubtitleUnavailableReason NOTIFY SpeechSubtitleUnavailableReasonChanged)
+    Q_PROPERTY(QString speechSubtitleUnavailableReason READ SpeechSubtitleUnavailableReason NOTIFY
+                   SpeechSubtitleUnavailableReasonChanged)
     Q_PROPERTY(bool speechSubtitleActive READ SpeechSubtitleActive NOTIFY SpeechSubtitleActiveChanged)
     Q_PROPERTY(bool speechSubtitleFinal READ SpeechSubtitleFinal NOTIFY SpeechSubtitleFinalChanged)
     Q_PROPERTY(qint64 speechSubtitleLatencyMs READ SpeechSubtitleLatencyMs NOTIFY SpeechSubtitleLatencyMsChanged)
@@ -151,21 +152,11 @@ class AppShellBridge final : public QObject {
     void SetSpeechSubtitleControlState(bool enabled, bool available, const QString &unavailable_reason);
     void SetSpeechSubtitle(const QString &text, bool is_final, qint64 latency_ms);
     void ClearSpeechSubtitle();
-    void SetSpeechModelStatus(const QString &status_token,
-                              const QString &status_text,
-                              const QString &status_detail,
-                              const QString &name,
-                              const QString &version,
-                              const QString &source_url,
-                              const QString &archive_size_text,
-                              const QString &installed_size_text,
-                              const QString &checksum,
-                              const QString &license,
-                              const QString &attribution,
-                              const QString &directory,
-                              bool installed,
-                              bool developer_override,
-                              bool runtime_available,
+    void SetSpeechModelStatus(const QString &status_token, const QString &status_text, const QString &status_detail,
+                              const QString &name, const QString &version, const QString &source_url,
+                              const QString &archive_size_text, const QString &installed_size_text,
+                              const QString &checksum, const QString &license, const QString &attribution,
+                              const QString &directory, bool installed, bool developer_override, bool runtime_available,
                               bool install_supported);
     void SetSpeechModelBusy(bool busy);
     void SetSpeechModelOperation(bool download_active, double progress, const QString &operation_text);

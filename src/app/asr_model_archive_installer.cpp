@@ -1,7 +1,5 @@
 #include "app/asr_model_archive_installer.h"
 
-#include "app/asr_model_service.h"
-
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
@@ -9,12 +7,13 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTemporaryDir>
-
 #include <utility>
 
+#include "app/asr_model_service.h"
+
 #if SHATV_HAS_LIBARCHIVE
-#include <archive.h>
-#include <archive_entry.h>
+#    include <archive.h>
+#    include <archive_entry.h>
 #endif
 
 namespace shatv::app {
@@ -26,8 +25,7 @@ QString SafeFileName(QString value) {
     QString safe;
     safe.reserve(value.size());
     for (const QChar ch : value) {
-        safe.append(ch.isLetterOrNumber() || ch == QLatin1Char('-') || ch == QLatin1Char('_') ||
-                            ch == QLatin1Char('.')
+        safe.append(ch.isLetterOrNumber() || ch == QLatin1Char('-') || ch == QLatin1Char('_') || ch == QLatin1Char('.')
                         ? ch
                         : QLatin1Char('_'));
     }
@@ -114,8 +112,7 @@ bool DirectoryHasRequiredFiles(const QString &directory, const AsrModelFileSet &
     return missing.isEmpty();
 }
 
-QString FindExtractedModelDirectory(const QString &extract_root,
-                                    const AsrModelManifest &manifest,
+QString FindExtractedModelDirectory(const QString &extract_root, const AsrModelManifest &manifest,
                                     QString *error_message) {
     QStringList missing_files;
     if (DirectoryHasRequiredFiles(extract_root, manifest.files, &missing_files)) {
@@ -152,8 +149,7 @@ bool WriteInstallManifest(const QString &model_dir, const AsrModelManifest &mani
         {QStringLiteral("archive_sha256"), manifest.archive_sha256},
         {QStringLiteral("license"), manifest.license},
         {QStringLiteral("attribution"), manifest.attribution},
-        {QStringLiteral("installed_at_utc"),
-         QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs)},
+        {QStringLiteral("installed_at_utc"), QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs)},
         {QStringLiteral("files"), files},
     };
 
@@ -181,8 +177,7 @@ QString ArchiveError(archive *reader) {
     return message == nullptr ? QStringLiteral("unknown libarchive error") : QString::fromLocal8Bit(message);
 }
 
-bool ExtractArchiveWithLibArchive(const QString &archive_path,
-                                  const QString &destination_root,
+bool ExtractArchiveWithLibArchive(const QString &archive_path, const QString &destination_root,
                                   QString *error_message) {
     archive *reader = archive_read_new();
     if (reader == nullptr) {
@@ -228,8 +223,8 @@ bool ExtractArchiveWithLibArchive(const QString &archive_path,
         if (file_type == AE_IFDIR) {
             if (!QDir().mkpath(destination_path)) {
                 if (error_message != nullptr) {
-                    *error_message = QStringLiteral("Failed to create ASR model directory: %1")
-                                         .arg(NativePath(destination_path));
+                    *error_message =
+                        QStringLiteral("Failed to create ASR model directory: %1").arg(NativePath(destination_path));
                 }
                 archive_read_free(reader);
                 return false;
@@ -239,8 +234,7 @@ bool ExtractArchiveWithLibArchive(const QString &archive_path,
 
         if (file_type != AE_IFREG) {
             if (error_message != nullptr) {
-                *error_message = QStringLiteral("Unsupported ASR model archive entry type: %1")
-                                     .arg(raw_entry_path);
+                *error_message = QStringLiteral("Unsupported ASR model archive entry type: %1").arg(raw_entry_path);
             }
             archive_read_free(reader);
             return false;
@@ -249,8 +243,7 @@ bool ExtractArchiveWithLibArchive(const QString &archive_path,
         const QString parent_dir = QFileInfo(destination_path).absolutePath();
         if (!QDir().mkpath(parent_dir)) {
             if (error_message != nullptr) {
-                *error_message = QStringLiteral("Failed to create ASR model directory: %1")
-                                     .arg(NativePath(parent_dir));
+                *error_message = QStringLiteral("Failed to create ASR model directory: %1").arg(NativePath(parent_dir));
             }
             archive_read_free(reader);
             return false;
@@ -259,8 +252,7 @@ bool ExtractArchiveWithLibArchive(const QString &archive_path,
         QFile output(destination_path);
         if (!output.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
             if (error_message != nullptr) {
-                *error_message = QStringLiteral("Failed to extract ASR model file: %1")
-                                     .arg(output.errorString());
+                *error_message = QStringLiteral("Failed to extract ASR model file: %1").arg(output.errorString());
             }
             archive_read_free(reader);
             return false;
@@ -280,8 +272,8 @@ bool ExtractArchiveWithLibArchive(const QString &archive_path,
             if (output.write(static_cast<const char *>(buffer), static_cast<qint64>(size)) !=
                 static_cast<qint64>(size)) {
                 if (error_message != nullptr) {
-                    *error_message = QStringLiteral("Failed to write ASR model file while extracting: %1")
-                                         .arg(output.errorString());
+                    *error_message =
+                        QStringLiteral("Failed to write ASR model file while extracting: %1").arg(output.errorString());
                 }
                 archive_read_free(reader);
                 return false;
@@ -290,8 +282,7 @@ bool ExtractArchiveWithLibArchive(const QString &archive_path,
 
         if (result != ARCHIVE_EOF) {
             if (error_message != nullptr) {
-                *error_message = QStringLiteral("Failed to read ASR model archive data: %1")
-                                     .arg(ArchiveError(reader));
+                *error_message = QStringLiteral("Failed to read ASR model archive data: %1").arg(ArchiveError(reader));
             }
             archive_read_free(reader);
             return false;
@@ -311,9 +302,7 @@ bool ExtractArchiveWithLibArchive(const QString &archive_path,
 }
 #endif
 
-bool ActivateModelDirectory(const QString &model_dir,
-                            const QString &model_root,
-                            const AsrModelManifest &manifest,
+bool ActivateModelDirectory(const QString &model_dir, const QString &model_root, const AsrModelManifest &manifest,
                             QString *error_message) {
     if (!IsSafeAsrModelId(manifest.id)) {
         if (error_message != nullptr) {
@@ -330,8 +319,8 @@ bool ActivateModelDirectory(const QString &model_dir,
 
     if (QFileInfo(final_dir).exists() && !QFileInfo(final_dir).isDir()) {
         if (error_message != nullptr) {
-            *error_message = QStringLiteral("ASR model install path exists and is not a directory: %1")
-                                 .arg(NativePath(final_dir));
+            *error_message =
+                QStringLiteral("ASR model install path exists and is not a directory: %1").arg(NativePath(final_dir));
         }
         return false;
     }
@@ -376,16 +365,14 @@ bool ActivateModelDirectory(const QString &model_dir,
 
 }  // namespace
 
-AsrModelArchiveInstaller::AsrModelArchiveInstaller(QString model_root)
-    : model_root_(std::move(model_root)) {}
+AsrModelArchiveInstaller::AsrModelArchiveInstaller(QString model_root) : model_root_(std::move(model_root)) {}
 
 bool AsrModelArchiveInstaller::Supported() {
     return SHATV_HAS_LIBARCHIVE != 0;
 }
 
-AsrModelArchiveInstallResult AsrModelArchiveInstaller::InstallVerifiedArchive(
-    const QString &archive_path,
-    const AsrModelManifest &manifest) const {
+AsrModelArchiveInstallResult AsrModelArchiveInstaller::InstallVerifiedArchive(const QString &archive_path,
+                                                                              const AsrModelManifest &manifest) const {
     const QString final_dir = model_root_.isEmpty() ? QString{} : QDir(model_root_).filePath(manifest.id);
     if (!Supported()) {
         return Failure(final_dir, QStringLiteral("ASR model archive extraction requires libarchive support"));
@@ -402,8 +389,8 @@ AsrModelArchiveInstallResult AsrModelArchiveInstaller::InstallVerifiedArchive(
 
     QDir root_dir(model_root_);
     if (!root_dir.mkpath(QStringLiteral("."))) {
-        return Failure(final_dir, QStringLiteral("Failed to create ASR model install root: %1")
-                                      .arg(NativePath(model_root_)));
+        return Failure(final_dir,
+                       QStringLiteral("Failed to create ASR model install root: %1").arg(NativePath(model_root_)));
     }
 
     QTemporaryDir temp_dir(root_dir.filePath(QStringLiteral(".extract-XXXXXX")));

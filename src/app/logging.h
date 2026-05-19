@@ -1,10 +1,9 @@
 #pragma once
 
-#include <QtGlobal>
-
 #include <QLoggingCategory>
 #include <QString>
 #include <QUrl>
+#include <QtGlobal>
 
 namespace shatv::app {
 
@@ -23,9 +22,7 @@ QString LogsDirectoryPath();
 bool LoggingEnabled();
 
 QString RedactUrlForLog(const QUrl &url);
-bool RotateLogFiles(const QString &active_file_path,
-                    qint64 max_file_bytes,
-                    int max_backup_files,
+bool RotateLogFiles(const QString &active_file_path, qint64 max_file_bytes, int max_backup_files,
                     QString *error_message = nullptr);
 
 Q_DECLARE_LOGGING_CATEGORY(log_app)

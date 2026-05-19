@@ -1,4 +1,4 @@
-#include <QtTest>
+#include "app/asr_model_archive_installer.h"
 
 #include <QByteArray>
 #include <QDir>
@@ -7,12 +7,11 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTemporaryDir>
-
-#include "app/asr_model_archive_installer.h"
+#include <QtTest>
 
 #if SHATV_HAS_LIBARCHIVE
-#include <archive.h>
-#include <archive_entry.h>
+#    include <archive.h>
+#    include <archive_entry.h>
 #endif
 
 namespace {

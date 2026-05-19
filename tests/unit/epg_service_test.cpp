@@ -1,8 +1,7 @@
-#include <QtTest>
+#include "app/epg_service.h"
 
 #include <QTimeZone>
-
-#include "app/epg_service.h"
+#include <QtTest>
 
 namespace {
 

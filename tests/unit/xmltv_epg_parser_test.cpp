@@ -1,8 +1,7 @@
-#include <QtTest>
+#include "app/xmltv_epg_parser.h"
 
 #include <QTimeZone>
-
-#include "app/xmltv_epg_parser.h"
+#include <QtTest>
 
 namespace {
 

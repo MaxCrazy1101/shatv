@@ -1,5 +1,4 @@
 #include <QtTest>
-
 #include <cmath>
 #include <cstdint>
 #include <memory>

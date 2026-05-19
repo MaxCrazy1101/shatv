@@ -1,17 +1,18 @@
-#include <QtTest>
+#include "app/launch_options.h"
+
 #include <QFile>
 #include <QTemporaryDir>
+#include <QtTest>
 
 #include "app/app_settings.h"
-#include "app/launch_options.h"
 
 namespace {
 
-using shatv::app::BuildStartupChannel;
 using shatv::app::AppSettings;
+using shatv::app::BuildStartupChannel;
 using shatv::app::IsRemotePlaybackUrl;
-using shatv::app::LooksLikeRemoteMediaDirectoryUrl;
 using shatv::app::LaunchOptions;
+using shatv::app::LooksLikeRemoteMediaDirectoryUrl;
 using shatv::app::OpenRequestKind;
 using shatv::app::ParseLaunchOptions;
 using shatv::app::RecentOpenItem;
@@ -69,8 +70,7 @@ void LaunchOptionsTest::parse_ffmpeg_smoke_flag() {
 }
 
 void LaunchOptionsTest::build_startup_channel_from_open_url_argument() {
-    const LaunchOptions options =
-        ParseLaunchOptions({"shatv", "--open-url", "http://127.0.0.1:8080/index.m3u8"});
+    const LaunchOptions options = ParseLaunchOptions({"shatv", "--open-url", "http://127.0.0.1:8080/index.m3u8"});
 
     const auto channel = BuildStartupChannel(options, "/home/alex/code/shatv");
 
@@ -106,9 +106,8 @@ void LaunchOptionsTest::build_startup_channel_from_http_url() {
 }
 
 void LaunchOptionsTest::build_startup_channel_prefers_open_url_over_open_media() {
-    const LaunchOptions options = ParseLaunchOptions(
-        {"shatv", "--open-media", "./docs/file_example_MP4_1920_18MG.mp4", "--open-url",
-         "http://127.0.0.1:8080/index.m3u8"});
+    const LaunchOptions options = ParseLaunchOptions({"shatv", "--open-media", "./docs/file_example_MP4_1920_18MG.mp4",
+                                                      "--open-url", "http://127.0.0.1:8080/index.m3u8"});
 
     const auto channel = BuildStartupChannel(options, "/home/alex/code/shatv");
 
@@ -341,12 +340,13 @@ void LaunchOptionsTest::save_settings_preserves_existing_comments_and_fields() {
     const QString config_path = temp_dir.filePath("config.toml");
     QFile seed_file(config_path);
     QVERIFY(seed_file.open(QIODevice::WriteOnly | QIODevice::Text));
-    seed_file.write("# existing comment\n"
-                    "[network]\n"
-                    "user_agent = \"Old Agent\"\n"
-                    "\n"
-                    "[ui]\n"
-                    "layout = \"classic\"\n");
+    seed_file.write(
+        "# existing comment\n"
+        "[network]\n"
+        "user_agent = \"Old Agent\"\n"
+        "\n"
+        "[ui]\n"
+        "layout = \"classic\"\n");
     seed_file.close();
 
     AppSettings settings(config_path);

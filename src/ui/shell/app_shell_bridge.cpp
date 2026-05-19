@@ -1,8 +1,7 @@
 #include "ui/shell/app_shell_bridge.h"
 
-#include <algorithm>
-
 #include <QVariantMap>
+#include <algorithm>
 
 #include "app/build_info.h"
 #include "domain/playback_state.h"
@@ -338,10 +337,9 @@ void AppShellBridge::SetProgrammePresentation(const app::EpgProgrammePresentatio
 void AppShellBridge::SetPlaybackSnapshot(const domain::PlayerSnapshot &snapshot) {
     const QString state_text = domain::PlaybackStateName(snapshot.state);
     const QString state_token = domain::PlaybackStateToken(snapshot.state);
-    const bool playing = snapshot.state == domain::PlaybackState::kPlaying ||
-                         snapshot.state == domain::PlaybackState::kLoading ||
-                         snapshot.state == domain::PlaybackState::kBuffering ||
-                         snapshot.state == domain::PlaybackState::kRetrying;
+    const bool playing =
+        snapshot.state == domain::PlaybackState::kPlaying || snapshot.state == domain::PlaybackState::kLoading ||
+        snapshot.state == domain::PlaybackState::kBuffering || snapshot.state == domain::PlaybackState::kRetrying;
 
     if (current_channel_name_ != snapshot.channel_name) {
         current_channel_name_ = snapshot.channel_name;
@@ -412,9 +410,7 @@ void AppShellBridge::SetAlertMessage(const QString &message) {
     }
 }
 
-void AppShellBridge::SetSpeechSubtitleControlState(bool enabled,
-                                                   bool available,
-                                                   const QString &unavailable_reason) {
+void AppShellBridge::SetSpeechSubtitleControlState(bool enabled, bool available, const QString &unavailable_reason) {
     if (speech_subtitle_enabled_ != enabled) {
         speech_subtitle_enabled_ = enabled;
         emit SpeechSubtitleEnabledChanged();
@@ -431,10 +427,9 @@ void AppShellBridge::SetSpeechSubtitleControlState(bool enabled,
 
 void AppShellBridge::SetSpeechSubtitle(const QString &text, bool is_final, qint64 latency_ms) {
     const bool active = !text.isEmpty();
-    const QString status_text = !active
-                                    ? QString()
-                                    : (latency_ms >= 0 ? tr("Delay %1 ms").arg(latency_ms)
-                                                       : (is_final ? tr("Final") : tr("Recognizing")));
+    const QString status_text =
+        !active ? QString()
+                : (latency_ms >= 0 ? tr("Delay %1 ms").arg(latency_ms) : (is_final ? tr("Final") : tr("Recognizing")));
 
     if (speech_subtitle_text_ != text) {
         speech_subtitle_text_ = text;
@@ -462,38 +457,22 @@ void AppShellBridge::ClearSpeechSubtitle() {
     SetSpeechSubtitle(QString(), false, -1);
 }
 
-void AppShellBridge::SetSpeechModelStatus(const QString &status_token,
-                                          const QString &status_text,
-                                          const QString &status_detail,
-                                          const QString &name,
-                                          const QString &version,
-                                          const QString &source_url,
-                                          const QString &archive_size_text,
-                                          const QString &installed_size_text,
-                                          const QString &checksum,
-                                          const QString &license,
-                                          const QString &attribution,
-                                          const QString &directory,
-                                          bool installed,
-                                          bool developer_override,
-                                          bool runtime_available,
+void AppShellBridge::SetSpeechModelStatus(const QString &status_token, const QString &status_text,
+                                          const QString &status_detail, const QString &name, const QString &version,
+                                          const QString &source_url, const QString &archive_size_text,
+                                          const QString &installed_size_text, const QString &checksum,
+                                          const QString &license, const QString &attribution, const QString &directory,
+                                          bool installed, bool developer_override, bool runtime_available,
                                           bool install_supported) {
-    if (speech_model_status_token_ == status_token &&
-        speech_model_status_text_ == status_text &&
-        speech_model_status_detail_ == status_detail &&
-        speech_model_name_ == name &&
-        speech_model_version_ == version &&
-        speech_model_source_url_ == source_url &&
+    if (speech_model_status_token_ == status_token && speech_model_status_text_ == status_text &&
+        speech_model_status_detail_ == status_detail && speech_model_name_ == name &&
+        speech_model_version_ == version && speech_model_source_url_ == source_url &&
         speech_model_archive_size_text_ == archive_size_text &&
-        speech_model_installed_size_text_ == installed_size_text &&
-        speech_model_checksum_ == checksum &&
-        speech_model_license_ == license &&
-        speech_model_attribution_ == attribution &&
-        speech_model_directory_ == directory &&
-        speech_model_installed_ == installed &&
+        speech_model_installed_size_text_ == installed_size_text && speech_model_checksum_ == checksum &&
+        speech_model_license_ == license && speech_model_attribution_ == attribution &&
+        speech_model_directory_ == directory && speech_model_installed_ == installed &&
         speech_model_developer_override_ == developer_override &&
-        speech_model_runtime_available_ == runtime_available &&
-        speech_model_install_supported_ == install_supported) {
+        speech_model_runtime_available_ == runtime_available && speech_model_install_supported_ == install_supported) {
         return;
     }
 
@@ -525,11 +504,8 @@ void AppShellBridge::SetSpeechModelBusy(bool busy) {
     emit SpeechModelBusyChanged();
 }
 
-void AppShellBridge::SetSpeechModelOperation(bool download_active,
-                                             double progress,
-                                             const QString &operation_text) {
-    if (speech_model_download_active_ == download_active &&
-        speech_model_progress_ == progress &&
+void AppShellBridge::SetSpeechModelOperation(bool download_active, double progress, const QString &operation_text) {
+    if (speech_model_download_active_ == download_active && speech_model_progress_ == progress &&
         speech_model_operation_text_ == operation_text) {
         return;
     }

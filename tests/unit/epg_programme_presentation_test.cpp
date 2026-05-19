@@ -1,8 +1,7 @@
-#include <QtTest>
+#include "app/epg_programme_presentation.h"
 
 #include <QTimeZone>
-
-#include "app/epg_programme_presentation.h"
+#include <QtTest>
 
 namespace {
 

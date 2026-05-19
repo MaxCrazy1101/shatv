@@ -1,9 +1,8 @@
 #pragma once
 
-#include <optional>
-
 #include <QString>
 #include <QStringList>
+#include <optional>
 
 #include "domain/channel.h"
 

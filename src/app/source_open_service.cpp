@@ -1,7 +1,5 @@
 #include "app/source_open_service.h"
 
-#include <memory>
-
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
@@ -11,6 +9,7 @@
 #include <QNetworkRequest>
 #include <QTimer>
 #include <QtGlobal>
+#include <memory>
 
 #include "app/launch_options.h"
 #include "app/logging.h"
@@ -49,10 +48,8 @@ RecentOpenItem BuildRecentItem(OpenRequestKind request_kind, const domain::Chann
     };
 }
 
-domain::MediaSourceDescriptor BuildDescriptor(const domain::Channel &channel,
-                                              domain::SourceKind source_kind,
-                                              domain::SourceOrigin origin,
-                                              const SourceOpenContext &context) {
+domain::MediaSourceDescriptor BuildDescriptor(const domain::Channel &channel, domain::SourceKind source_kind,
+                                              domain::SourceOrigin origin, const SourceOpenContext &context) {
     return domain::MediaSourceDescriptor{
         .id = channel.id,
         .name = channel.name,
@@ -160,14 +157,13 @@ void SourceOpenService::Resolve(OpenRequest request, SourceOpenContext context, 
     }
 }
 
-void SourceOpenService::ResolveFilePath(const OpenRequest &request,
-                                        const SourceOpenContext &context,
-                                        domain::SourceOrigin origin,
-                                        OpenRequestKind recent_request_kind,
+void SourceOpenService::ResolveFilePath(const OpenRequest &request, const SourceOpenContext &context,
+                                        domain::SourceOrigin origin, OpenRequestKind recent_request_kind,
                                         OpenResolutionCallback callback) {
     if (LooksLikeLocalM3uPath(request.target)) {
         const domain::Channel channel = BuildOpenMediaChannel(request.target, context.current_directory);
-        callback(ResolveLocalPlaylist(channel.url.toLocalFile(), context, BuildRecentItem(recent_request_kind, channel)));
+        callback(
+            ResolveLocalPlaylist(channel.url.toLocalFile(), context, BuildRecentItem(recent_request_kind, channel)));
         return;
     }
 
@@ -175,15 +171,14 @@ void SourceOpenService::ResolveFilePath(const OpenRequest &request,
     callback(ResolveDirectMedia(channel, context, origin, BuildRecentItem(recent_request_kind, channel)));
 }
 
-void SourceOpenService::ResolveUrlText(const OpenRequest &request,
-                                       const SourceOpenContext &context,
-                                       domain::SourceOrigin origin,
-                                       OpenRequestKind recent_request_kind,
+void SourceOpenService::ResolveUrlText(const OpenRequest &request, const SourceOpenContext &context,
+                                       domain::SourceOrigin origin, OpenRequestKind recent_request_kind,
                                        OpenResolutionCallback callback) {
     const domain::Channel channel = BuildOpenUrlChannel(request.target, context.current_directory);
     if (!IsRemotePlaybackUrl(channel.url)) {
         qCWarning(log_app).noquote() << "Open URL rejected target=" << RedactUrlForLog(channel.url);
-        callback(BuildError(QCoreApplication::translate("SourceOpenService", "Open Link expects an http:// or https:// URL.")));
+        callback(BuildError(
+            QCoreApplication::translate("SourceOpenService", "Open Link expects an http:// or https:// URL.")));
         return;
     }
     if (LooksLikeRemoteMediaDirectoryUrl(channel.url)) {
@@ -193,17 +188,16 @@ void SourceOpenService::ResolveUrlText(const OpenRequest &request,
         return;
     }
     if (LooksLikeRemoteM3uUrl(channel.url)) {
-        ResolveRemotePlaylist(channel.url, context, BuildRecentItem(recent_request_kind, channel), 1, std::move(callback));
+        ResolveRemotePlaylist(channel.url, context, BuildRecentItem(recent_request_kind, channel), 1,
+                              std::move(callback));
         return;
     }
 
     callback(ResolveDirectMedia(channel, context, origin, BuildRecentItem(recent_request_kind, channel)));
 }
 
-void SourceOpenService::ResolveRemotePlaylist(const QUrl &url,
-                                              const SourceOpenContext &context,
-                                              RecentOpenItem recent_item,
-                                              int attempt,
+void SourceOpenService::ResolveRemotePlaylist(const QUrl &url, const SourceOpenContext &context,
+                                              RecentOpenItem recent_item, int attempt,
                                               OpenResolutionCallback callback) {
     QNetworkRequest request(url);
     request.setTransferTimeout(kNetworkTransferTimeoutMillis);
@@ -211,80 +205,75 @@ void SourceOpenService::ResolveRemotePlaylist(const QUrl &url,
         request.setHeader(QNetworkRequest::UserAgentHeader, context.user_agent);
     }
 
-    qCInfo(log_network).noquote()
-        << "Remote playlist fetch started"
-        << "url=" << RedactUrlForLog(url)
-        << "attempt=" << attempt;
+    qCInfo(log_network).noquote() << "Remote playlist fetch started"
+                                  << "url=" << RedactUrlForLog(url) << "attempt=" << attempt;
     QNetworkReply *reply = network_manager_->get(request);
-    QObject::connect(reply, &QNetworkReply::finished, this,
-                     [this, reply, url, context, recent_item = std::move(recent_item), attempt,
-                      callback = std::move(callback)]() mutable {
-                         const std::unique_ptr<QNetworkReply, void (*)(QNetworkReply *)> cleanup(
-                             reply, [](QNetworkReply *reply_to_delete) {
-                                 if (reply_to_delete != nullptr) {
-                                     reply_to_delete->deleteLater();
-                                 }
-                             });
+    QObject::connect(
+        reply, &QNetworkReply::finished, this,
+        [this, reply, url, context, recent_item = std::move(recent_item), attempt,
+         callback = std::move(callback)]() mutable {
+            const std::unique_ptr<QNetworkReply, void (*)(QNetworkReply *)> cleanup(
+                reply, [](QNetworkReply *reply_to_delete) {
+                    if (reply_to_delete != nullptr) {
+                        reply_to_delete->deleteLater();
+                    }
+                });
 
-                         const domain::RetryPolicy fetch_policy =
-                             domain::RetryPolicyForSourceKind(domain::SourceKind::kRemotePlaylistFetch);
-                         if (reply->error() != QNetworkReply::NoError) {
-                             qCWarning(log_network).noquote()
-                                 << "Remote playlist fetch failed"
-                                 << "url=" << RedactUrlForLog(url)
-                                 << "status=" << reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt()
-                                 << "attempt=" << attempt
-                                 << "reason=" << reply->errorString();
-                             if (attempt < fetch_policy.max_attempts) {
-                                 QTimer::singleShot(fetch_policy.initial_delay_ms, this,
-                                                    [this, url, context, recent_item, attempt, callback]() mutable {
-                                                        ResolveRemotePlaylist(url, context, recent_item, attempt + 1,
-                                                                              std::move(callback));
-                                                    });
-                                 return;
-                             }
-                             callback(BuildError(QCoreApplication::translate("SourceOpenService", "Failed to download playlist")));
-                             return;
-                         }
+            const domain::RetryPolicy fetch_policy =
+                domain::RetryPolicyForSourceKind(domain::SourceKind::kRemotePlaylistFetch);
+            if (reply->error() != QNetworkReply::NoError) {
+                qCWarning(log_network).noquote()
+                    << "Remote playlist fetch failed"
+                    << "url=" << RedactUrlForLog(url)
+                    << "status=" << reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt()
+                    << "attempt=" << attempt << "reason=" << reply->errorString();
+                if (attempt < fetch_policy.max_attempts) {
+                    QTimer::singleShot(fetch_policy.initial_delay_ms, this,
+                                       [this, url, context, recent_item, attempt, callback]() mutable {
+                                           ResolveRemotePlaylist(url, context, recent_item, attempt + 1,
+                                                                 std::move(callback));
+                                       });
+                    return;
+                }
+                callback(BuildError(QCoreApplication::translate("SourceOpenService", "Failed to download playlist")));
+                return;
+            }
 
-                         const QString text = QString::fromUtf8(reply->readAll());
-                         if (!LooksLikeM3uPlaylistText(text)) {
-                             qCWarning(log_network).noquote()
-                                 << "Remote playlist unsupported format url=" << RedactUrlForLog(url);
-                             callback(BuildError(QCoreApplication::translate("SourceOpenService", "Playlist format is not supported")));
-                             return;
-                         }
+            const QString text = QString::fromUtf8(reply->readAll());
+            if (!LooksLikeM3uPlaylistText(text)) {
+                qCWarning(log_network).noquote() << "Remote playlist unsupported format url=" << RedactUrlForLog(url);
+                callback(
+                    BuildError(QCoreApplication::translate("SourceOpenService", "Playlist format is not supported")));
+                return;
+            }
 
-                         const QString prefix = NormalizedPlaylistPrefix(QFileInfo(url.path()).baseName());
-                         const PlaylistImportResult playlist = ParsePlaylistImportText(text, prefix);
-                         if (playlist.channels.empty()) {
-                             qCWarning(log_network).noquote()
-                                 << "Remote playlist empty url=" << RedactUrlForLog(url);
-                             callback(BuildError(QCoreApplication::translate("SourceOpenService", "Playlist contains no playable channels")));
-                             return;
-                         }
+            const QString prefix = NormalizedPlaylistPrefix(QFileInfo(url.path()).baseName());
+            const PlaylistImportResult playlist = ParsePlaylistImportText(text, prefix);
+            if (playlist.channels.empty()) {
+                qCWarning(log_network).noquote() << "Remote playlist empty url=" << RedactUrlForLog(url);
+                callback(BuildError(
+                    QCoreApplication::translate("SourceOpenService", "Playlist contains no playable channels")));
+                return;
+            }
 
-                         qCInfo(log_network).noquote()
-                             << "Remote playlist loaded"
-                             << "url=" << RedactUrlForLog(url)
-                             << "channels=" << static_cast<int>(playlist.channels.size())
-                             << "hasEpg=" << !playlist.epg_url.isEmpty();
-                         callback(ChannelListResolution{
-                             .channels = BuildResolvedChannels(playlist.channels, domain::SourceOrigin::kRemotePlaylist, context),
-                             .recent_item = recent_item,
-                             .playlist_epg_url = playlist.epg_url,
-                         });
-                     });
+            qCInfo(log_network).noquote()
+                << "Remote playlist loaded"
+                << "url=" << RedactUrlForLog(url) << "channels=" << static_cast<int>(playlist.channels.size())
+                << "hasEpg=" << !playlist.epg_url.isEmpty();
+            callback(ChannelListResolution{
+                .channels = BuildResolvedChannels(playlist.channels, domain::SourceOrigin::kRemotePlaylist, context),
+                .recent_item = recent_item,
+                .playlist_epg_url = playlist.epg_url,
+            });
+        });
 }
 
-OpenResolution SourceOpenService::ResolveLocalPlaylist(const QString &path,
-                                                       const SourceOpenContext &context,
+OpenResolution SourceOpenService::ResolveLocalPlaylist(const QString &path, const SourceOpenContext &context,
                                                        RecentOpenItem recent_item) const {
     QFile input(path);
     if (!input.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        qCWarning(log_app).noquote()
-            << "Local playlist open failed path=" << QDir::toNativeSeparators(path)
-            << "reason=" << input.errorString();
+        qCWarning(log_app).noquote() << "Local playlist open failed path=" << QDir::toNativeSeparators(path)
+                                     << "reason=" << input.errorString();
         return BuildError(QCoreApplication::translate("SourceOpenService", "Failed to open playlist file"));
     }
 
@@ -292,14 +281,14 @@ OpenResolution SourceOpenService::ResolveLocalPlaylist(const QString &path,
     const PlaylistImportResult playlist =
         ParsePlaylistImportText(text, NormalizedPlaylistPrefix(QFileInfo(path).baseName()));
     if (playlist.channels.empty()) {
-        qCWarning(log_app).noquote() << "Local playlist contains no playable channels path=" << QDir::toNativeSeparators(path);
+        qCWarning(log_app).noquote() << "Local playlist contains no playable channels path="
+                                     << QDir::toNativeSeparators(path);
         return BuildError(QCoreApplication::translate("SourceOpenService", "Playlist contains no playable channels"));
     }
 
-    qCInfo(log_app).noquote()
-        << "Local playlist loaded path=" << QDir::toNativeSeparators(path)
-        << "channels=" << static_cast<int>(playlist.channels.size())
-        << "hasEpg=" << !playlist.epg_url.isEmpty();
+    qCInfo(log_app).noquote() << "Local playlist loaded path=" << QDir::toNativeSeparators(path)
+                              << "channels=" << static_cast<int>(playlist.channels.size())
+                              << "hasEpg=" << !playlist.epg_url.isEmpty();
     return ChannelListResolution{
         .channels = BuildResolvedChannels(playlist.channels, domain::SourceOrigin::kLocalPlaylist, context),
         .recent_item = recent_item,
@@ -307,13 +296,13 @@ OpenResolution SourceOpenService::ResolveLocalPlaylist(const QString &path,
     };
 }
 
-OpenResolution SourceOpenService::ResolveDirectMedia(const domain::Channel &channel,
-                                                     const SourceOpenContext &context,
+OpenResolution SourceOpenService::ResolveDirectMedia(const domain::Channel &channel, const SourceOpenContext &context,
                                                      domain::SourceOrigin origin,
                                                      std::optional<RecentOpenItem> recent_item) const {
     if (!channel.url.isValid() || channel.url.toString().isEmpty()) {
         qCWarning(log_app).noquote() << "Direct media rejected invalid target";
-        return BuildError(QCoreApplication::translate("SourceOpenService", "Open request failed: invalid media target."));
+        return BuildError(
+            QCoreApplication::translate("SourceOpenService", "Open request failed: invalid media target."));
     }
 
     const domain::SourceKind source_kind =

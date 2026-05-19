@@ -1,13 +1,11 @@
 #include "app/app_settings.h"
 
-#include <algorithm>
-#include <fstream>
-#include <string>
-
 #include <QDir>
 #include <QFileInfo>
 #include <QStandardPaths>
-
+#include <algorithm>
+#include <fstream>
+#include <string>
 #include <toml.hpp>
 
 #include "app/logging.h"
@@ -76,13 +74,12 @@ int NormalizeOsdAutoHideSeconds(const toml::value &config, const QString &config
             return seconds;
         }
 
-        qCWarning(log_config).noquote()
-            << "Config invalid ui.osd.auto_hide_seconds path=" << QDir::toNativeSeparators(config_path)
-            << "value=" << seconds;
+        qCWarning(log_config).noquote() << "Config invalid ui.osd.auto_hide_seconds path="
+                                        << QDir::toNativeSeparators(config_path) << "value=" << seconds;
         return kDefaultOsdAutoHideSeconds;
     } catch (const std::exception &) {
-        qCWarning(log_config).noquote()
-            << "Config invalid ui.osd.auto_hide_seconds path=" << QDir::toNativeSeparators(config_path);
+        qCWarning(log_config).noquote() << "Config invalid ui.osd.auto_hide_seconds path="
+                                        << QDir::toNativeSeparators(config_path);
         return kDefaultOsdAutoHideSeconds;
     }
 }
@@ -97,8 +94,8 @@ std::pair<int, bool> NormalizePlaybackState(const toml::value &config, const QSt
 
     const auto &playback = config.at("playback");
     if (!playback.is_table()) {
-        qCWarning(log_config).noquote()
-            << "Config invalid playback section path=" << QDir::toNativeSeparators(config_path);
+        qCWarning(log_config).noquote() << "Config invalid playback section path="
+                                        << QDir::toNativeSeparators(config_path);
         return {volume, muted};
     }
 
@@ -112,8 +109,8 @@ std::pair<int, bool> NormalizePlaybackState(const toml::value &config, const QSt
         }
         muted = toml::find_or<bool>(playback, "muted", kDefaultMuted);
     } catch (const std::exception &) {
-        qCWarning(log_config).noquote()
-            << "Config invalid playback section path=" << QDir::toNativeSeparators(config_path);
+        qCWarning(log_config).noquote() << "Config invalid playback section path="
+                                        << QDir::toNativeSeparators(config_path);
     }
 
     return {volume, muted};
@@ -132,8 +129,8 @@ bool NormalizeSpeechSubtitleEnabled(const toml::value &config, const QString &co
     try {
         return toml::find_or<bool>(playback, "speech_subtitle_enabled", kDefaultSpeechSubtitleEnabled);
     } catch (const std::exception &) {
-        qCWarning(log_config).noquote()
-            << "Config invalid playback.speech_subtitle_enabled path=" << QDir::toNativeSeparators(config_path);
+        qCWarning(log_config).noquote() << "Config invalid playback.speech_subtitle_enabled path="
+                                        << QDir::toNativeSeparators(config_path);
         return kDefaultSpeechSubtitleEnabled;
     }
 }
@@ -216,11 +213,10 @@ void AppSettings::RememberRecentItem(RecentOpenItem item) {
         item.label = item.target;
     }
 
-    recent_items_.erase(std::remove_if(recent_items_.begin(), recent_items_.end(),
-                                       [&item](const RecentOpenItem &existing) {
-                                           return IsSameRecentItem(existing, item);
-                                       }),
-                        recent_items_.end());
+    recent_items_.erase(
+        std::remove_if(recent_items_.begin(), recent_items_.end(),
+                       [&item](const RecentOpenItem &existing) { return IsSameRecentItem(existing, item); }),
+        recent_items_.end());
     recent_items_.insert(recent_items_.begin(), std::move(item));
     if (recent_items_.size() > kMaxRecentItems) {
         recent_items_.resize(kMaxRecentItems);
@@ -229,7 +225,8 @@ void AppSettings::RememberRecentItem(RecentOpenItem item) {
 
 bool AppSettings::Load() {
     if (!QFileInfo::exists(config_path_)) {
-        qCInfo(log_config).noquote() << "Config not found, using defaults path=" << QDir::toNativeSeparators(config_path_);
+        qCInfo(log_config).noquote() << "Config not found, using defaults path="
+                                     << QDir::toNativeSeparators(config_path_);
         epg_url_.clear();
         user_agent_.clear();
         osd_auto_hide_seconds_ = kDefaultOsdAutoHideSeconds;
@@ -243,10 +240,9 @@ bool AppSettings::Load() {
     try {
         qCInfo(log_config).noquote() << "Loading config path=" << QDir::toNativeSeparators(config_path_);
         const toml::value config = toml::parse(ToStdString(config_path_));
-        epg_url_ = QString::fromStdString(
-            toml::find_or<std::string>(config, "epg", "url", std::string()));
-        user_agent_ = QString::fromStdString(
-            toml::find_or<std::string>(config, "network", "user_agent", std::string()));
+        epg_url_ = QString::fromStdString(toml::find_or<std::string>(config, "epg", "url", std::string()));
+        user_agent_ =
+            QString::fromStdString(toml::find_or<std::string>(config, "network", "user_agent", std::string()));
         osd_auto_hide_seconds_ = NormalizeOsdAutoHideSeconds(config, config_path_);
         std::tie(volume_, muted_) = NormalizePlaybackState(config, config_path_);
         speech_subtitle_enabled_ = NormalizeSpeechSubtitleEnabled(config, config_path_);
@@ -287,14 +283,12 @@ bool AppSettings::Load() {
         }
 
         NormalizeRecentItems(recent_items_);
-        qCInfo(log_config).noquote()
-            << "Config loaded path=" << QDir::toNativeSeparators(config_path_)
-            << "recentItems=" << static_cast<int>(recent_items_.size());
+        qCInfo(log_config).noquote() << "Config loaded path=" << QDir::toNativeSeparators(config_path_)
+                                     << "recentItems=" << static_cast<int>(recent_items_.size());
         return true;
     } catch (const std::exception &error) {
-        qCWarning(log_config).noquote()
-            << "Config load failed path=" << QDir::toNativeSeparators(config_path_)
-            << "reason=" << error.what();
+        qCWarning(log_config).noquote() << "Config load failed path=" << QDir::toNativeSeparators(config_path_)
+                                        << "reason=" << error.what();
         return false;
     }
 }
@@ -303,8 +297,8 @@ bool AppSettings::Save() const {
     QFileInfo config_info(config_path_);
     QDir config_dir = config_info.dir();
     if (!config_dir.exists() && !config_dir.mkpath(".")) {
-        qCWarning(log_config).noquote()
-            << "Config save failed creating directory path=" << QDir::toNativeSeparators(config_dir.absolutePath());
+        qCWarning(log_config).noquote() << "Config save failed creating directory path="
+                                        << QDir::toNativeSeparators(config_dir.absolutePath());
         return false;
     }
 
@@ -348,9 +342,8 @@ bool AppSettings::Save() const {
         qCInfo(log_config).noquote() << "Config saved path=" << QDir::toNativeSeparators(config_path_);
         return true;
     } catch (const std::exception &error) {
-        qCWarning(log_config).noquote()
-            << "Config save failed path=" << QDir::toNativeSeparators(config_path_)
-            << "reason=" << error.what();
+        qCWarning(log_config).noquote() << "Config save failed path=" << QDir::toNativeSeparators(config_path_)
+                                        << "reason=" << error.what();
         return false;
     }
 }

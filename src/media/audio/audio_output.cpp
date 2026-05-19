@@ -1,9 +1,5 @@
 #include "media/audio/audio_output.h"
 
-#include <algorithm>
-#include <cstddef>
-#include <cstring>
-
 #include <QAudioDevice>
 #include <QAudioFormat>
 #include <QAudioSink>
@@ -13,6 +9,9 @@
 #include <QMetaObject>
 #include <QMutex>
 #include <QMutexLocker>
+#include <algorithm>
+#include <cstddef>
+#include <cstring>
 
 #include "media/ffmpeg_error.h"
 
@@ -96,9 +95,8 @@ class AudioOutput::PcmBufferDevice final : public QIODevice {
 
 AudioOutput::AudioOutput(QObject *parent) : QObject(parent) {
     clock_timer_.setInterval(10);
-    QObject::connect(&clock_timer_, &QTimer::timeout, this, [this]() {
-        clock_.SetPositionUsecs(sink_ != nullptr ? sink_->processedUSecs() : 0);
-    });
+    QObject::connect(&clock_timer_, &QTimer::timeout, this,
+                     [this]() { clock_.SetPositionUsecs(sink_ != nullptr ? sink_->processedUSecs() : 0); });
 }
 
 AudioOutput::~AudioOutput() {
@@ -176,8 +174,8 @@ bool AudioOutput::WriteFrame(const AVFrame &frame, QString *error_message) {
     }
 
     const int64_t delay = swr_get_delay(resampler_, frame.sample_rate);
-    const int output_samples = static_cast<int>(
-        av_rescale_rnd(delay + frame.nb_samples, output_sample_rate_, frame.sample_rate, AV_ROUND_UP));
+    const int output_samples =
+        static_cast<int>(av_rescale_rnd(delay + frame.nb_samples, output_sample_rate_, frame.sample_rate, AV_ROUND_UP));
     if (output_samples <= 0) {
         return true;
     }
@@ -289,15 +287,9 @@ bool AudioOutput::EnsureResampler(const AVFrame &frame, QString *error_message) 
     }
 
     AVChannelLayout output_layout = DefaultLayout(output_channel_count_);
-    const int alloc_result = swr_alloc_set_opts2(&resampler_,
-                                                &output_layout,
-                                                kOutputSampleFormat,
-                                                output_sample_rate_,
-                                                &input_layout,
-                                                static_cast<AVSampleFormat>(frame.format),
-                                                frame.sample_rate,
-                                                0,
-                                                nullptr);
+    const int alloc_result =
+        swr_alloc_set_opts2(&resampler_, &output_layout, kOutputSampleFormat, output_sample_rate_, &input_layout,
+                            static_cast<AVSampleFormat>(frame.format), frame.sample_rate, 0, nullptr);
     av_channel_layout_uninit(&output_layout);
     if (input_layout_needs_uninit) {
         av_channel_layout_uninit(&input_layout);
@@ -332,17 +324,20 @@ void AudioOutput::MaybeResumeAfterPrebuffer(bool force) {
     }
 
     resume_queued_ = true;
-    QMetaObject::invokeMethod(this, [this]() {
-        if (sink_ == nullptr || pcm_device_ == nullptr) {
-            resume_queued_ = false;
-            return;
-        }
+    QMetaObject::invokeMethod(
+        this,
+        [this]() {
+            if (sink_ == nullptr || pcm_device_ == nullptr) {
+                resume_queued_ = false;
+                return;
+            }
 
-        // 网络流启动期先积累少量 PCM，再恢复 QAudioSink，避免设备开头反复读空补零。
-        playback_started_ = true;
-        resume_queued_ = false;
-        sink_->resume();
-    }, Qt::QueuedConnection);
+            // 网络流启动期先积累少量 PCM，再恢复 QAudioSink，避免设备开头反复读空补零。
+            playback_started_ = true;
+            resume_queued_ = false;
+            sink_->resume();
+        },
+        Qt::QueuedConnection);
 }
 
 void AudioOutput::ApplyVolume() {

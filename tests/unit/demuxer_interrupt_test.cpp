@@ -1,9 +1,7 @@
-#include <QtTest>
-
-#include <atomic>
-
 #include <QByteArray>
 #include <QElapsedTimer>
+#include <QtTest>
+#include <atomic>
 
 #include "domain/media_source.h"
 #include "media/demux/demuxer.h"

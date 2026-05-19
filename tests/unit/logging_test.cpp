@@ -1,11 +1,10 @@
-#include <QtTest>
+#include "app/logging.h"
 
 #include <QDir>
 #include <QFile>
 #include <QTemporaryDir>
 #include <QTextStream>
-
-#include "app/logging.h"
+#include <QtTest>
 
 namespace {
 
@@ -64,8 +63,7 @@ void LoggingTest::rotates_active_log_and_limited_backups() {
     QVERIFY(WriteTextFile(active_path + QStringLiteral(".2"), QStringLiteral("backup two\n")));
 
     QString error_message;
-    QVERIFY2(shatv::app::RotateLogFiles(active_path, 5, 2, &error_message),
-             qPrintable(error_message));
+    QVERIFY2(shatv::app::RotateLogFiles(active_path, 5, 2, &error_message), qPrintable(error_message));
 
     QVERIFY(!QFile::exists(active_path));
     QCOMPARE(ReadTextFile(active_path + QStringLiteral(".1")), QStringLiteral("active oversized\n"));
@@ -91,10 +89,8 @@ void LoggingTest::creates_log_file_and_writes_qt_messages() {
     shatv::app::ShutdownLogging();
 
     const QString log_text = ReadTextFile(log_path);
-    QVERIFY2(log_text.contains(QStringLiteral("INFO shatv.app")),
-             qPrintable(log_text));
-    QVERIFY2(log_text.contains(QStringLiteral("logging test message")),
-             qPrintable(log_text));
+    QVERIFY2(log_text.contains(QStringLiteral("INFO shatv.app")), qPrintable(log_text));
+    QVERIFY2(log_text.contains(QStringLiteral("logging test message")), qPrintable(log_text));
 }
 
 void LoggingTest::disables_file_logging_when_directory_cannot_be_created() {

@@ -1,10 +1,9 @@
 #pragma once
 
-#include <functional>
-#include <memory>
-
 #include <QString>
 #include <QtGlobal>
+#include <functional>
+#include <memory>
 
 #include "media/asr/pcm_converter.h"
 

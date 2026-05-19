@@ -1,7 +1,5 @@
 #include "app/logging.h"
 
-#include <cstdio>
-
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
@@ -13,6 +11,7 @@
 #include <QTextStream>
 #include <QThread>
 #include <QUrlQuery>
+#include <cstdio>
 
 namespace shatv::app {
 
@@ -80,10 +79,8 @@ QString FormatThreadId() {
 QString FormatMessageLine(QtMsgType type, const QMessageLogContext &context, const QString &message) {
     QString line;
     QTextStream stream(&line);
-    stream << QDateTime::currentDateTime().toString(Qt::ISODateWithMs)
-           << ' ' << SeverityName(type)
-           << ' ' << (context.category != nullptr ? context.category : "default")
-           << " [" << FormatThreadId() << "] "
+    stream << QDateTime::currentDateTime().toString(Qt::ISODateWithMs) << ' ' << SeverityName(type) << ' '
+           << (context.category != nullptr ? context.category : "default") << " [" << FormatThreadId() << "] "
            << message;
 #ifndef NDEBUG
     if (context.file != nullptr && context.line > 0) {
@@ -178,8 +175,7 @@ bool InitializeLogging(const LoggingOptions &options) {
     state.file_logging_enabled = false;
     state.max_file_bytes = options.max_file_bytes;
     state.max_backup_files = options.max_backup_files;
-    const QString standard_directory =
-        QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    const QString standard_directory = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     state.logs_directory = options.log_directory.isEmpty() ? standard_directory : options.log_directory;
     state.log_file_path = state.logs_directory.isEmpty()
                               ? QString()
@@ -205,8 +201,8 @@ bool InitializeLogging(const LoggingOptions &options) {
     if (setup_warning.isEmpty()) {
         QString open_error;
         if (!OpenLogFileLocked(&state, &open_error)) {
-            setup_warning = QStringLiteral("failed to open %1: %2")
-                                .arg(QDir::toNativeSeparators(state.log_file_path), open_error);
+            setup_warning =
+                QStringLiteral("failed to open %1: %2").arg(QDir::toNativeSeparators(state.log_file_path), open_error);
         }
     }
 
@@ -217,8 +213,7 @@ bool InitializeLogging(const LoggingOptions &options) {
 
     if (!setup_warning.isEmpty()) {
         state.file_logging_enabled = false;
-        WriteStderrLine(QStringLiteral("ShaTV logging warning: %1; continuing with stderr logging")
-                            .arg(setup_warning));
+        WriteStderrLine(QStringLiteral("ShaTV logging warning: %1; continuing with stderr logging").arg(setup_warning));
     }
 
     Q_UNUSED(options.app_name);
@@ -284,9 +279,7 @@ QString RedactUrlForLog(const QUrl &url) {
     return redacted.toString(QUrl::RemoveUserInfo | QUrl::RemoveFragment);
 }
 
-bool RotateLogFiles(const QString &active_file_path,
-                    qint64 max_file_bytes,
-                    int max_backup_files,
+bool RotateLogFiles(const QString &active_file_path, qint64 max_file_bytes, int max_backup_files,
                     QString *error_message) {
     if (active_file_path.isEmpty() || max_file_bytes <= 0 || max_backup_files <= 0) {
         return true;

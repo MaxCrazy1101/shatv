@@ -1,10 +1,9 @@
 #include "media/demux/demuxer.h"
 
-#include <chrono>
-
 #include <QByteArray>
 #include <QLoggingCategory>
 #include <QUrl>
+#include <chrono>
 
 #include "media/ffmpeg_error.h"
 
@@ -27,8 +26,7 @@ constexpr char kOpenTimeoutEnvName[] = "SHATV_FFMPEG_OPEN_TIMEOUT_MS";
 constexpr char kReadTimeoutEnvName[] = "SHATV_FFMPEG_READ_TIMEOUT_MS";
 
 qint64 NowMillis() {
-    return std::chrono::duration_cast<std::chrono::milliseconds>(
-               std::chrono::steady_clock::now().time_since_epoch())
+    return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch())
         .count();
 }
 
@@ -78,8 +76,7 @@ bool Demuxer::Open(const domain::MediaSourceDescriptor &source, QString *error_m
     return Open(source, {}, error_message);
 }
 
-bool Demuxer::Open(const domain::MediaSourceDescriptor &source,
-                   DemuxerOpenOptions open_options,
+bool Demuxer::Open(const domain::MediaSourceDescriptor &source, DemuxerOpenOptions open_options,
                    QString *error_message) {
     Close();
     abort_requested_ = open_options.abort_requested;
@@ -125,15 +122,13 @@ bool Demuxer::Open(const domain::MediaSourceDescriptor &source,
         read_timeout_usecs = QByteArray::number(static_cast<qint64>(remote_timeout_config_.read_timeout_ms) * 1000);
         av_dict_set(&options, "timeout", open_timeout_usecs.constData(), 0);
         av_dict_set(&options, "rw_timeout", read_timeout_usecs.constData(), 0);
-        qCInfo(log_demuxer).noquote()
-            << "FFmpeg remote demux timeouts"
-            << "url=" << source.url.toDisplayString(QUrl::RemovePassword | QUrl::RemoveQuery)
-            << "openTimeoutMs=" << remote_timeout_config_.open_timeout_ms
-            << "readTimeoutMs=" << remote_timeout_config_.read_timeout_ms;
+        qCInfo(log_demuxer).noquote() << "FFmpeg remote demux timeouts"
+                                      << "url=" << source.url.toDisplayString(QUrl::RemovePassword | QUrl::RemoveQuery)
+                                      << "openTimeoutMs=" << remote_timeout_config_.open_timeout_ms
+                                      << "readTimeoutMs=" << remote_timeout_config_.read_timeout_ms;
     }
 
-    const QByteArray input_url =
-        (source.url.isLocalFile() ? source.url.toLocalFile() : source.url.toString()).toUtf8();
+    const QByteArray input_url = (source.url.isLocalFile() ? source.url.toLocalFile() : source.url.toString()).toUtf8();
     format_context_ = avformat_alloc_context();
     if (format_context_ == nullptr) {
         av_dict_free(&options);
@@ -164,10 +159,10 @@ bool Demuxer::Open(const domain::MediaSourceDescriptor &source,
     if (stream_info_result < 0) {
         if (error_message != nullptr) {
             const QString interrupt_error = InterruptErrorMessage();
-            *error_message = interrupt_error.isEmpty()
-                                 ? QStringLiteral("avformat_find_stream_info failed: %1")
-                                       .arg(FfmpegErrorString(stream_info_result))
-                                 : interrupt_error;
+            *error_message =
+                interrupt_error.isEmpty()
+                    ? QStringLiteral("avformat_find_stream_info failed: %1").arg(FfmpegErrorString(stream_info_result))
+                    : interrupt_error;
         }
         EndInterruptibleOperation();
         Close();
@@ -271,8 +266,7 @@ ReadPacketResult Demuxer::ReadNextPacketForStream(int stream_index, AVPacket *pa
             if (error_message != nullptr) {
                 const QString interrupt_error = InterruptErrorMessage();
                 *error_message = interrupt_error.isEmpty()
-                                     ? QStringLiteral("av_read_frame failed: %1")
-                                           .arg(FfmpegErrorString(read_result))
+                                     ? QStringLiteral("av_read_frame failed: %1").arg(FfmpegErrorString(read_result))
                                      : interrupt_error;
             }
             return ReadPacketResult::kError;
@@ -291,8 +285,7 @@ int Demuxer::InterruptCallback(void *opaque) {
     return static_cast<Demuxer *>(opaque)->ShouldInterrupt() ? 1 : 0;
 }
 
-bool Demuxer::ConfigureRemoteTimeouts(const domain::MediaSourceDescriptor &source,
-                                      RemoteTimeoutConfig *config,
+bool Demuxer::ConfigureRemoteTimeouts(const domain::MediaSourceDescriptor &source, RemoteTimeoutConfig *config,
                                       QString *error_message) const {
     if (config == nullptr) {
         if (error_message != nullptr) {
@@ -306,13 +299,9 @@ bool Demuxer::ConfigureRemoteTimeouts(const domain::MediaSourceDescriptor &sourc
     }
 
     config->enabled = true;
-    return PositiveEnvironmentInt(kOpenTimeoutEnvName,
-                                  kDefaultRemoteOpenTimeoutMs,
-                                  &config->open_timeout_ms,
+    return PositiveEnvironmentInt(kOpenTimeoutEnvName, kDefaultRemoteOpenTimeoutMs, &config->open_timeout_ms,
                                   error_message) &&
-           PositiveEnvironmentInt(kReadTimeoutEnvName,
-                                  kDefaultRemoteReadTimeoutMs,
-                                  &config->read_timeout_ms,
+           PositiveEnvironmentInt(kReadTimeoutEnvName, kDefaultRemoteReadTimeoutMs, &config->read_timeout_ms,
                                   error_message);
 }
 

@@ -1,10 +1,9 @@
-#include <clocale>
-
 #include <QCoreApplication>
 #include <QGuiApplication>
 #include <QLocale>
 #include <QQuickStyle>
 #include <QTranslator>
+#include <clocale>
 
 #include "app/application.h"
 #include "app/build_info.h"
@@ -24,11 +23,8 @@ int main(int argc, char *argv[]) {
     shatv::app::InitializeLogging();
     qCInfo(shatv::app::log_app).noquote()
         << "ShaTV startup"
-        << "version=" << shatv::app::kProjectVersion
-        << "build=" << shatv::app::kBuildId
-        << "qt=" << qVersion()
-        << "platform=" << QGuiApplication::platformName()
-        << "logFile=" << shatv::app::CurrentLogFilePath();
+        << "version=" << shatv::app::kProjectVersion << "build=" << shatv::app::kBuildId << "qt=" << qVersion()
+        << "platform=" << QGuiApplication::platformName() << "logFile=" << shatv::app::CurrentLogFilePath();
 
     QTranslator translator;
     if (translator.load(QLocale(), "shatv", "_", ":/i18n")) {

@@ -1,14 +1,7 @@
 #include "app/application.h"
 
-#include <iostream>
-#include <algorithm>
-#include <memory>
-#include <optional>
-#include <utility>
-#include <variant>
-
-#include <QCoreApplication>
 #include <QClipboard>
+#include <QCoreApplication>
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QDir>
@@ -27,18 +20,24 @@
 #include <QUrl>
 #include <QWindow>
 #include <QtConcurrent/QtConcurrentRun>
+#include <algorithm>
+#include <iostream>
+#include <memory>
+#include <optional>
+#include <utility>
+#include <variant>
 
 #include "app/asr_model_archive_installer.h"
-#include "app/build_info.h"
 #include "app/asr_model_service.h"
+#include "app/build_info.h"
 #include "app/epg_programme_presentation.h"
 #include "app/epg_service.h"
 #include "app/logging.h"
 #include "app/source_open_service.h"
 #include "app/xmltv_epg_payload.h"
 #include "application/player_controller.h"
-#include "domain/player_snapshot.h"
 #include "domain/playback_state.h"
+#include "domain/player_snapshot.h"
 #include "player/ffmpeg_player_backend.h"
 #include "ui/models/channel_filter_model.h"
 #include "ui/models/channel_list_model.h"
@@ -61,8 +60,7 @@ std::vector<domain::Channel> ExtractChannels(const std::vector<domain::ResolvedC
 }
 
 QString OpenTargetForLog(const OpenRequest &request) {
-    if (request.request_kind == OpenRequestKind::kUrlText ||
-        request.request_kind == OpenRequestKind::kStartupOpenUrl) {
+    if (request.request_kind == OpenRequestKind::kUrlText || request.request_kind == OpenRequestKind::kStartupOpenUrl) {
         return RedactUrlForLog(QUrl::fromUserInput(request.target));
     }
 
@@ -176,16 +174,13 @@ QString SpeechModelStatusDetail(const AsrModelStatus &status, bool install_suppo
 #if defined(SHATV_ENABLE_ASR)
 bool ValidateSpeechSubtitleProvider(QString *unavailable_reason) {
     const QString provider = qEnvironmentVariable("SHATV_ASR_PROVIDER").trimmed();
-    if (provider.isEmpty() ||
-        provider == QStringLiteral("cpu") ||
-        provider == QStringLiteral("cuda") ||
+    if (provider.isEmpty() || provider == QStringLiteral("cpu") || provider == QStringLiteral("cuda") ||
         provider == QStringLiteral("coreml")) {
         return true;
     }
 
     if (unavailable_reason != nullptr) {
-        *unavailable_reason =
-            QCoreApplication::translate("Application", "Unsupported ASR provider: %1").arg(provider);
+        *unavailable_reason = QCoreApplication::translate("Application", "Unsupported ASR provider: %1").arg(provider);
     }
     return false;
 }
@@ -226,12 +221,12 @@ Application::Application(QGuiApplication *qt_app, LaunchOptions options)
         status_message_.clear();
         shell_bridge_->SetStatusMessage(QString());
     });
-    QObject::connect(&speech_model_install_watcher_, &QFutureWatcher<AsrModelArchiveInstallResult>::finished,
-                     qt_app_, [this]() { FinishSpeechModelArchiveInstall(); });
+    QObject::connect(&speech_model_install_watcher_, &QFutureWatcher<AsrModelArchiveInstallResult>::finished, qt_app_,
+                     [this]() { FinishSpeechModelArchiveInstall(); });
 
     if (!settings_.Load()) {
-        qCWarning(log_config).noquote()
-            << "Config load failed path=" << QDir::toNativeSeparators(settings_.ConfigPath());
+        qCWarning(log_config).noquote() << "Config load failed path="
+                                        << QDir::toNativeSeparators(settings_.ConfigPath());
     }
 
     controller_->SetVolume(settings_.Volume());
@@ -255,7 +250,8 @@ Application::Application(QGuiApplication *qt_app, LaunchOptions options)
     Q_ASSERT(ffmpeg_video_item_ != nullptr);
 
     if (auto *ffmpeg_backend = dynamic_cast<player::FfmpegPlayerBackend *>(backend_.get())) {
-        ffmpeg_backend->SetVideoOnlyMode(options_.ffmpeg_smoke && qEnvironmentVariable("SHATV_FFMPEG_SMOKE_MEDIA").isEmpty());
+        ffmpeg_backend->SetVideoOnlyMode(options_.ffmpeg_smoke &&
+                                         qEnvironmentVariable("SHATV_FFMPEG_SMOKE_MEDIA").isEmpty());
         ffmpeg_video_item_->SetBackend(ffmpeg_backend);
     }
 
@@ -314,10 +310,9 @@ Application::Application(QGuiApplication *qt_app, LaunchOptions options)
                              .replay_request_kind = std::nullopt,
                          });
                      });
-    QObject::connect(shell_bridge_.get(), &ui::shell::AppShellBridge::NetworkSettingsRequested, qt_app_,
-                     [this](const QString &user_agent, const QString &epg_url) {
-                         UpdateNetworkSettings(user_agent, epg_url);
-                     });
+    QObject::connect(
+        shell_bridge_.get(), &ui::shell::AppShellBridge::NetworkSettingsRequested, qt_app_,
+        [this](const QString &user_agent, const QString &epg_url) { UpdateNetworkSettings(user_agent, epg_url); });
     QObject::connect(shell_bridge_.get(), &ui::shell::AppShellBridge::OpenLogsFolderRequested, qt_app_,
                      [this]() { OpenLogsFolder(); });
     QObject::connect(shell_bridge_.get(), &ui::shell::AppShellBridge::CopyDiagnosticsRequested, qt_app_,
@@ -367,10 +362,9 @@ Application::Application(QGuiApplication *qt_app, LaunchOptions options)
     shell_bridge_->SetConfiguredUserAgent(settings_.UserAgent());
     shell_bridge_->SetConfiguredEpgUrl(settings_.EpgUrl());
 
-    qCInfo(log_app).noquote()
-        << "Application initialized"
-        << "configPath=" << QDir::toNativeSeparators(settings_.ConfigPath())
-        << "logFile=" << CurrentLogFilePath();
+    qCInfo(log_app).noquote() << "Application initialized"
+                              << "configPath=" << QDir::toNativeSeparators(settings_.ConfigPath())
+                              << "logFile=" << CurrentLogFilePath();
 }
 
 Application::~Application() {
@@ -438,10 +432,9 @@ std::vector<domain::ResolvedChannel> Application::BuildInitialChannels() const {
 }
 
 void Application::ResolveOpenRequest(OpenRequest request) {
-    qCInfo(log_app).noquote()
-        << "Open request"
-        << "kind=" << OpenRequestKindToken(request.request_kind)
-        << "target=" << OpenTargetForLog(request);
+    qCInfo(log_app).noquote() << "Open request"
+                              << "kind=" << OpenRequestKindToken(request.request_kind)
+                              << "target=" << OpenTargetForLog(request);
     source_open_service_->Resolve(std::move(request),
                                   SourceOpenContext{
                                       .current_directory = QDir::currentPath(),
@@ -458,10 +451,9 @@ void Application::HandleOpenResolution(OpenResolution resolution) {
     }
 
     if (auto *direct_media = std::get_if<DirectMediaResolution>(&resolution); direct_media != nullptr) {
-        qCInfo(log_playback).noquote()
-            << "Open resolved direct media"
-            << "name=" << direct_media->item.channel.name
-            << "target=" << RedactUrlForLog(direct_media->item.channel.url);
+        qCInfo(log_playback).noquote() << "Open resolved direct media"
+                                       << "name=" << direct_media->item.channel.name
+                                       << "target=" << RedactUrlForLog(direct_media->item.channel.url);
         if (direct_media->recent_item.has_value()) {
             RememberRecentItem(*direct_media->recent_item);
         }
@@ -473,10 +465,9 @@ void Application::HandleOpenResolution(OpenResolution resolution) {
     }
 
     if (auto *channel_list = std::get_if<ChannelListResolution>(&resolution); channel_list != nullptr) {
-        qCInfo(log_playback)
-            << "Open resolved playlist"
-            << "channels=" << static_cast<int>(channel_list->channels.size())
-            << "hasPlaylistEpg=" << !channel_list->playlist_epg_url.isEmpty();
+        qCInfo(log_playback) << "Open resolved playlist"
+                             << "channels=" << static_cast<int>(channel_list->channels.size())
+                             << "hasPlaylistEpg=" << !channel_list->playlist_epg_url.isEmpty();
         if (channel_list->recent_item.has_value()) {
             RememberRecentItem(*channel_list->recent_item);
         }
@@ -493,10 +484,9 @@ void Application::OpenChannels(std::vector<domain::ResolvedChannel> channels, co
 
     current_channels_ = std::move(channels);
     playlist_epg_url_ = playlist_epg_url;
-    qCInfo(log_playback)
-        << "Opening channel list"
-        << "channels=" << static_cast<int>(current_channels_.size())
-        << "hasPlaylistEpg=" << !playlist_epg_url_.isEmpty();
+    qCInfo(log_playback) << "Opening channel list"
+                         << "channels=" << static_cast<int>(current_channels_.size())
+                         << "hasPlaylistEpg=" << !playlist_epg_url_.isEmpty();
     channel_model_->SetChannels(ExtractChannels(current_channels_));
     RefreshShellFilters();
     ReloadEpg();
@@ -512,8 +502,8 @@ void Application::UpdateNetworkSettings(const QString &user_agent, const QString
     if (!settings_.Save()) {
         settings_.SetUserAgent(previous_user_agent);
         settings_.SetEpgUrl(previous_epg_url);
-        qCWarning(log_config).noquote()
-            << "Network settings save failed path=" << QDir::toNativeSeparators(settings_.ConfigPath());
+        qCWarning(log_config).noquote() << "Network settings save failed path="
+                                        << QDir::toNativeSeparators(settings_.ConfigPath());
         ShowAlert(QCoreApplication::translate("Application", "Failed to save network settings to %1")
                       .arg(QDir::toNativeSeparators(settings_.ConfigPath())));
         return;
@@ -521,12 +511,11 @@ void Application::UpdateNetworkSettings(const QString &user_agent, const QString
 
     shell_bridge_->SetConfiguredUserAgent(settings_.UserAgent());
     shell_bridge_->SetConfiguredEpgUrl(settings_.EpgUrl());
-    qCInfo(log_config).noquote()
-        << "Network settings saved"
-        << "hasUserAgent=" << !settings_.UserAgent().isEmpty()
-        << "epgUrl=" << (settings_.EpgUrl().isEmpty()
-                              ? QStringLiteral("<empty>")
-                              : RedactUrlForLog(QUrl::fromUserInput(settings_.EpgUrl())));
+    qCInfo(log_config).noquote() << "Network settings saved"
+                                 << "hasUserAgent=" << !settings_.UserAgent().isEmpty() << "epgUrl="
+                                 << (settings_.EpgUrl().isEmpty()
+                                         ? QStringLiteral("<empty>")
+                                         : RedactUrlForLog(QUrl::fromUserInput(settings_.EpgUrl())));
     ReloadEpg();
     ShowStatusMessage(QCoreApplication::translate("Application", "Network settings saved"), 3000);
 }
@@ -553,27 +542,24 @@ void Application::ReloadEpg() {
     if (epg_url.isLocalFile()) {
         QFile input(epg_url.toLocalFile());
         if (!input.open(QIODevice::ReadOnly)) {
-            qCWarning(log_epg).noquote()
-                << "EPG local load failed source=" << RedactUrlForLog(epg_url)
-                << "reason=" << input.errorString();
+            qCWarning(log_epg).noquote() << "EPG local load failed source=" << RedactUrlForLog(epg_url)
+                                         << "reason=" << input.errorString();
             return;
         }
 
         QString decode_error;
         const std::optional<QString> xml = DecodeXmltvPayload(input.readAll(), source_url, &decode_error);
         if (!xml.has_value()) {
-            qCWarning(log_epg).noquote()
-                << "EPG decode failed source=" << RedactUrlForLog(epg_url)
-                << "reason=" << decode_error;
+            qCWarning(log_epg).noquote() << "EPG decode failed source=" << RedactUrlForLog(epg_url)
+                                         << "reason=" << decode_error;
             return;
         }
 
         EpgService loaded_service;
         QString parse_error;
         if (!loaded_service.LoadXmltv(*xml, &parse_error)) {
-            qCWarning(log_epg).noquote()
-                << "EPG parse failed source=" << RedactUrlForLog(epg_url)
-                << "reason=" << parse_error;
+            qCWarning(log_epg).noquote() << "EPG parse failed source=" << RedactUrlForLog(epg_url)
+                                         << "reason=" << parse_error;
             return;
         }
 
@@ -607,10 +593,9 @@ void Application::ReloadEpg() {
 
         if (reply->error() != QNetworkReply::NoError) {
             const QUrl failed_url = QUrl::fromUserInput(source_url);
-            qCWarning(log_epg).noquote()
-                << "EPG download failed source=" << RedactUrlForLog(failed_url)
-                << "status=" << reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt()
-                << "reason=" << reply->errorString();
+            qCWarning(log_epg).noquote() << "EPG download failed source=" << RedactUrlForLog(failed_url) << "status="
+                                         << reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt()
+                                         << "reason=" << reply->errorString();
             return;
         }
 
@@ -618,9 +603,8 @@ void Application::ReloadEpg() {
         const std::optional<QString> xml = DecodeXmltvPayload(reply->readAll(), source_url, &decode_error);
         if (!xml.has_value()) {
             const QUrl failed_url = QUrl::fromUserInput(source_url);
-            qCWarning(log_epg).noquote()
-                << "EPG decode failed source=" << RedactUrlForLog(failed_url)
-                << "reason=" << decode_error;
+            qCWarning(log_epg).noquote() << "EPG decode failed source=" << RedactUrlForLog(failed_url)
+                                         << "reason=" << decode_error;
             return;
         }
 
@@ -628,9 +612,8 @@ void Application::ReloadEpg() {
         QString parse_error;
         if (!loaded_service.LoadXmltv(*xml, &parse_error)) {
             const QUrl failed_url = QUrl::fromUserInput(source_url);
-            qCWarning(log_epg).noquote()
-                << "EPG parse failed source=" << RedactUrlForLog(failed_url)
-                << "reason=" << parse_error;
+            qCWarning(log_epg).noquote() << "EPG parse failed source=" << RedactUrlForLog(failed_url)
+                                         << "reason=" << parse_error;
             return;
         }
 
@@ -639,7 +622,8 @@ void Application::ReloadEpg() {
         }
 
         epg_service_ = std::move(loaded_service);
-        qCInfo(log_epg).noquote() << "EPG remote load completed source=" << RedactUrlForLog(QUrl::fromUserInput(source_url));
+        qCInfo(log_epg).noquote() << "EPG remote load completed source="
+                                  << RedactUrlForLog(QUrl::fromUserInput(source_url));
         UpdateDisplayedEpg();
     });
 }
@@ -692,8 +676,8 @@ void Application::RememberRecentItem(const RecentOpenItem &item) {
     settings_.RememberRecentItem(item);
     RefreshRecentItems();
     if (!settings_.Save()) {
-        qCWarning(log_config).noquote()
-            << "Recent history save failed path=" << QDir::toNativeSeparators(settings_.ConfigPath());
+        qCWarning(log_config).noquote() << "Recent history save failed path="
+                                        << QDir::toNativeSeparators(settings_.ConfigPath());
         ShowStatusMessage(QCoreApplication::translate("Application", "Failed to save recent history"), 3000);
     }
 }
@@ -804,9 +788,8 @@ void Application::UpdateSpeechSubtitleEnabled(bool enabled) {
     settings_.SetSpeechSubtitleEnabled(enabled);
     if (!options_.ffmpeg_audio_smoke && !options_.ffmpeg_smoke && !settings_.Save()) {
         settings_.SetSpeechSubtitleEnabled(previous_enabled);
-        qCWarning(log_config).noquote()
-            << "Speech subtitle preference save failed path="
-            << QDir::toNativeSeparators(settings_.ConfigPath());
+        qCWarning(log_config).noquote() << "Speech subtitle preference save failed path="
+                                        << QDir::toNativeSeparators(settings_.ConfigPath());
         RefreshSpeechSubtitleControl();
         ShowAlert(QCoreApplication::translate("Application", "Failed to save speech subtitle setting"));
         return;
@@ -819,13 +802,10 @@ void Application::UpdateSpeechSubtitleEnabled(bool enabled) {
         shell_bridge_->ClearSpeechSubtitle();
     }
 
-    qCInfo(log_config)
-        << "Speech subtitle preference saved"
-        << "enabled=" << enabled
-        << "effectiveEnabled=" << effective_enabled;
-    ShowStatusMessage(enabled
-                          ? QCoreApplication::translate("Application", "Speech recognition subtitles enabled")
-                          : QCoreApplication::translate("Application", "Speech recognition subtitles disabled"),
+    qCInfo(log_config) << "Speech subtitle preference saved"
+                       << "enabled=" << enabled << "effectiveEnabled=" << effective_enabled;
+    ShowStatusMessage(enabled ? QCoreApplication::translate("Application", "Speech recognition subtitles enabled")
+                              : QCoreApplication::translate("Application", "Speech recognition subtitles disabled"),
                       3000);
 }
 
@@ -838,22 +818,13 @@ void Application::RefreshSpeechModelStatus() {
     const bool installed = model_status.Available();
     const bool developer_override = model_status.source == AsrModelInstallSource::kDeveloperOverride;
 
-    shell_bridge_->SetSpeechModelStatus(SpeechModelStatusToken(model_status.status),
-                                        SpeechModelStatusText(model_status),
-                                        SpeechModelStatusDetail(model_status, install_supported),
-                                        manifest.display_name,
-                                        manifest.version,
-                                        manifest.source_url,
-                                        FormatBytes(manifest.archive_size_bytes),
-                                        FormatBytes(manifest.installed_size_bytes),
-                                        manifest.archive_sha256,
-                                        manifest.license,
-                                        manifest.attribution,
-                                        QDir::toNativeSeparators(model_status.model_dir),
-                                        installed,
-                                        developer_override,
-                                        runtime_available,
-                                        install_supported);
+    shell_bridge_->SetSpeechModelStatus(
+        SpeechModelStatusToken(model_status.status), SpeechModelStatusText(model_status),
+        SpeechModelStatusDetail(model_status, install_supported), manifest.display_name, manifest.version,
+        manifest.source_url, FormatBytes(manifest.archive_size_bytes), FormatBytes(manifest.installed_size_bytes),
+        manifest.archive_sha256, manifest.license, manifest.attribution,
+        QDir::toNativeSeparators(model_status.model_dir), installed, developer_override, runtime_available,
+        install_supported);
 }
 
 void Application::DownloadSpeechModel() {
@@ -862,15 +833,18 @@ void Application::DownloadSpeechModel() {
         return;
     }
     if (speech_model_install_watcher_.isRunning()) {
-        ShowStatusMessage(QCoreApplication::translate("Application", "ASR model installation is already running"), 3000);
+        ShowStatusMessage(QCoreApplication::translate("Application", "ASR model installation is already running"),
+                          3000);
         return;
     }
     if (!SpeechRuntimeAvailable()) {
-        ShowAlert(QCoreApplication::translate("Application", "This build does not include the speech recognition runtime"));
+        ShowAlert(
+            QCoreApplication::translate("Application", "This build does not include the speech recognition runtime"));
         return;
     }
     if (!AsrModelArchiveInstaller::Supported()) {
-        ShowAlert(QCoreApplication::translate("Application", "ASR model archive extraction requires libarchive support"));
+        ShowAlert(
+            QCoreApplication::translate("Application", "ASR model archive extraction requires libarchive support"));
         return;
     }
 
@@ -886,13 +860,11 @@ void Application::DownloadSpeechModel() {
                      });
 
     shell_bridge_->SetSpeechModelBusy(true);
-    shell_bridge_->SetSpeechModelOperation(true,
-                                           -1.0,
+    shell_bridge_->SetSpeechModelOperation(true, -1.0,
                                            QCoreApplication::translate("Application", "Downloading ASR model..."));
     ShowStatusMessage(QCoreApplication::translate("Application", "Downloading ASR model..."), 0);
-    qCInfo(log_app).noquote()
-        << "ASR model download requested"
-        << "source=" << manifest.source_url;
+    qCInfo(log_app).noquote() << "ASR model download requested"
+                              << "source=" << manifest.source_url;
     speech_model_downloader_->Start(manifest);
 }
 
@@ -901,18 +873,15 @@ void Application::CancelSpeechModelDownload() {
         return;
     }
 
-    shell_bridge_->SetSpeechModelOperation(true,
-                                           -1.0,
-                                           QCoreApplication::translate("Application", "Cancelling ASR model download..."));
+    shell_bridge_->SetSpeechModelOperation(
+        true, -1.0, QCoreApplication::translate("Application", "Cancelling ASR model download..."));
     speech_model_downloader_->Cancel();
 }
 
 void Application::UpdateSpeechModelDownloadProgress(qint64 bytes_received, qint64 bytes_total) {
-    const double progress = bytes_total > 0
-                                ? std::clamp(static_cast<double>(bytes_received) / static_cast<double>(bytes_total),
-                                             0.0,
-                                             1.0)
-                                : -1.0;
+    const double progress =
+        bytes_total > 0 ? std::clamp(static_cast<double>(bytes_received) / static_cast<double>(bytes_total), 0.0, 1.0)
+                        : -1.0;
     const QString operation_text = bytes_total > 0
                                        ? QCoreApplication::translate("Application", "Downloading ASR model... %1 / %2")
                                              .arg(FormatBytes(bytes_received), FormatBytes(bytes_total))
@@ -930,9 +899,8 @@ void Application::FinishSpeechModelDownload(const AsrModelArchiveDownloadResult 
         RefreshSpeechModelStatus();
         RefreshSpeechSubtitleControl();
 
-        qCWarning(log_app).noquote()
-            << "ASR model download failed"
-            << "reason=" << result.error_message;
+        qCWarning(log_app).noquote() << "ASR model download failed"
+                                     << "reason=" << result.error_message;
         if (result.error_message.contains(QStringLiteral("cancelled"), Qt::CaseInsensitive)) {
             ShowStatusMessage(QCoreApplication::translate("Application", "ASR model download cancelled"), 3000);
             return;
@@ -941,9 +909,8 @@ void Application::FinishSpeechModelDownload(const AsrModelArchiveDownloadResult 
         return;
     }
 
-    qCInfo(log_app).noquote()
-        << "ASR model download finished"
-        << "archive=" << QDir::toNativeSeparators(result.archive_path);
+    qCInfo(log_app).noquote() << "ASR model download finished"
+                              << "archive=" << QDir::toNativeSeparators(result.archive_path);
     shell_bridge_->SetSpeechModelBusy(false);
     shell_bridge_->SetSpeechModelOperation(false, -1.0, QString());
     InstallSpeechModelArchive(result.archive_path);
@@ -955,15 +922,18 @@ void Application::InstallSpeechModelArchive(const QString &archive_path) {
         return;
     }
     if (speech_model_install_watcher_.isRunning()) {
-        ShowStatusMessage(QCoreApplication::translate("Application", "ASR model installation is already running"), 3000);
+        ShowStatusMessage(QCoreApplication::translate("Application", "ASR model installation is already running"),
+                          3000);
         return;
     }
     if (!SpeechRuntimeAvailable()) {
-        ShowAlert(QCoreApplication::translate("Application", "This build does not include the speech recognition runtime"));
+        ShowAlert(
+            QCoreApplication::translate("Application", "This build does not include the speech recognition runtime"));
         return;
     }
     if (!AsrModelArchiveInstaller::Supported()) {
-        ShowAlert(QCoreApplication::translate("Application", "ASR model archive extraction requires libarchive support"));
+        ShowAlert(
+            QCoreApplication::translate("Application", "ASR model archive extraction requires libarchive support"));
         return;
     }
     if (!QFileInfo(archive_path).isFile()) {
@@ -975,13 +945,11 @@ void Application::InstallSpeechModelArchive(const QString &archive_path) {
     const AsrModelManifest manifest = AsrModelService::DefaultManifest();
     const QString normalized_archive_path = QFileInfo(archive_path).absoluteFilePath();
     shell_bridge_->SetSpeechModelBusy(true);
-    shell_bridge_->SetSpeechModelOperation(false,
-                                           -1.0,
+    shell_bridge_->SetSpeechModelOperation(false, -1.0,
                                            QCoreApplication::translate("Application", "Installing ASR model..."));
     ShowStatusMessage(QCoreApplication::translate("Application", "Installing ASR model..."), 0);
-    qCInfo(log_app).noquote()
-        << "ASR model archive install requested"
-        << "archive=" << QDir::toNativeSeparators(normalized_archive_path);
+    qCInfo(log_app).noquote() << "ASR model archive install requested"
+                              << "archive=" << QDir::toNativeSeparators(normalized_archive_path);
 
     speech_model_install_watcher_.setFuture(QtConcurrent::run([normalized_archive_path, manifest]() {
         const AsrModelArchiveInstaller installer;
@@ -997,16 +965,14 @@ void Application::FinishSpeechModelArchiveInstall() {
     RefreshSpeechSubtitleControl();
 
     if (!result.success) {
-        qCWarning(log_app).noquote()
-            << "ASR model archive install failed"
-            << "reason=" << result.error_message;
+        qCWarning(log_app).noquote() << "ASR model archive install failed"
+                                     << "reason=" << result.error_message;
         ShowAlert(result.error_message);
         return;
     }
 
-    qCInfo(log_app).noquote()
-        << "ASR model archive installed"
-        << "installDir=" << QDir::toNativeSeparators(result.install_dir);
+    qCInfo(log_app).noquote() << "ASR model archive installed"
+                              << "installDir=" << QDir::toNativeSeparators(result.install_dir);
     ShowStatusMessage(QCoreApplication::translate("Application", "ASR model installed"), 3000);
 }
 
@@ -1023,7 +989,8 @@ void Application::DeleteSpeechModel() {
     const AsrModelService model_service;
     const AsrModelStatus model_status = model_service.InstalledModelStatus();
     if (model_status.source == AsrModelInstallSource::kDeveloperOverride) {
-        ShowAlert(QCoreApplication::translate("Application", "Developer override model directories are not managed by ShaTV"));
+        ShowAlert(QCoreApplication::translate("Application",
+                                              "Developer override model directories are not managed by ShaTV"));
         return;
     }
 
@@ -1044,9 +1011,8 @@ void Application::DeleteSpeechModel() {
         return;
     }
 
-    qCInfo(log_app).noquote()
-        << "ASR model deleted"
-        << "installDir=" << QDir::toNativeSeparators(install_dir);
+    qCInfo(log_app).noquote() << "ASR model deleted"
+                              << "installDir=" << QDir::toNativeSeparators(install_dir);
     RefreshSpeechModelStatus();
     RefreshSpeechSubtitleControl();
     ShowStatusMessage(QCoreApplication::translate("Application", "ASR model deleted"), 3000);

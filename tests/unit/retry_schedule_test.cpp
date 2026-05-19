@@ -1,6 +1,6 @@
-#include <QtTest>
-
 #include "player/retry_schedule.h"
+
+#include <QtTest>
 
 namespace {
 

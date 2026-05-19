@@ -1,18 +1,17 @@
 #pragma once
 
+#include <QMutex>
+#include <QString>
 #include <atomic>
 #include <memory>
 #include <thread>
 #include <vector>
 
-#include <QMutex>
-#include <QString>
-
 #include "domain/media_source.h"
 #include "domain/player_snapshot.h"
 #include "media/asr/pcm_converter.h"
 #if defined(SHATV_ENABLE_ASR)
-#include "media/asr/streaming_recognizer_worker.h"
+#    include "media/asr/streaming_recognizer_worker.h"
 #endif
 #include "media/audio/audio_output.h"
 #include "media/video/video_frame_queue.h"
@@ -76,20 +75,13 @@ class FfmpegPlayerBackend final : public PlayerBackend {
 
     bool TapAsrAudioFrame(const AVFrame &frame, QString *error_message);
     void RequestAsrStartup(const domain::MediaSourceDescriptor &source);
-    bool BuildAsrConfig(const domain::MediaSourceDescriptor &source,
-                        quint64 generation,
-                        media::asr::StreamingRecognizerConfig *config,
-                        QString *error_message);
-    void CompleteAsrStartup(quint64 generation,
-                            const QString &source_name,
-                            const QString &model_dir,
-                            const QString &provider,
-                            int max_queued_chunks,
-                            qint64 elapsed_ms,
+    bool BuildAsrConfig(const domain::MediaSourceDescriptor &source, quint64 generation,
+                        media::asr::StreamingRecognizerConfig *config, QString *error_message);
+    void CompleteAsrStartup(quint64 generation, const QString &source_name, const QString &model_dir,
+                            const QString &provider, int max_queued_chunks, qint64 elapsed_ms,
                             std::shared_ptr<media::asr::StreamingRecognizerWorker> worker,
                             const QString &error_message);
-    void HandleAsrRecognitionResult(quint64 generation,
-                                    const QString &source_name,
+    void HandleAsrRecognitionResult(quint64 generation, const QString &source_name,
                                     const media::asr::StreamingRecognitionResult &result);
     bool FinishAsrSession(QString *error_message);
     void StopAsrSession();
@@ -97,19 +89,15 @@ class FfmpegPlayerBackend final : public PlayerBackend {
     void PruneFinishedAsrStartupThreadsLocked();
     void JoinAllAsrStartupThreads();
 #endif
-    void DrainVideoFrames(const domain::MediaSourceDescriptor &source,
-                          bool *emitted_playing,
-                          bool wait_for_due_frame,
+    void DrainVideoFrames(const domain::MediaSourceDescriptor &source, bool *emitted_playing, bool wait_for_due_frame,
                           qint64 *first_video_pts_usecs);
     void SleepBeforeRetry(int delay_ms);
     void StopWorker();
     void EmitSpeechSubtitleResult(QString text, bool is_final, qint64 latency_ms);
     void ClearSpeechSubtitle();
     void EmitSnapshot(domain::PlaybackState state, const QString &message, int retry_count = 0);
-    void EmitSnapshotForSource(const domain::MediaSourceDescriptor &source,
-                               domain::PlaybackState state,
-                               const QString &message,
-                               int retry_count = 0);
+    void EmitSnapshotForSource(const domain::MediaSourceDescriptor &source, domain::PlaybackState state,
+                               const QString &message, int retry_count = 0);
     void EmitControlSnapshot(const QString &message);
 
     domain::MediaSourceDescriptor current_source_;

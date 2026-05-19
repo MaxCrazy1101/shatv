@@ -1,8 +1,7 @@
 #pragma once
 
-#include <vector>
-
 #include <QAbstractListModel>
+#include <vector>
 
 #include "domain/channel.h"
 

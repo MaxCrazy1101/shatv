@@ -36,8 +36,7 @@ QStringList ChannelFilterModel::AvailableGroups() const {
     QSet<QString> seen_groups;
     const int total_rows = sourceModel()->rowCount();
     for (int row = 0; row < total_rows; ++row) {
-        const QString group =
-            sourceModel()->index(row, 0).data(ChannelListModel::kGroupRole).toString().trimmed();
+        const QString group = sourceModel()->index(row, 0).data(ChannelListModel::kGroupRole).toString().trimmed();
         if (group.isEmpty() || seen_groups.contains(group)) {
             continue;
         }
@@ -95,11 +94,8 @@ bool ChannelFilterModel::filterAcceptsRow(int source_row, const QModelIndex &sou
 
     // 分组过滤只影响左侧可见项，不改变底层频道数据。
     if (!group_filter_.isEmpty()) {
-        const QString group = sourceModel()
-                                  ->index(source_row, 0, source_parent)
-                                  .data(ChannelListModel::kGroupRole)
-                                  .toString()
-                                  .trimmed();
+        const QString group =
+            sourceModel()->index(source_row, 0, source_parent).data(ChannelListModel::kGroupRole).toString().trimmed();
         if (group != group_filter_) {
             return false;
         }
@@ -114,10 +110,8 @@ bool ChannelFilterModel::MatchesSearch(int source_row, const QModelIndex &source
         return true;
     }
 
-    const QString channel_name = sourceModel()
-                                     ->index(source_row, 0, source_parent)
-                                     .data(ChannelListModel::kNameRole)
-                                     .toString();
+    const QString channel_name =
+        sourceModel()->index(source_row, 0, source_parent).data(ChannelListModel::kNameRole).toString();
     return channel_name.contains(effective_search, Qt::CaseInsensitive);
 }
 

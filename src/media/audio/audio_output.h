@@ -1,12 +1,11 @@
 #pragma once
 
-#include <atomic>
-#include <memory>
-
 #include <QAudioFormat>
 #include <QObject>
 #include <QString>
 #include <QTimer>
+#include <atomic>
+#include <memory>
 
 #include "media/clock/playback_clock.h"
 
