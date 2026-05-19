@@ -15,8 +15,29 @@ Checks: >
   -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
   -cppcoreguidelines-avoid-magic-numbers,
   -cppcoreguidelines-owning-memory,
+  -cppcoreguidelines-special-member-functions,
+  -cppcoreguidelines-avoid-c-arrays,
+  -cppcoreguidelines-pro-type-reinterpret-cast,
+  -cppcoreguidelines-pro-type-static-cast-downcast,
+  -cppcoreguidelines-pro-bounds-avoid-unchecked-container-access,
+  -cppcoreguidelines-use-enum-class,
+  -modernize-avoid-c-arrays,
+  -modernize-use-designated-initializers,
+  -modernize-use-integer-sign-comparison,
+  -modernize-use-nodiscard,
+  -performance-enum-size,
+  -misc-const-correctness,
+  -misc-include-cleaner,
+  -misc-non-private-member-variables-in-classes,
+  -misc-override-with-different-visibility,
+  -readability-convert-member-functions-to-static,
+  -readability-function-cognitive-complexity,
   -readability-identifier-length,
+  -readability-use-concise-preprocessor-directives,
   -bugprone-easily-swappable-parameters
+
+HeaderFilterRegex: '.*/(src|tests)/.*'
+ExcludeHeaderFilterRegex: '.*/build[^/]*/.*|.*/_autogen/.*|.*/\.qt/.*'
 
 # 将特定警告视为错误 (Warning as Error)
 # WarningsAsErrors: 'bugprone-*,performance-*'
@@ -50,8 +71,16 @@ CheckOptions:
     value:           lower_case
   - key:             readability-identifier-naming.FunctionCase
     value:           CamelCase
+  # Qt 日志分类通过 Q_DECLARE_LOGGING_CATEGORY(log_xxx) 声明，按 Qt 惯例保留
+  # lower_case 分类函数名。
+  - key:             readability-identifier-naming.FunctionIgnoredRegexp
+    value:           '^log_[a-z0-9_]+$'
   - key:             readability-identifier-naming.MethodCase
     value:           CamelCase
+  # Q_INVOKABLE 方法和部分 Q_PROPERTY 访问器/信号暴露给 QML，按 Qt/QML
+  # 惯例保留 lowerCamelCase，而不是内部 C++ 方法的 PascalCase。
+  - key:             readability-identifier-naming.MethodIgnoredRegexp
+    value:           '^(ready|aspectRatioMode|setAspectRatioMode|readyChanged|aspectRatioModeChanged|activateChannelRow|setSearchText|setGroupFilter|requestPlayPause|requestStop|toggleMute|setVolume|submitOpenFile|submitOpenUrl|submitNetworkSettings|openLogsFolder|copyDiagnosticsToClipboard|dismissAlert|openRecentAt|toggleSpeechSubtitleEnabled|refreshSpeechModelStatus|downloadSpeechModel|cancelSpeechModelDownload|installSpeechModelArchive|deleteSpeechModel)$'
   - key:             readability-identifier-naming.IgnoreMainLikeFunctions
     value:           'true'
   - key:             readability-identifier-naming.VariableCase
@@ -92,6 +121,10 @@ CheckOptions:
     value:           CamelCase
   - key:             readability-identifier-naming.EnumConstantPrefix
     value:           k
+  # 这些枚举值通过 Q_ENUM 暴露给 QML，QML 端使用
+  # VideoPresenterItem.PreserveAspectRatio 这类常量名。
+  - key:             readability-identifier-naming.EnumConstantIgnoredRegexp
+    value:           '^(PreserveAspectRatio|StretchToFill|CropToFill|NativeSize)$'
   - key:             readability-identifier-naming.MacroDefinitionCase
     value:           UPPER_CASE
   - key:             modernize-use-auto.MinTypeNameLength

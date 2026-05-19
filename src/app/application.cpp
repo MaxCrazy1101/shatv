@@ -97,7 +97,7 @@ QString FormatBytes(qint64 bytes) {
         return QCoreApplication::translate("Application", "Unknown");
     }
 
-    constexpr double kUnit = 1024.0;
+    constexpr double unit = 1024.0;
     double value = static_cast<double>(bytes);
     QStringList units{
         QCoreApplication::translate("Application", "B"),
@@ -106,8 +106,8 @@ QString FormatBytes(qint64 bytes) {
         QCoreApplication::translate("Application", "GiB"),
     };
     int unit_index = 0;
-    while (value >= kUnit && unit_index < units.size() - 1) {
-        value /= kUnit;
+    while (value >= unit && unit_index < units.size() - 1) {
+        value /= unit;
         ++unit_index;
     }
 

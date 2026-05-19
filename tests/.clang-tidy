@@ -1,0 +1,14 @@
+---
+InheritParentConfig: true
+
+# Qt Test 的 QVERIFY/QCOMPARE 宏不会被 bugprone-unchecked-optional-access
+# 完整识别，已经先断言 has_value() 的测试仍会误报。
+Checks: >
+  -bugprone-unchecked-optional-access
+
+CheckOptions:
+  # Qt Test 私有槽使用描述性 snake_case，CTest 失败输出会更像行为说明。
+  - key:             readability-identifier-naming.MethodCase
+    value:           lower_case
+  - key:             readability-identifier-naming.MethodIgnoredRegexp
+    value:           '^(initTestCase|cleanupTestCase)$'
